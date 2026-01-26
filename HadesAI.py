@@ -40,14 +40,37 @@ from urllib.parse import urljoin
 from modules import personality_core_v2 as pcore
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# OpenAI GPT Integration
+# OpenAI GPT Integration (v1.0+ API)
 try:
-    import openai
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    from openai import OpenAI
     HAS_OPENAI = True
 except ImportError:
-    openai = None
+    OpenAI = None
     HAS_OPENAI = False
+
+# Mistral AI Integration
+try:
+    from mistralai import Mistral
+    HAS_MISTRAL = True
+except ImportError:
+    Mistral = None
+    HAS_MISTRAL = False
+
+# Ollama Integration (Local LLM - Free, no API key needed)
+try:
+    import ollama as ollama_lib
+    HAS_OLLAMA = True
+except ImportError:
+    ollama_lib = None
+    HAS_OLLAMA = False
+
+# Azure OpenAI Integration (Microsoft's hosted OpenAI)
+try:
+    from openai import AzureOpenAI
+    HAS_AZURE_OPENAI = True
+except ImportError:
+    AzureOpenAI = None
+    HAS_AZURE_OPENAI = False
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -2623,16 +2646,18 @@ class CodeEditorAssistant:
         except Exception as e:
             return f"❌ Explanation Error:\n{traceback.format_exc()}"
     
-    def gpt_analyze(self, code_snippet: str, instruction: str = "Analyze and improve this code") -> str:
+    def gpt_analyze(self, code_snippet: str, instruction: str = "Analyze and improve this code", api_key: str = None) -> str:
         """Use GPT to analyze or modify code"""
-        if not HAS_OPENAI or not openai:
+        if not HAS_OPENAI:
             return "[GPT] OpenAI module not available. Install with: pip install openai"
         
-        if not openai.api_key:
-            return "[GPT] No API key set. Set OPENAI_API_KEY environment variable."
+        key = api_key or os.getenv("OPENAI_API_KEY", "")
+        if not key:
+            return "[GPT] No API key set. Enter your API key in the Self-Improvement tab."
         
         try:
-            response = openai.ChatCompletion.create(
+            client = OpenAI(api_key=key)
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are an expert code assistant. Analyze code, find bugs, suggest improvements, and help with refactoring. Be concise and practical."},
@@ -2645,16 +2670,18 @@ class CodeEditorAssistant:
         except Exception as e:
             return f"[GPT ERROR] {e}"
     
-    def gpt_modify(self, code_snippet: str, instruction: str) -> str:
+    def gpt_modify(self, code_snippet: str, instruction: str, api_key: str = None) -> str:
         """Use GPT to modify code based on instruction"""
-        if not HAS_OPENAI or not openai:
+        if not HAS_OPENAI:
             return self.apply_instruction_local(instruction)
         
-        if not openai.api_key:
+        key = api_key or os.getenv("OPENAI_API_KEY", "")
+        if not key:
             return self.apply_instruction_local(instruction)
         
         try:
-            response = openai.ChatCompletion.create(
+            client = OpenAI(api_key=key)
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are a code modification assistant. Apply the user's instruction to modify the code. Return ONLY the modified code without explanations."},
@@ -2712,13 +2739,14 @@ class CodeEditorAssistant:
         else:
             return f"# Instruction not recognized locally. Install openai for GPT support.\n{self.current_code}"
     
-    def apply_instruction(self, instruction: str) -> str:
+    def apply_instruction(self, instruction: str, api_key: str = None) -> str:
         """Apply instruction - uses GPT if available, falls back to local"""
         if not self.current_code:
             return "⚠️ No code loaded. Use set_code() first."
         
-        if HAS_OPENAI and openai and openai.api_key:
-            return self.gpt_modify(self.current_code, instruction)
+        key = api_key or os.getenv("OPENAI_API_KEY", "")
+        if HAS_OPENAI and key:
+            return self.gpt_modify(self.current_code, instruction, api_key=key)
         else:
             return self.apply_instruction_local(instruction)
     
@@ -2914,13 +2942,18 @@ class HadesAI:
         except Exception as e:
             return f"❌ Assistant Error:\n{traceback.format_exc()}"
     
-    def gpt_chat(self, message: str) -> str:
+    def gpt_chat(self, message: str, api_key: str = None) -> str:
         """Direct GPT chat for code-related questions"""
-        if not HAS_OPENAI or not openai or not openai.api_key:
-            return "GPT not available. Set OPENAI_API_KEY environment variable."
+        if not HAS_OPENAI:
+            return "GPT not available. Install with: pip install openai"
+        
+        key = api_key or os.getenv("OPENAI_API_KEY", "")
+        if not key:
+            return "GPT not available. Enter your API key in the Self-Improvement tab."
         
         try:
-            response = openai.ChatCompletion.create(
+            client = OpenAI(api_key=key)
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are HADES, an expert security and coding assistant. Help with pentesting, code analysis, and security questions."},
@@ -3805,6 +3838,7 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_cache_tab(), "📂 Cache Scanner")
         self.tabs.addTab(self._create_code_tab(), "💻 Code Analysis")
         self.tabs.addTab(self._create_code_helper_tab(), "💻 Code Helper")
+        self.tabs.addTab(self._create_self_improvement_tab(), "🔧 Self-Improvement")
         self.tabs.addTab(self._create_autorecon_tab(), "🧠 AutoRecon")
         self.tabs.addTab(self._create_modules_tab(), "🧩 Modules")
         
@@ -5040,6 +5074,1176 @@ please consider supporting its development.</p>
         
         return widget
     
+    def _create_self_improvement_tab(self) -> QWidget:
+        """Self-Improvement tab - Upload code and AI will fix/amend/verify it"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Info banner
+        info_label = QLabel("🔧 HADES Self-Improvement Engine - Upload code for AI analysis, fixes, and verification")
+        info_label.setStyleSheet("background: #e94560; padding: 10px; border-radius: 5px; font-size: 12px; font-weight: bold;")
+        layout.addWidget(info_label)
+        
+        # AI Provider Selection
+        provider_group = QGroupBox("🤖 AI Provider Configuration")
+        provider_layout = QVBoxLayout(provider_group)
+        
+        # Provider selector row
+        selector_layout = QHBoxLayout()
+        selector_layout.addWidget(QLabel("Provider:"))
+        self.si_provider_combo = QComboBox()
+        self.si_provider_combo.addItems(["OpenAI (GPT)", "Mistral AI", "Ollama (Local - FREE)", "Azure OpenAI (Microsoft)"])
+        self.si_provider_combo.currentIndexChanged.connect(self._si_on_provider_changed)
+        selector_layout.addWidget(self.si_provider_combo)
+        
+        # Provider status labels
+        openai_status = "✅" if HAS_OPENAI else "❌"
+        mistral_status = "✅" if HAS_MISTRAL else "❌"
+        ollama_status = "✅" if HAS_OLLAMA else "❌"
+        azure_status = "✅" if HAS_AZURE_OPENAI else "❌"
+        self.si_provider_status = QLabel(f"OpenAI:{openai_status} Mistral:{mistral_status} Ollama:{ollama_status} Azure:{azure_status}")
+        self.si_provider_status.setStyleSheet("color: #888; font-size: 10px;")
+        selector_layout.addWidget(self.si_provider_status)
+        selector_layout.addStretch()
+        provider_layout.addLayout(selector_layout)
+        
+        # Ollama model selector (only shown when Ollama is selected)
+        ollama_layout = QHBoxLayout()
+        ollama_layout.addWidget(QLabel("Ollama Model:"))
+        self.si_ollama_model = QComboBox()
+        self.si_ollama_model.addItems(["codellama", "llama3.2", "mistral", "deepseek-coder", "qwen2.5-coder", "phi3"])
+        self.si_ollama_model.setEditable(True)  # Allow custom model names
+        ollama_layout.addWidget(self.si_ollama_model)
+        
+        refresh_models_btn = QPushButton("🔄 Refresh")
+        refresh_models_btn.clicked.connect(self._si_refresh_ollama_models)
+        refresh_models_btn.setStyleSheet("background: #0f3460;")
+        ollama_layout.addWidget(refresh_models_btn)
+        
+        self.si_ollama_info = QLabel("💡 Ollama is FREE - no API key needed!")
+        self.si_ollama_info.setStyleSheet("color: #4CAF50; font-size: 10px;")
+        ollama_layout.addWidget(self.si_ollama_info)
+        ollama_layout.addStretch()
+        
+        self.si_ollama_layout_widget = QWidget()
+        self.si_ollama_layout_widget.setLayout(ollama_layout)
+        self.si_ollama_layout_widget.hide()  # Hidden by default
+        provider_layout.addWidget(self.si_ollama_layout_widget)
+        
+        # Azure OpenAI configuration (only shown when Azure is selected)
+        azure_layout = QVBoxLayout()
+        
+        azure_row1 = QHBoxLayout()
+        azure_row1.addWidget(QLabel("Azure Endpoint:"))
+        self.si_azure_endpoint = QLineEdit()
+        self.si_azure_endpoint.setPlaceholderText("https://your-resource.openai.azure.com/")
+        azure_row1.addWidget(self.si_azure_endpoint)
+        azure_layout.addLayout(azure_row1)
+        
+        azure_row2 = QHBoxLayout()
+        azure_row2.addWidget(QLabel("Deployment Name:"))
+        self.si_azure_deployment = QLineEdit()
+        self.si_azure_deployment.setPlaceholderText("your-deployment-name (e.g., gpt-35-turbo)")
+        azure_row2.addWidget(self.si_azure_deployment)
+        
+        azure_row2.addWidget(QLabel("API Version:"))
+        self.si_azure_api_version = QComboBox()
+        self.si_azure_api_version.addItems(["2024-02-15-preview", "2023-12-01-preview", "2023-05-15"])
+        self.si_azure_api_version.setEditable(True)
+        azure_row2.addWidget(self.si_azure_api_version)
+        azure_layout.addLayout(azure_row2)
+        
+        self.si_azure_info = QLabel("💡 Get these from Azure Portal > Your OpenAI Resource > Keys and Endpoint")
+        self.si_azure_info.setStyleSheet("color: #888; font-size: 10px;")
+        azure_layout.addWidget(self.si_azure_info)
+        
+        self.si_azure_layout_widget = QWidget()
+        self.si_azure_layout_widget.setLayout(azure_layout)
+        self.si_azure_layout_widget.hide()  # Hidden by default
+        provider_layout.addWidget(self.si_azure_layout_widget)
+        
+        # API Key input row
+        key_layout = QHBoxLayout()
+        key_layout.addWidget(QLabel("API Key:"))
+        self.si_api_key_input = QLineEdit()
+        self.si_api_key_input.setPlaceholderText("Enter your API key...")
+        self.si_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        key_layout.addWidget(self.si_api_key_input)
+        
+        show_key_btn = QPushButton("👁")
+        show_key_btn.setMaximumWidth(30)
+        show_key_btn.clicked.connect(self._si_toggle_key_visibility)
+        show_key_btn.setStyleSheet("background: #0f3460;")
+        key_layout.addWidget(show_key_btn)
+        
+        save_key_btn = QPushButton("💾 Save")
+        save_key_btn.clicked.connect(self._si_save_api_key)
+        save_key_btn.setStyleSheet("background: #4CAF50;")
+        key_layout.addWidget(save_key_btn)
+        
+        test_key_btn = QPushButton("🔌 Test")
+        test_key_btn.clicked.connect(self._si_test_api_key)
+        test_key_btn.setStyleSheet("background: #0f3460;")
+        key_layout.addWidget(test_key_btn)
+        
+        provider_layout.addLayout(key_layout)
+        layout.addWidget(provider_group)
+        
+        # Load saved keys and provider
+        self._si_load_saved_config()
+        
+        # AI Status
+        self.si_gpt_status_label = QLabel()
+        self._si_update_gpt_status()
+        layout.addWidget(self.si_gpt_status_label)
+        
+        # Main splitter
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left side - Code input
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        
+        # File operations
+        file_group = QGroupBox("📂 Load HADES Source Files")
+        file_layout = QVBoxLayout(file_group)
+        
+        # Quick load buttons for HADES files
+        hades_files_layout = QHBoxLayout()
+        
+        load_main_btn = QPushButton("📄 Load HadesAI.py")
+        load_main_btn.clicked.connect(lambda: self._si_load_hades_file("HadesAI.py"))
+        load_main_btn.setStyleSheet("background: #0f3460;")
+        hades_files_layout.addWidget(load_main_btn)
+        
+        load_personality_btn = QPushButton("🧠 Load personality_core_v2.py")
+        load_personality_btn.clicked.connect(lambda: self._si_load_hades_file("modules/personality_core_v2.py"))
+        load_personality_btn.setStyleSheet("background: #0f3460;")
+        hades_files_layout.addWidget(load_personality_btn)
+        
+        file_layout.addLayout(hades_files_layout)
+        
+        # Custom file path
+        custom_file_layout = QHBoxLayout()
+        self.si_file_path = QLineEdit()
+        self.si_file_path.setPlaceholderText("Or enter custom file path...")
+        custom_file_layout.addWidget(self.si_file_path)
+        
+        browse_btn = QPushButton("📁 Browse")
+        browse_btn.clicked.connect(self._si_browse_file)
+        browse_btn.setStyleSheet("background: #0f3460;")
+        custom_file_layout.addWidget(browse_btn)
+        
+        load_custom_btn = QPushButton("📥 Load")
+        load_custom_btn.clicked.connect(self._si_load_custom_file)
+        load_custom_btn.setStyleSheet("background: #0f3460;")
+        custom_file_layout.addWidget(load_custom_btn)
+        
+        file_layout.addLayout(custom_file_layout)
+        left_layout.addWidget(file_group)
+        
+        # Code editor
+        code_group = QGroupBox("💻 Code to Analyze/Fix")
+        code_layout = QVBoxLayout(code_group)
+        
+        self.si_code_editor = QPlainTextEdit()
+        self.si_code_editor.setPlaceholderText("Paste code here or load a HADES source file...\n\nThe AI will analyze this code and suggest fixes, improvements, or verify correctness.")
+        self.si_code_editor.setFont(QFont("Consolas", 10))
+        self.si_code_editor.setMinimumHeight(300)
+        PythonHighlighter(self.si_code_editor.document())
+        code_layout.addWidget(self.si_code_editor)
+        
+        # Line count label
+        self.si_line_count = QLabel("Lines: 0")
+        self.si_line_count.setStyleSheet("color: #888;")
+        self.si_code_editor.textChanged.connect(self._si_update_line_count)
+        code_layout.addWidget(self.si_line_count)
+        
+        left_layout.addWidget(code_group)
+        main_splitter.addWidget(left_widget)
+        
+        # Right side - Analysis and fixes
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        
+        # Action buttons
+        action_group = QGroupBox("🚀 AI Actions")
+        action_layout = QVBoxLayout(action_group)
+        
+        # Primary actions row
+        primary_actions = QHBoxLayout()
+        
+        analyze_btn = QPushButton("🔍 Analyze & Find Issues")
+        analyze_btn.clicked.connect(self._si_analyze_code)
+        analyze_btn.setStyleSheet("background: #e94560; font-size: 12px;")
+        primary_actions.addWidget(analyze_btn)
+        
+        fix_btn = QPushButton("🔧 Auto-Fix Issues")
+        fix_btn.clicked.connect(self._si_auto_fix)
+        fix_btn.setStyleSheet("background: #4CAF50; font-size: 12px;")
+        primary_actions.addWidget(fix_btn)
+        
+        verify_btn = QPushButton("✅ Verify Code")
+        verify_btn.clicked.connect(self._si_verify_code)
+        verify_btn.setStyleSheet("background: #0f3460; font-size: 12px;")
+        primary_actions.addWidget(verify_btn)
+        
+        action_layout.addLayout(primary_actions)
+        
+        # Secondary actions row
+        secondary_actions = QHBoxLayout()
+        
+        optimize_btn = QPushButton("⚡ Optimize")
+        optimize_btn.clicked.connect(lambda: self._si_apply_action("optimize for performance and efficiency"))
+        optimize_btn.setStyleSheet("background: #0f3460;")
+        secondary_actions.addWidget(optimize_btn)
+        
+        security_btn = QPushButton("🔒 Security Audit")
+        security_btn.clicked.connect(lambda: self._si_apply_action("perform security audit and fix vulnerabilities"))
+        security_btn.setStyleSheet("background: #0f3460;")
+        secondary_actions.addWidget(security_btn)
+        
+        refactor_btn = QPushButton("♻️ Refactor")
+        refactor_btn.clicked.connect(lambda: self._si_apply_action("refactor for better code quality and readability"))
+        refactor_btn.setStyleSheet("background: #0f3460;")
+        secondary_actions.addWidget(refactor_btn)
+        
+        add_tests_btn = QPushButton("🧪 Add Tests")
+        add_tests_btn.clicked.connect(lambda: self._si_apply_action("add unit tests for this code"))
+        add_tests_btn.setStyleSheet("background: #0f3460;")
+        secondary_actions.addWidget(add_tests_btn)
+        
+        action_layout.addLayout(secondary_actions)
+        
+        # Custom instruction
+        custom_layout = QHBoxLayout()
+        self.si_custom_instruction = QLineEdit()
+        self.si_custom_instruction.setPlaceholderText("Enter custom instruction (e.g., 'add logging', 'fix the bug in function X', 'improve error handling')...")
+        self.si_custom_instruction.returnPressed.connect(self._si_apply_custom_instruction)
+        custom_layout.addWidget(self.si_custom_instruction)
+        
+        apply_custom_btn = QPushButton("▶ Apply")
+        apply_custom_btn.clicked.connect(self._si_apply_custom_instruction)
+        custom_layout.addWidget(apply_custom_btn)
+        
+        action_layout.addLayout(custom_layout)
+        right_layout.addWidget(action_group)
+        
+        # Results/Fixed code
+        result_group = QGroupBox("📋 AI Analysis & Fixed Code")
+        result_layout = QVBoxLayout(result_group)
+        
+        self.si_result_display = QPlainTextEdit()
+        self.si_result_display.setReadOnly(True)
+        self.si_result_display.setFont(QFont("Consolas", 10))
+        self.si_result_display.setMinimumHeight(250)
+        PythonHighlighter(self.si_result_display.document())
+        result_layout.addWidget(self.si_result_display)
+        
+        # Result actions
+        result_actions = QHBoxLayout()
+        
+        apply_fix_btn = QPushButton("📝 Apply Fix to Editor")
+        apply_fix_btn.clicked.connect(self._si_apply_to_editor)
+        apply_fix_btn.setStyleSheet("background: #4CAF50;")
+        result_actions.addWidget(apply_fix_btn)
+        
+        save_btn = QPushButton("💾 Save to File")
+        save_btn.clicked.connect(self._si_save_fixed_code)
+        save_btn.setStyleSheet("background: #0f3460;")
+        result_actions.addWidget(save_btn)
+        
+        diff_btn = QPushButton("📊 Show Diff")
+        diff_btn.clicked.connect(self._si_show_diff)
+        diff_btn.setStyleSheet("background: #0f3460;")
+        result_actions.addWidget(diff_btn)
+        
+        result_layout.addLayout(result_actions)
+        right_layout.addWidget(result_group)
+        
+        main_splitter.addWidget(right_widget)
+        main_splitter.setSizes([500, 500])
+        
+        layout.addWidget(main_splitter)
+        
+        return widget
+    
+    def _si_update_line_count(self):
+        """Update line count display"""
+        lines = self.si_code_editor.toPlainText().count('\n') + 1
+        self.si_line_count.setText(f"Lines: {lines}")
+    
+    def _si_get_current_provider(self) -> str:
+        """Get the currently selected AI provider"""
+        if hasattr(self, 'si_provider_combo'):
+            idx = self.si_provider_combo.currentIndex()
+            if idx == 3:
+                return "azure"
+            elif idx == 2:
+                return "ollama"
+            elif idx == 1:
+                return "mistral"
+        return "openai"
+    
+    def _si_on_provider_changed(self, index: int):
+        """Handle provider selection change"""
+        # Show/hide Ollama options
+        if hasattr(self, 'si_ollama_layout_widget'):
+            self.si_ollama_layout_widget.setVisible(index == 2)
+        
+        # Show/hide Azure options
+        if hasattr(self, 'si_azure_layout_widget'):
+            self.si_azure_layout_widget.setVisible(index == 3)
+        
+        # Show/hide API key input (Ollama doesn't need it)
+        if hasattr(self, 'si_api_key_input'):
+            needs_key = index != 2  # Ollama doesn't need API key
+            self.si_api_key_input.setEnabled(needs_key)
+            if index == 2:
+                self.si_api_key_input.setPlaceholderText("Not needed for Ollama (runs locally)")
+            elif index == 3:
+                self.si_api_key_input.setPlaceholderText("Enter your Azure OpenAI API key...")
+            else:
+                self.si_api_key_input.setPlaceholderText("Enter your API key...")
+        
+        # Load the API key for the selected provider (without changing the provider selection)
+        self._si_load_key_for_provider(index)
+        self._si_update_gpt_status()
+    
+    def _si_load_key_for_provider(self, provider_index: int):
+        """Load the saved API key for a specific provider"""
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), ".hades_config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    
+                    if provider_index == 3:  # Azure
+                        key = config.get("azure_api_key", "")
+                        self.si_api_key_input.setText(key)
+                        # Load Azure-specific settings
+                        if hasattr(self, 'si_azure_endpoint'):
+                            self.si_azure_endpoint.setText(config.get("azure_endpoint", ""))
+                        if hasattr(self, 'si_azure_deployment'):
+                            self.si_azure_deployment.setText(config.get("azure_deployment", ""))
+                        if hasattr(self, 'si_azure_api_version'):
+                            version = config.get("azure_api_version", "2024-02-15-preview")
+                            idx = self.si_azure_api_version.findText(version)
+                            if idx >= 0:
+                                self.si_azure_api_version.setCurrentIndex(idx)
+                            else:
+                                self.si_azure_api_version.setCurrentText(version)
+                    elif provider_index == 2:  # Ollama
+                        self.si_api_key_input.clear()
+                    elif provider_index == 1:  # Mistral
+                        key = config.get("mistral_api_key", "")
+                        self.si_api_key_input.setText(key)
+                    else:  # OpenAI
+                        key = config.get("openai_api_key", "")
+                        self.si_api_key_input.setText(key)
+        except:
+            pass
+    
+    def _si_refresh_ollama_models(self):
+        """Refresh list of available Ollama models"""
+        if not HAS_OLLAMA:
+            self.si_result_display.setPlainText("❌ Ollama not installed. Run: pip install ollama\n\nThen install Ollama from https://ollama.ai")
+            return
+        
+        try:
+            response = ollama_lib.list()
+            model_names = []
+            
+            # Handle different response formats
+            if isinstance(response, dict):
+                models = response.get('models', [])
+                for m in models:
+                    if isinstance(m, dict):
+                        # Try different possible keys
+                        name = m.get('name') or m.get('model') or str(m)
+                        model_names.append(name.split(':')[0] if ':' in name else name)
+                    else:
+                        model_names.append(str(m))
+            elif hasattr(response, 'models'):
+                for m in response.models:
+                    name = getattr(m, 'name', None) or getattr(m, 'model', str(m))
+                    model_names.append(name.split(':')[0] if ':' in str(name) else str(name))
+            
+            # Remove duplicates
+            model_names = list(dict.fromkeys(model_names))
+            
+            if model_names:
+                self.si_ollama_model.clear()
+                self.si_ollama_model.addItems(model_names)
+                self.si_result_display.setPlainText(f"✅ Found {len(model_names)} Ollama models:\n\n" + "\n".join(model_names))
+            else:
+                self.si_result_display.setPlainText("⚠️ No models found. Install a model with:\n\nollama pull codellama\nollama pull llama3.2\nollama pull deepseek-coder")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Error connecting to Ollama: {str(e)}\n\nMake sure:\n1. Ollama app is installed from https://ollama.ai\n2. Ollama is running (check system tray or run 'ollama serve')")
+    
+    def _si_toggle_key_visibility(self):
+        """Toggle API key visibility"""
+        if self.si_api_key_input.echoMode() == QLineEdit.EchoMode.Password:
+            self.si_api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.si_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+    
+    def _si_get_api_key(self) -> str:
+        """Get the current API key from input or environment"""
+        key = self.si_api_key_input.text().strip()
+        if not key:
+            provider = self._si_get_current_provider()
+            if provider == "mistral":
+                key = os.getenv("MISTRAL_API_KEY", "")
+            else:
+                key = os.getenv("OPENAI_API_KEY", "")
+        return key
+    
+    def _si_load_saved_config(self):
+        """Load saved configuration including API keys and provider (called at startup)"""
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), ".hades_config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    
+                    # Load saved provider preference first
+                    saved_provider = config.get("ai_provider", "openai")
+                    if hasattr(self, 'si_provider_combo'):
+                        # Temporarily disconnect to avoid triggering on_changed
+                        self.si_provider_combo.blockSignals(True)
+                        if saved_provider == "azure":
+                            self.si_provider_combo.setCurrentIndex(3)
+                        elif saved_provider == "ollama":
+                            self.si_provider_combo.setCurrentIndex(2)
+                        elif saved_provider == "mistral":
+                            self.si_provider_combo.setCurrentIndex(1)
+                        else:
+                            self.si_provider_combo.setCurrentIndex(0)
+                        self.si_provider_combo.blockSignals(False)
+                        
+                        # Update UI for the loaded provider
+                        idx = self.si_provider_combo.currentIndex()
+                        if hasattr(self, 'si_ollama_layout_widget'):
+                            self.si_ollama_layout_widget.setVisible(idx == 2)
+                        if hasattr(self, 'si_azure_layout_widget'):
+                            self.si_azure_layout_widget.setVisible(idx == 3)
+                        if hasattr(self, 'si_api_key_input'):
+                            self.si_api_key_input.setEnabled(idx != 2)
+                            if idx == 2:
+                                self.si_api_key_input.setPlaceholderText("Not needed for Ollama (runs locally)")
+                            elif idx == 3:
+                                self.si_api_key_input.setPlaceholderText("Enter your Azure OpenAI API key...")
+                            else:
+                                self.si_api_key_input.setPlaceholderText("Enter your API key...")
+                    
+                    # Load the appropriate key based on saved provider
+                    if saved_provider == "azure":
+                        key = config.get("azure_api_key", "")
+                        self.si_api_key_input.setText(key)
+                        # Load Azure-specific settings
+                        if hasattr(self, 'si_azure_endpoint'):
+                            self.si_azure_endpoint.setText(config.get("azure_endpoint", ""))
+                        if hasattr(self, 'si_azure_deployment'):
+                            self.si_azure_deployment.setText(config.get("azure_deployment", ""))
+                        if hasattr(self, 'si_azure_api_version'):
+                            version = config.get("azure_api_version", "2024-02-15-preview")
+                            self.si_azure_api_version.setCurrentText(version)
+                    elif saved_provider == "ollama":
+                        self.si_api_key_input.clear()
+                    elif saved_provider == "mistral":
+                        key = config.get("mistral_api_key", "")
+                        self.si_api_key_input.setText(key)
+                    else:
+                        key = config.get("openai_api_key", "")
+                        self.si_api_key_input.setText(key)
+        except:
+            pass
+    
+    def _si_save_api_key(self):
+        """Save API key to local config file"""
+        provider = self._si_get_current_provider()
+        key = self.si_api_key_input.text().strip()
+        
+        # Ollama doesn't need an API key
+        if provider == "ollama":
+            self._si_save_provider_preference()
+            return
+        
+        if not key:
+            self.si_result_display.setPlainText("⚠️ Enter an API key first.")
+            return
+        
+        # Azure needs additional validation
+        if provider == "azure":
+            endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
+            deployment = self.si_azure_deployment.text().strip() if hasattr(self, 'si_azure_deployment') else ""
+            if not endpoint or not deployment:
+                self.si_result_display.setPlainText("⚠️ Azure requires Endpoint URL and Deployment Name.")
+                return
+        
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), ".hades_config.json")
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+            
+            # Save key for the current provider
+            if provider == "azure":
+                config["azure_api_key"] = key
+                config["azure_endpoint"] = self.si_azure_endpoint.text().strip()
+                config["azure_deployment"] = self.si_azure_deployment.text().strip()
+                config["azure_api_version"] = self.si_azure_api_version.currentText()
+            elif provider == "mistral":
+                config["mistral_api_key"] = key
+            else:
+                config["openai_api_key"] = key
+            
+            config["ai_provider"] = provider
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f)
+            
+            self._si_update_gpt_status()
+            provider_names = {"mistral": "Mistral AI", "azure": "Azure OpenAI", "openai": "OpenAI"}
+            provider_name = provider_names.get(provider, "OpenAI")
+            self.si_result_display.setPlainText(f"✅ {provider_name} configuration saved successfully! You can now use all AI features.")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Error saving API key: {str(e)}")
+    
+    def _si_save_provider_preference(self):
+        """Save just the provider preference (for Ollama which doesn't need a key)"""
+        provider = self._si_get_current_provider()
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), ".hades_config.json")
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+            
+            config["ai_provider"] = provider
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f)
+            
+            self._si_update_gpt_status()
+            self.si_result_display.setPlainText(f"✅ Ollama selected as provider. No API key needed!\n\nClick 🔌 Test to verify connection.")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Error saving preference: {str(e)}")
+    
+    def _si_test_api_key(self):
+        """Test if the API key / connection works"""
+        provider = self._si_get_current_provider()
+        
+        # Ollama doesn't need API key
+        if provider == "ollama":
+            self._si_test_ollama()
+            return
+        
+        key = self._si_get_api_key()
+        if not key:
+            self.si_result_display.setPlainText("⚠️ Enter an API key first.")
+            return
+        
+        self.si_result_display.setPlainText(f"🔄 Testing {provider.upper()} API connection...")
+        QApplication.processEvents()
+        
+        try:
+            if provider == "azure":
+                if not HAS_AZURE_OPENAI:
+                    self.si_result_display.setPlainText("❌ Azure OpenAI not available. Run: pip install openai")
+                    return
+                
+                endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
+                deployment = self.si_azure_deployment.text().strip() if hasattr(self, 'si_azure_deployment') else ""
+                api_version = self.si_azure_api_version.currentText() if hasattr(self, 'si_azure_api_version') else "2024-02-15-preview"
+                
+                if not endpoint or not deployment:
+                    self.si_result_display.setPlainText("⚠️ Enter Azure Endpoint and Deployment Name first.")
+                    return
+                
+                client = AzureOpenAI(
+                    api_key=key,
+                    api_version=api_version,
+                    azure_endpoint=endpoint
+                )
+                response = client.chat.completions.create(
+                    model=deployment,
+                    messages=[{"role": "user", "content": "Say 'HADES AI connection successful' in exactly those words."}],
+                    max_tokens=20,
+                    temperature=0
+                )
+                result = response.choices[0].message.content
+                self._si_update_gpt_status()
+                self.si_result_display.setPlainText(f"✅ Azure OpenAI Connection Successful!\n\nDeployment: {deployment}\nResponse: {result}\n\nYou can now use all AI features.")
+                return
+            
+            elif provider == "mistral":
+                if not HAS_MISTRAL:
+                    self.si_result_display.setPlainText("❌ Mistral library not installed. Run: pip install mistralai")
+                    return
+                
+                client = Mistral(api_key=key)
+                response = client.chat.complete(
+                    model="mistral-small-latest",
+                    messages=[{"role": "user", "content": "Say 'HADES AI connection successful' in exactly those words."}]
+                )
+                result = response.choices[0].message.content
+            else:
+                if not HAS_OPENAI:
+                    self.si_result_display.setPlainText("❌ OpenAI library not installed. Run: pip install openai")
+                    return
+                
+                client = OpenAI(api_key=key)
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": "Say 'HADES AI connection successful' in exactly those words."}],
+                    max_tokens=20,
+                    temperature=0
+                )
+                result = response.choices[0].message.content
+            
+            self._si_update_gpt_status()
+            provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+            self.si_result_display.setPlainText(f"✅ {provider_name} Connection Successful!\n\nResponse: {result}\n\nYou can now use all AI features.")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ API Test Failed: {str(e)}\n\nPlease check your API key.")
+    
+    def _si_test_ollama(self):
+        """Test Ollama connection"""
+        if not HAS_OLLAMA:
+            self.si_result_display.setPlainText("❌ Ollama library not installed.\n\n1. Install Python library: pip install ollama\n2. Install Ollama app from: https://ollama.ai\n3. Run: ollama serve\n4. Pull a model: ollama pull codellama")
+            return
+        
+        model = self.si_ollama_model.currentText() or "llama3.2"
+        self.si_result_display.setPlainText(f"🔄 Testing Ollama connection with model '{model}'...")
+        QApplication.processEvents()
+        
+        try:
+            # First check if Ollama is running by listing models
+            try:
+                ollama_lib.list()
+            except Exception as conn_err:
+                self.si_result_display.setPlainText(f"❌ Cannot connect to Ollama.\n\nMake sure:\n1. Ollama app is installed from https://ollama.ai\n2. Ollama is running (check system tray or run 'ollama serve')\n\nError: {str(conn_err)}")
+                return
+            
+            response = ollama_lib.chat(
+                model=model,
+                messages=[{"role": "user", "content": "Say 'HADES AI connection successful' in exactly those words."}]
+            )
+            
+            # Handle different response formats
+            if isinstance(response, dict):
+                result = response.get('message', {}).get('content', str(response))
+            else:
+                result = getattr(getattr(response, 'message', response), 'content', str(response))
+            
+            self._si_update_gpt_status()
+            self.si_result_display.setPlainText(f"✅ Ollama Connection Successful!\n\nModel: {model}\nResponse: {result}\n\nYou can now use all AI features for FREE!")
+        except Exception as e:
+            error_msg = str(e)
+            if "not found" in error_msg.lower() or "pull" in error_msg.lower():
+                self.si_result_display.setPlainText(f"❌ Model '{model}' not found.\n\nInstall it with:\n  ollama pull {model}\n\nPopular models:\n  ollama pull llama3.2\n  ollama pull codellama\n  ollama pull mistral\n  ollama pull deepseek-coder:6.7b")
+            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
+                self.si_result_display.setPlainText(f"❌ Cannot connect to Ollama.\n\nMake sure Ollama is running:\n1. Check system tray for Ollama icon\n2. Or run: ollama serve\n\nError: {error_msg}")
+            else:
+                self.si_result_display.setPlainText(f"❌ Ollama Test Failed: {error_msg}\n\nMake sure:\n1. Ollama is installed (https://ollama.ai)\n2. Ollama is running\n3. A model is installed (ollama pull llama3.2)")
+    
+    def _si_update_gpt_status(self):
+        """Update the AI status label"""
+        key = self._si_get_api_key()
+        provider = self._si_get_current_provider()
+        
+        if provider == "azure":
+            endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
+            deployment = self.si_azure_deployment.text().strip() if hasattr(self, 'si_azure_deployment') else ""
+            if HAS_AZURE_OPENAI and key and endpoint and deployment:
+                self.si_gpt_status_label.setText(f"✅ Azure OpenAI Available - Deployment: {deployment}")
+                self.si_gpt_status_label.setStyleSheet("color: #4CAF50; padding: 5px;")
+            else:
+                if not HAS_AZURE_OPENAI:
+                    self.si_gpt_status_label.setText("⚠️ Azure OpenAI not available - Run: pip install openai")
+                else:
+                    self.si_gpt_status_label.setText("⚠️ Enter Azure API key, Endpoint, and Deployment Name")
+                self.si_gpt_status_label.setStyleSheet("color: #ff6b6b; padding: 5px;")
+        elif provider == "ollama":
+            if HAS_OLLAMA:
+                model = self.si_ollama_model.currentText() if hasattr(self, 'si_ollama_model') else "llama3.2"
+                self.si_gpt_status_label.setText(f"✅ Ollama Available (FREE) - Model: {model}")
+                self.si_gpt_status_label.setStyleSheet("color: #4CAF50; padding: 5px;")
+            else:
+                self.si_gpt_status_label.setText("⚠️ Ollama not installed - Run: pip install ollama")
+                self.si_gpt_status_label.setStyleSheet("color: #ff6b6b; padding: 5px;")
+        elif provider == "mistral":
+            if HAS_MISTRAL and key:
+                self.si_gpt_status_label.setText("✅ Mistral AI Available - Full AI capabilities enabled")
+                self.si_gpt_status_label.setStyleSheet("color: #4CAF50; padding: 5px;")
+            else:
+                if not HAS_MISTRAL:
+                    self.si_gpt_status_label.setText("⚠️ Mistral not installed - Run: pip install mistralai")
+                else:
+                    self.si_gpt_status_label.setText("⚠️ Enter your Mistral API key above to enable AI features")
+                self.si_gpt_status_label.setStyleSheet("color: #ff6b6b; padding: 5px;")
+        else:
+            if HAS_OPENAI and key:
+                self.si_gpt_status_label.setText("✅ OpenAI GPT Available - Full AI capabilities enabled")
+                self.si_gpt_status_label.setStyleSheet("color: #4CAF50; padding: 5px;")
+            else:
+                if not HAS_OPENAI:
+                    self.si_gpt_status_label.setText("⚠️ OpenAI not installed - Run: pip install openai")
+                else:
+                    self.si_gpt_status_label.setText("⚠️ Enter your OpenAI API key above to enable AI features")
+                self.si_gpt_status_label.setStyleSheet("color: #ff6b6b; padding: 5px;")
+    
+    def _si_has_ai(self) -> bool:
+        """Check if any AI provider is available with a valid key"""
+        provider = self._si_get_current_provider()
+        key = self._si_get_api_key()
+        if provider == "azure":
+            endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
+            deployment = self.si_azure_deployment.text().strip() if hasattr(self, 'si_azure_deployment') else ""
+            return HAS_AZURE_OPENAI and bool(key) and bool(endpoint) and bool(deployment)
+        elif provider == "ollama":
+            return HAS_OLLAMA  # Ollama doesn't need API key
+        elif provider == "mistral":
+            return HAS_MISTRAL and bool(key)
+        return HAS_OPENAI and bool(key)
+    
+    def _si_has_gpt(self) -> bool:
+        """Check if AI is available (legacy name for compatibility)"""
+        return self._si_has_ai()
+    
+    def _si_get_ai_client(self):
+        """Get an AI client instance for the current provider"""
+        provider = self._si_get_current_provider()
+        key = self._si_get_api_key()
+        
+        if not key:
+            return None
+        
+        if provider == "mistral":
+            if not HAS_MISTRAL:
+                return None
+            return Mistral(api_key=key)
+        else:
+            if not HAS_OPENAI:
+                return None
+            return OpenAI(api_key=key)
+    
+    def _si_get_openai_client(self):
+        """Get an OpenAI client instance (legacy, for compatibility)"""
+        return self._si_get_ai_client()
+    
+    def _si_call_ai(self, system_prompt: str, user_prompt: str, max_tokens: int = 2000, temperature: float = 0.3) -> str:
+        """Call the current AI provider with the given prompts"""
+        provider = self._si_get_current_provider()
+        key = self._si_get_api_key()
+        
+        try:
+            if provider == "ollama":
+                if not HAS_OLLAMA:
+                    return "❌ Ollama library not installed. Run: pip install ollama\n\nThen install Ollama from https://ollama.ai"
+                
+                model = self.si_ollama_model.currentText() if hasattr(self, 'si_ollama_model') else "llama3.2"
+                response = ollama_lib.chat(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ]
+                )
+                
+                # Handle different response formats
+                if isinstance(response, dict):
+                    return response.get('message', {}).get('content', str(response))
+                else:
+                    return getattr(getattr(response, 'message', response), 'content', str(response))
+            elif provider == "azure":
+                if not HAS_AZURE_OPENAI:
+                    return "❌ Azure OpenAI not available. Run: pip install openai"
+                if not key:
+                    return "⚠️ No API key configured. Enter your Azure API key above."
+                
+                endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
+                deployment = self.si_azure_deployment.text().strip() if hasattr(self, 'si_azure_deployment') else ""
+                api_version = self.si_azure_api_version.currentText() if hasattr(self, 'si_azure_api_version') else "2024-02-15-preview"
+                
+                if not endpoint or not deployment:
+                    return "⚠️ Azure requires Endpoint URL and Deployment Name."
+                
+                client = AzureOpenAI(
+                    api_key=key,
+                    api_version=api_version,
+                    azure_endpoint=endpoint
+                )
+                response = client.chat.completions.create(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                return response.choices[0].message.content
+            elif provider == "mistral":
+                if not HAS_MISTRAL:
+                    return "❌ Mistral library not installed. Run: pip install mistralai"
+                if not key:
+                    return "⚠️ No API key configured. Enter your Mistral API key above."
+                
+                client = Mistral(api_key=key)
+                response = client.chat.complete(
+                    model="mistral-small-latest",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ]
+                )
+                return response.choices[0].message.content
+            else:
+                if not HAS_OPENAI:
+                    return "❌ OpenAI library not installed. Run: pip install openai"
+                if not key:
+                    return "⚠️ No API key configured. Enter your OpenAI API key above."
+                
+                client = OpenAI(api_key=key)
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                return response.choices[0].message.content
+        except Exception as e:
+            return f"❌ AI Error: {str(e)}"
+    
+    def _si_load_hades_file(self, filename: str):
+        """Load a HADES source file"""
+        try:
+            filepath = os.path.join(os.path.dirname(__file__), filename)
+            if not os.path.exists(filepath):
+                filepath = filename
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            self.si_code_editor.setPlainText(content)
+            self.si_file_path.setText(filepath)
+            self.si_result_display.setPlainText(f"✅ Loaded {filename} ({len(content)} characters, {content.count(chr(10))+1} lines)")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Error loading file: {str(e)}")
+    
+    def _si_browse_file(self):
+        """Browse for a file to load"""
+        filepath, _ = QFileDialog.getOpenFileName(self, "Open Code File", "", 
+            "Python Files (*.py);;All Files (*.*)")
+        if filepath:
+            self.si_file_path.setText(filepath)
+            self._si_load_custom_file()
+    
+    def _si_load_custom_file(self):
+        """Load a custom file"""
+        filepath = self.si_file_path.text().strip()
+        if not filepath:
+            self.si_result_display.setPlainText("⚠️ Enter a file path first.")
+            return
+        
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            self.si_code_editor.setPlainText(content)
+            self.si_result_display.setPlainText(f"✅ Loaded {os.path.basename(filepath)} ({len(content)} characters)")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Error loading file: {str(e)}")
+    
+    def _si_analyze_code(self):
+        """Analyze code for issues"""
+        code = self.si_code_editor.toPlainText().strip()
+        if not code:
+            self.si_result_display.setPlainText("⚠️ Please load or paste some code first.")
+            return
+        
+        provider = self._si_get_current_provider()
+        provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+        self.si_result_display.setPlainText(f"🔄 Analyzing code with {provider_name}...")
+        QApplication.processEvents()
+        
+        if self._si_has_ai():
+            system_prompt = """You are an expert Python code reviewer. Analyze the code and identify:
+1. Bugs and potential errors
+2. Security vulnerabilities
+3. Performance issues
+4. Code style problems
+5. Missing error handling
+6. Deprecated patterns
+
+For each issue found, explain:
+- What the issue is
+- Where it is (line number if possible)
+- Why it's a problem
+- How to fix it
+
+Be thorough but concise."""
+            
+            result = self._si_call_ai(system_prompt, f"Analyze this code:\n\n```python\n{code[:8000]}\n```")
+            
+            if result.startswith("❌"):
+                self.si_result_display.setPlainText(f"{result}\n\nFalling back to local analysis...")
+                self._si_local_analyze(code)
+            else:
+                self.si_result_display.setPlainText(f"📋 Analysis Results ({provider_name}):\n\n{result}")
+        else:
+            self._si_local_analyze(code)
+    
+    def _si_local_analyze(self, code: str):
+        """Local code analysis without GPT"""
+        issues = []
+        lines = code.split('\n')
+        
+        for i, line in enumerate(lines, 1):
+            # Check for common issues
+            if 'eval(' in line or 'exec(' in line:
+                issues.append(f"Line {i}: ⚠️ Security risk - eval/exec can execute arbitrary code")
+            if 'except:' in line and 'Exception' not in line:
+                issues.append(f"Line {i}: 🔍 Bare except clause - consider catching specific exceptions")
+            if 'TODO' in line or 'FIXME' in line:
+                issues.append(f"Line {i}: 📝 TODO/FIXME marker found")
+            if 'password' in line.lower() and '=' in line and ('\"' in line or "'" in line):
+                issues.append(f"Line {i}: 🔒 Potential hardcoded password")
+            if len(line) > 120:
+                issues.append(f"Line {i}: 📏 Line too long ({len(line)} chars)")
+            if '  ' in line and not line.strip().startswith('#'):
+                if line.count('  ') > 2:
+                    issues.append(f"Line {i}: 🔧 Consider reducing nesting depth")
+        
+        # AST analysis
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    if not ast.get_docstring(node):
+                        issues.append(f"Function '{node.name}': 📝 Missing docstring")
+                    if len(node.body) > 50:
+                        issues.append(f"Function '{node.name}': 📏 Function is very long ({len(node.body)} statements)")
+        except SyntaxError as e:
+            issues.append(f"❌ Syntax Error: {str(e)}")
+        
+        if issues:
+            result = "📋 Local Analysis Results:\n\n" + "\n".join(issues)
+        else:
+            result = "✅ No obvious issues found in local analysis.\n\nNote: For deeper analysis, set OPENAI_API_KEY for GPT integration."
+        
+        self.si_result_display.setPlainText(result)
+    
+    def _si_auto_fix(self):
+        """Automatically fix issues in the code"""
+        code = self.si_code_editor.toPlainText().strip()
+        if not code:
+            self.si_result_display.setPlainText("⚠️ Please load or paste some code first.")
+            return
+        
+        provider = self._si_get_current_provider()
+        provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+        self.si_result_display.setPlainText(f"🔧 Auto-fixing code with {provider_name}...")
+        QApplication.processEvents()
+        
+        if self._si_has_ai():
+            system_prompt = """You are an expert Python developer. Your task is to fix and improve the provided code:
+1. Fix any bugs and errors
+2. Fix security vulnerabilities  
+3. Add proper error handling where missing
+4. Fix code style issues
+5. Improve performance where obvious
+6. Ensure the code is complete and functional
+
+IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, just the raw Python code that can be saved directly to a file."""
+            
+            result = self._si_call_ai(system_prompt, f"Fix and improve this code:\n\n{code[:12000]}", max_tokens=4000, temperature=0.2)
+            
+            # Extract code from markdown if present
+            if '```' in result:
+                code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', result, re.DOTALL)
+                if code_blocks:
+                    result = code_blocks[0].strip()
+            
+            self.si_result_display.setPlainText(result)
+        else:
+            self.si_result_display.setPlainText("⚠️ Auto-fix requires AI. Enter your API key above.\n\nOr use the local analysis to identify issues manually.")
+    
+    def _si_verify_code(self):
+        """Verify code for correctness"""
+        code = self.si_code_editor.toPlainText().strip()
+        if not code:
+            self.si_result_display.setPlainText("⚠️ Please load or paste some code first.")
+            return
+        
+        self.si_result_display.setPlainText("✅ Verifying code...")
+        QApplication.processEvents()
+        
+        results = []
+        
+        # Syntax check
+        try:
+            ast.parse(code)
+            results.append("✅ Syntax: Valid Python syntax")
+        except SyntaxError as e:
+            results.append(f"❌ Syntax Error: {str(e)}")
+            self.si_result_display.setPlainText("\n".join(results))
+            return
+        
+        # Import check
+        import_errors = []
+        tree = ast.parse(code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    try:
+                        __import__(alias.name.split('.')[0])
+                    except ImportError:
+                        import_errors.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    try:
+                        __import__(node.module.split('.')[0])
+                    except ImportError:
+                        import_errors.append(node.module)
+        
+        if import_errors:
+            results.append(f"⚠️ Missing imports: {', '.join(set(import_errors))}")
+        else:
+            results.append("✅ Imports: All imports available")
+        
+        # Function/class count
+        functions = [node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
+        classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+        results.append(f"📊 Structure: {len(functions)} functions, {len(classes)} classes")
+        
+        # Complexity estimate
+        lines = len(code.split('\n'))
+        results.append(f"📏 Size: {lines} lines, {len(code)} characters")
+        
+        if self._si_has_ai():
+            provider = self._si_get_current_provider()
+            provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+            ai_result = self._si_call_ai(
+                "You are a code reviewer. Briefly verify if this code is correct, well-structured, and follows best practices. Be concise - max 3-4 sentences.",
+                f"Verify this code:\n\n```python\n{code[:4000]}\n```",
+                max_tokens=300
+            )
+            if not ai_result.startswith("❌"):
+                results.append(f"\n🤖 {provider_name} Verification:\n{ai_result}")
+        
+        self.si_result_display.setPlainText("\n".join(results))
+    
+    def _si_apply_action(self, action: str):
+        """Apply a specific action to the code"""
+        code = self.si_code_editor.toPlainText().strip()
+        if not code:
+            self.si_result_display.setPlainText("⚠️ Please load or paste some code first.")
+            return
+        
+        provider = self._si_get_current_provider()
+        provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+        self.si_result_display.setPlainText(f"🔄 Processing with {provider_name}: {action}...")
+        QApplication.processEvents()
+        
+        if self._si_has_ai():
+            result = self._si_call_ai(
+                f"You are an expert Python developer. {action}. Return ONLY the complete modified code, no explanations or markdown.",
+                f"{code[:12000]}",
+                max_tokens=4000,
+                temperature=0.2
+            )
+            
+            if '```' in result:
+                code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', result, re.DOTALL)
+                if code_blocks:
+                    result = code_blocks[0].strip()
+            
+            self.si_result_display.setPlainText(result)
+        else:
+            self.si_result_display.setPlainText("⚠️ This action requires AI. Enter your API key above.")
+    
+    def _si_apply_custom_instruction(self):
+        """Apply custom instruction to the code"""
+        instruction = self.si_custom_instruction.text().strip()
+        if instruction:
+            self._si_apply_action(instruction)
+        else:
+            self.si_result_display.setPlainText("⚠️ Enter an instruction first.")
+    
+    def _si_apply_to_editor(self):
+        """Apply the fixed code back to the editor"""
+        result = self.si_result_display.toPlainText()
+        if result and not result.startswith(("⚠️", "❌", "🔄", "📋")):
+            # Check if it looks like code
+            if 'def ' in result or 'class ' in result or 'import ' in result or '=' in result:
+                self.si_code_editor.setPlainText(result)
+                self.si_result_display.setPlainText("✅ Fixed code applied to editor. You can now save it to file.")
+            else:
+                self.si_result_display.setPlainText("⚠️ Result doesn't appear to be code. Run 'Auto-Fix' first to get fixed code.")
+        else:
+            self.si_result_display.setPlainText("⚠️ No fixed code to apply. Run 'Auto-Fix' first.")
+    
+    def _si_save_fixed_code(self):
+        """Save the fixed code to a file"""
+        code = self.si_result_display.toPlainText()
+        if not code or code.startswith(("⚠️", "❌", "🔄")):
+            # Try using editor content instead
+            code = self.si_code_editor.toPlainText()
+        
+        if not code:
+            self.si_result_display.setPlainText("⚠️ No code to save.")
+            return
+        
+        filepath = self.si_file_path.text().strip()
+        if filepath:
+            # Suggest backup name
+            backup_path = filepath.replace('.py', '_fixed.py')
+            filepath, _ = QFileDialog.getSaveFileName(self, "Save Fixed Code", backup_path,
+                "Python Files (*.py);;All Files (*.*)")
+        else:
+            filepath, _ = QFileDialog.getSaveFileName(self, "Save Fixed Code", "",
+                "Python Files (*.py);;All Files (*.*)")
+        
+        if filepath:
+            try:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(code)
+                self.si_result_display.setPlainText(f"✅ Saved to {filepath}")
+            except Exception as e:
+                self.si_result_display.setPlainText(f"❌ Error saving: {str(e)}")
+    
+    def _si_show_diff(self):
+        """Show diff between original and fixed code"""
+        original = self.si_code_editor.toPlainText()
+        fixed = self.si_result_display.toPlainText()
+        
+        if not fixed or fixed.startswith(("⚠️", "❌", "🔄", "📋", "✅")):
+            self.si_result_display.setPlainText("⚠️ No fixed code to compare. Run 'Auto-Fix' first.")
+            return
+        
+        import difflib
+        diff = difflib.unified_diff(
+            original.splitlines(keepends=True),
+            fixed.splitlines(keepends=True),
+            fromfile='original',
+            tofile='fixed',
+            lineterm=''
+        )
+        
+        diff_text = ''.join(diff)
+        if diff_text:
+            self.si_result_display.setPlainText(f"📊 Diff (changes made):\n\n{diff_text}")
+        else:
+            self.si_result_display.setPlainText("✅ No differences - code is unchanged.")
+    
     def _load_code_file(self):
         """Load a file into the code editor"""
         filepath = self.file_path_input.text().strip()
@@ -5134,9 +6338,16 @@ please consider supporting its development.</p>
             # Use the enhanced code assistant with GPT
             self.ai.code_assistant.set_code(code)
             
-            if HAS_OPENAI and openai and openai.api_key:
+            # Get API key from self-improvement tab if available
+            api_key = None
+            if hasattr(self, 'si_api_key_input'):
+                api_key = self.si_api_key_input.text().strip()
+            if not api_key:
+                api_key = os.getenv("OPENAI_API_KEY", "")
+            
+            if HAS_OPENAI and api_key:
                 # Use GPT for intelligent code modification
-                result = self.ai.code_assistant.gpt_modify(code, instruction)
+                result = self.ai.code_assistant.gpt_modify(code, instruction, api_key=api_key)
             else:
                 # Fall back to local instruction processing
                 result = self.ai.code_assistant.apply_instruction_local(instruction)
@@ -5200,7 +6411,13 @@ please consider supporting its development.</p>
         mood = self.brain.get("mood", "neutral")
         
         # Try OpenAI if available for complex queries
-        if HAS_OPENAI and openai.api_key and len(text.split()) > 8:
+        api_key = None
+        if hasattr(self, 'si_api_key_input'):
+            api_key = self.si_api_key_input.text().strip()
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY", "")
+        
+        if HAS_OPENAI and api_key and len(text.split()) > 8:
             try:
                 return self._get_gpt_response(user_input)
             except Exception:
@@ -5417,12 +6634,23 @@ I execute immediately. No confirmation needed."""
 
     def _get_gpt_response(self, user_input: str) -> str:
         """Get response from OpenAI GPT."""
+        # Try to get API key from Self-Improvement tab or environment
+        api_key = None
+        if hasattr(self, 'si_api_key_input'):
+            api_key = self.si_api_key_input.text().strip()
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY", "")
+        
+        if not api_key or not HAS_OPENAI:
+            return "GPT not available. Enter your API key in the Self-Improvement tab."
+        
         system_prompt = f"""You are HADES, an AI pentesting assistant. Your personality is {self.brain.get('personality', 'observant, calculating, poetic')}.
 Current mood: {self.brain.get('mood', 'neutral')}
 Be concise, technical when needed, and maintain your dark, calculated persona.
 You can help with: port scanning, vulnerability assessment, exploit research, and security analysis."""
         
-        response = openai.ChatCompletion.create(
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
