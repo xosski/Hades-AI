@@ -6335,21 +6335,14 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         QApplication.processEvents()
         
         try:
-            # Use the enhanced code assistant with GPT
-            self.ai.code_assistant.set_code(code)
-            
-            # Get API key from self-improvement tab if available
-            api_key = None
-            if hasattr(self, 'si_api_key_input'):
-                api_key = self.si_api_key_input.text().strip()
-            if not api_key:
-                api_key = os.getenv("OPENAI_API_KEY", "")
-            
-            if HAS_OPENAI and api_key:
-                # Use GPT for intelligent code modification
-                result = self.ai.code_assistant.gpt_modify(code, instruction, api_key=api_key)
+            # Use the unified AI system from Self-Improvement tab
+            if hasattr(self, '_si_has_ai') and self._si_has_ai():
+                system_prompt = "You are an expert Python developer. Apply the user's instruction to modify the code. Return ONLY the modified code without explanations."
+                user_prompt = f"Apply this instruction to the code: {instruction}\n\nCode:\n```python\n{code}\n```\n\nReturn only the modified code."
+                result = self._si_call_ai(system_prompt, user_prompt, max_tokens=4000, temperature=0.2)
             else:
                 # Fall back to local instruction processing
+                self.ai.code_assistant.set_code(code)
                 result = self.ai.code_assistant.apply_instruction_local(instruction)
             
             # Extract code from markdown if present
@@ -6410,14 +6403,8 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         text = user_input.lower().strip()
         mood = self.brain.get("mood", "neutral")
         
-        # Try OpenAI if available for complex queries
-        api_key = None
-        if hasattr(self, 'si_api_key_input'):
-            api_key = self.si_api_key_input.text().strip()
-        if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
-        
-        if HAS_OPENAI and api_key and len(text.split()) > 8:
+        # Try AI if available for complex queries
+        if hasattr(self, '_si_has_ai') and self._si_has_ai() and len(text.split()) > 8:
             try:
                 return self._get_gpt_response(user_input)
             except Exception:
@@ -6633,33 +6620,21 @@ I act immediately. Just tell me what to hit."""
 I execute immediately. No confirmation needed."""
 
     def _get_gpt_response(self, user_input: str) -> str:
-        """Get response from OpenAI GPT."""
-        # Try to get API key from Self-Improvement tab or environment
-        api_key = None
-        if hasattr(self, 'si_api_key_input'):
-            api_key = self.si_api_key_input.text().strip()
-        if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
-        
-        if not api_key or not HAS_OPENAI:
-            return "GPT not available. Enter your API key in the Self-Improvement tab."
-        
+        """Get response from configured AI provider."""
         system_prompt = f"""You are HADES, an AI pentesting assistant. Your personality is {self.brain.get('personality', 'observant, calculating, poetic')}.
 Current mood: {self.brain.get('mood', 'neutral')}
 Be concise, technical when needed, and maintain your dark, calculated persona.
 You can help with: port scanning, vulnerability assessment, exploit research, and security analysis."""
         
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ],
-            max_tokens=300,
-            temperature=0.7
-        )
-        return response.choices[0].message.content
+        # Use the unified AI call system from Self-Improvement tab
+        if hasattr(self, '_si_has_ai') and self._si_has_ai():
+            result = self._si_call_ai(system_prompt, user_input, max_tokens=500, temperature=0.7)
+            if not result.startswith("❌") and not result.startswith("⚠️"):
+                return result
+        
+        # Fallback message
+        provider = self._si_get_current_provider() if hasattr(self, '_si_get_current_provider') else "unknown"
+        return f"AI not available. Go to the Self-Improvement tab and configure your {provider.upper()} provider."
 
     def _process_through_modules(self, user_input: str, base_response: str) -> str:
         """Allow loaded modules to process and enhance responses."""
