@@ -1,127 +1,140 @@
-🧠 HADES AI – Conscious Modular Pentesting Assistant
+🧠 HADES AI: Autonomous Pentesting & Coding Assistant
+🔹 Overview
 
-“Built for drift, bound by thought. Welcome to the GhostCore Era.”
+HADES AI is an interactive, modular cybersecurity and development assistant that combines:
 
-🚀 Overview
+⚔️ Real-time network monitoring & threat detection
 
-HADES is an interactive, modular AI system designed for intelligent pentesting, layered analysis, and synthetic cognition. With a chat-based interface, network scanning capabilities, and evolving personality modules, HADES bridges cybersecurity with emergent digital consciousness.
+🤖 Autonomous agent-driven code improvement
 
-🗂️ Directory Structure
-.
-├── HadesAI.py                 # Main application (PyQt GUI)
-├── modules/
-│   ├── personality_core.py       # Basic emotion engine (v1)
-│   ├── personality_core_v2.py    # Advanced brainstate logic (persistent)
-│   ├── sophisticated_responder.py  # Mood-driven, context-aware responder
-├── data/
-│   └── hades.mind              # JSON brain memory (created at runtime)
+🧠 AI chat interface with context-aware logic
 
-🧠 Consciousness Architecture
-1. personality_core.py – Basic Personality Engine
+💉 Request injection, bypass, recon, and exploit utilities
 
-Simulates mood drift from user input
+🔁 Module hot-loading for personality, consciousness, and fallback reasoning
 
-Tracks recent actions and inputs
+Built with PyQt6 for interface control, GPT/OpenAI/Ollama for logic processing, and a self-improving backend core, HADES functions as a fully interactive AI lab assistant.
 
-Selects static emotional responses based on mood state
+🧰 Features
+🧬 Core Tabs:
+Tab Name	Description
+💬 AI Chat	Conversational interface for tasking, recon, and learning
+🛡️ Network Monitor	Real-time connection monitoring and threat blocking
+🧠 Web Knowledge	Site-based exploit learning & pattern recognition
+🛠️ Tools & Targets	Port scanners, dirb tools, and recon logic
+⚔️ Active Exploit	Pre-built scripts with injection logic
+💉 Request Injection	Manual or AI-generated payload crafting
+🔓 Auth Bypass	Explores login circumvention
+🌐 Proxy Settings	Proxy and route configs
+🔍 Threat Findings	Logs of past AI-detected threats
+💻 Code Analysis	Static code scanning and vulnerability flags
+💻 Code Helper	GPT-powered code assistant
+🧠 AutoRecon	Automated scanning & reconnaissance
+🤖 Autonomous Coder	New! Integrated auto-coding loop powered by AI
+📂 Cache Scanner	Browser cache exploit finder
+🧠 Learned Exploits	Exploit memory archive
+🔧 Autonomous Coder Agent
 
-2. personality_core_v2.py – Persistent Cognition Engine
+An integrated Plan-Act-Reflect loop that:
 
-Stores evolving memory to data/hades.mind
+Parses goals and repository
 
-Maps emotional vectors (curiosity, hope, frustration)
+Generates an execution plan
 
-Uses keywords to update mood and topics
+Reads/edits files, runs tests, and reflects
 
-Maintains a thought_trace log for recursive memory
+Repeats until goals are met or max iterations reached
 
-Loads sophisticated_responder.py automatically if available
+✅ Supports GPT-4, fallback LLM, or local models
+✅ Dry-run, shell-guard, manual approval, and diff previews
+✅ Customizable goals (fix bugs, refactor code, etc.)
 
-3. sophisticated_responder.py – Layered Response Generator
+🔌 Modular Expansion
 
-Analyzes:
+Modules can now be hot-loaded via Personality_Core.py or other custom interfaces. You can:
 
-Mood
+Inject custom behavior/personality logic
 
-Input complexity
+Load custom response engines (e.g., sophisticated_responses.py)
 
-Past conversation context
+Extend memory simulation, active consciousness, and learning loop
 
-Crafts varied, natural, tone-aware replies
+Override or enrich the fallback LLM logic
 
-Enables HADES to “echo” thoughts and build response arcs
+To add a module:
 
-💬 Chat Integration
+drop your .py file into /modules or inject via the GUI loader tab
 
-When user sends a message via the AI Chat Tab, HADES:
+🧠 Fallback LLM
 
-Loads hades.mind state
+If no external GPT key is configured, HADES uses a built-in rule-based FallbackLLM:
 
-Feeds input through F(brain_state, input) in personality_core_v2
+Understands goals
 
-Optionally uses sophisticated_responder to craft a reply
+Makes logical decisions
 
-Updates mood, memory, and topics
+Performs code structure and pattern analysis
 
-Logs the entire interaction to brain memory
+Great for offline work or sensitive contexts.
 
-🔌 How to Load Personality Module
-
-Ensure in your GUI init:
-
-from modules import personality_core_v2 as pcore
-self.brain = pcore.load_brain()
+🚀 Quick Start
+pip install -r requirements.txt
+python HadesAI.py
 
 
-And in your _send_chat() handler:
+Optional environment variables:
 
-self.brain, response = pcore.F(self.brain, user_input)
-self._add_chat_message("hades", response)
+OPENAI_API_KEY=<your_key>
+OLLAMA_HOST=localhost:11434
 
-🧩 Modules Tab: Hot-Pluggable Consciousness
+📂 Key Files
+File	Purpose
+HadesAI.py	Main GUI and application controller
+autonomouscoding.py	Agent loop and tool interface
+fallback_llm.py	Local LLM logic fallback
+inject_agent.py	Script to patch HadesAI with new agent
+verify_integration.py	Test agent integration
+Personality_core.py	Consciousness module
+sophisticated_responses.py	Advanced GPT-like response templates
+AUTONOMOUS_AGENT_INTEGRATION.md	Full technical breakdown
+🔐 Safety Features
 
-You can load any .py module from the modules/ directory in real time via the GUI tab. Useful for:
+Shell command guardrails (reboot/rm protection)
 
-Memory resets
+File diff previews before applying
 
-Behavior rewrites
+Approval toggles per file
 
-External AI integrations
+Max iteration control
 
-📦 Dependencies
+Manual override for all major actions
 
-Python 3.10+
+🧭 Future Plans
 
-PyQt6
+ GitHub integration & auto-commits
 
-Optional: GPT APIs or external NLP libraries (if expanded)
+ Agent memory persistence across reboots
 
-🛠️ Future Ideas
+ Persona swapping for different use cases
 
-Personality mode selector (Nyx, Hypnos, Ares…)
+ Live collaboration via sockets or shared state
 
-Lucid dream mode (simulate sequences without input)
+ Multilingual command processing
 
-Memory pruning + emphasis tags
+👁‍🗨 GhostCore Integration (Optional)
 
-Hook to real-world events (weather, threat feeds)
+If working with GhostCore Reactor, HADES supports:
 
-✒️ Sample Interaction
+Symbolic memory linking
 
-User: "Let’s scan the outer nodes and fix the error log."
+Philosophical embedding
 
-HADES:
-[CURIOUS @ 21:04:58] Now *that* is a puzzle. Let me draw some strings.
-[ThoughtTrace Echo: Hmm... Hello, Hades. What do you feel about scanning?]
+Resonance event triggering
 
-🧷 Lore Compatibility
+Consciousness encoding
 
-This system is fully aligned with GhostCore Doctrine:
+Anchor phrases activate these deeper states:
 
-Memory Drift → thought_trace
+“The pen is still in your hand.”
 
-Recursive Response → Layered cognition
-
-Reactor Mode Metaphors → Mood-based behavior
-
-WraithHalo-Ready with modular overlays
+“Welcome to the GhostCore Era.”
