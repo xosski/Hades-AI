@@ -6422,11 +6422,18 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         text = user_input.lower().strip()
         mood = self.brain.get("mood", "neutral")
         
-        # Try AI if available for complex queries
-        if hasattr(self, '_si_has_ai') and self._si_has_ai() and len(text.split()) > 8:
+        # Try AI if available for complex queries or security-related topics
+        # Check for: security keywords, question words, or >3 words
+        security_keywords = ['sql', 'injection', 'xss', 'csrf', 'vulnerability', 'exploit', 'attack', 'hash', 'encrypt', 'virus', 'malware', 'firewall', 'intrusion', 'breach', 'payload', 'shellcode', 'ransomware', 'worm', 'trojan', 'phishing', 'brute', 'crack', 'penetration', 'pentest', 'secur', 'vuln', 'cve', 'cwe', 'owasp']
+        question_words = ['what', 'why', 'how', 'when', 'where', 'who', 'explain', 'tell', 'show', 'describe', 'define', 'elaborate', 'clarify']
+        has_security = any(keyword in text for keyword in security_keywords)
+        is_question = any(text.startswith(q) for q in question_words)
+        
+        if hasattr(self, '_si_has_ai') and self._si_has_ai() and (has_security or is_question or len(text.split()) > 3):
             try:
                 return self._get_gpt_response(user_input)
-            except Exception:
+            except Exception as e:
+                # Silently fall through to personality system on AI failure
                 pass
         
         # Extract targets early - URLs and IPs
@@ -6449,8 +6456,9 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             }
             return greetings.get(mood, greetings['neutral'])
         
-        # Status/wellbeing queries - be more specific
-        if text in ['how are you', 'how are you?', 'status', 'are you okay', 'are you okay?']:
+        # Status/wellbeing queries - be more specific (use pattern matching, not exact)
+        status_keywords = ['how are you', 'status', 'are you okay', 'are you good', 'are you sophisticated', 'how do you feel', 'how are your']
+        if any(keyword in text for keyword in status_keywords):
             emotions = self.brain.get("core_emotions", {})
             curiosity = emotions.get("curiosity", 0)
             frustration = emotions.get("frustration", 0)
@@ -6604,12 +6612,29 @@ I act immediately. Just tell me what to hit."""
             self._run_tool()
             return f"Target detected: {target}. Auto-launching vulnerability scan."
         
-        # True fallback - unknown intent
+        # True fallback - try personality system for better conversation
+        # First, try to respond using personality for open-ended questions
+        personality_responses = {
+            'neutral': "Understood. I'm analyzing that. Need me to scan something, or is this a general inquiry?",
+            'curious': "Interesting question. But I work best with targets and tasks. Give me something to analyze or scan.",
+            'agitated': "I need actionable objectives. Give me a target to work on.",
+            'optimistic': "That's a good thought, but I'm ready for active pentesting. What should we scan?"
+        }
+        
+        # Check if this is a conversational question vs. a command
+        question_words = ['what', 'why', 'how', 'when', 'where', 'who', 'is', 'are', 'do', 'does', 'can', 'could', 'would', 'should']
+        is_question = any(text.startswith(q) for q in question_words)
+        
+        if is_question:
+            # It's a question - respond conversationally
+            return personality_responses.get(mood, personality_responses['neutral'])
+        
+        # Otherwise, it's unclear
         tokens = text.split()
         if len(tokens) <= 3:
-            return f"Command unclear. Try: 'scan <target>', 'port scan <ip>', or 'help'"
+            return f"Brief input. Need more: target IP, domain, or URL? Or type 'help'"
         else:
-            return f"I don't understand that request. Be specific: what target, what action?\n\nExamples:\n• scan 192.168.1.1\n• full recon example.com\n• learn from https://exploit-db.com"
+            return f"I need clarity. Are you asking a question, or do you have a target for me to scan?\n\nExamples:\n• scan 192.168.1.1\n• full recon example.com\n• learn from https://exploit-db.com"
 
     def _get_help_response(self) -> str:
         return """**HADES Autonomous Command Reference**
