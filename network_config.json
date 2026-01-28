@@ -1,0 +1,38 @@
+{
+  "network_share": {
+    "enabled": false,
+    "instance_id": "HadesAI-Instance-001",
+    "tls_port": 19999,
+    "discovery_port": 8888,
+    "auto_sync_interval_seconds": 300,
+    "trusted_peers": [
+      {
+        "instance_id": "HadesAI-Instance-002",
+        "hostname": "192.168.1.100",
+        "port": 19999,
+        "enabled": true
+      }
+    ],
+    "sync_settings": {
+      "backup_before_merge": true,
+      "backup_retention_days": 30,
+      "deduplicate_patterns": true,
+      "deduplicate_findings": true,
+      "merge_experiences": false
+    },
+    "security": {
+      "require_cert_verification": false,
+      "tls_version": "1.2",
+      "allowed_networks": [
+        "192.168.0.0/16",
+        "10.0.0.0/8"
+      ]
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "logs/network_share.log",
+      "max_size_mb": 100,
+      "backup_count": 5
+    }
+  }
+}
