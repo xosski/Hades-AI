@@ -55,6 +55,17 @@ except ImportError:
     FallbackLLM = None
     HAS_FALLBACK_LLM = False
 
+# Autonomous Defense Module
+try:
+    from modules.autonomous_defense import (
+        AutonomousDefenseEngine, DefenseLevel, DefenseAction, DefenseRule,
+        integrate_with_network_monitor
+    )
+    HAS_AUTONOMOUS_DEFENSE = True
+except ImportError:
+    AutonomousDefenseEngine = None
+    HAS_AUTONOMOUS_DEFENSE = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -3826,6 +3837,7 @@ class HadesGUI(QMainWindow):
         self.scanner = None
         self.tool_executor = None
         self.network_monitor = None
+        self.autonomous_defense = None  # Autonomous defense engine
         self.brain = pcore.load_brain()
         self.init_ui()
         self._show_startup_dialog()
@@ -4021,6 +4033,32 @@ please consider supporting its development.</p>
         self.learning_mode_check.toggled.connect(self._toggle_learning_mode)
         control_layout.addWidget(self.learning_mode_check)
         
+        # Autonomous Defense Controls
+        control_layout.addWidget(QLabel("  |  "))
+        
+        self.autonomous_defense_check = QCheckBox("🤖 Autonomous Defense")
+        self.autonomous_defense_check.setStyleSheet("color: #00fff2; font-weight: bold;")
+        self.autonomous_defense_check.setToolTip("Enable AI-driven autonomous defensive actions:\n"
+            "• Honeypot deployment for attacker deception\n"
+            "• Rate limiting and connection throttling\n"
+            "• DNS sinkholing for malicious domains\n"
+            "• Adaptive response based on threat severity\n"
+            "• Deceptive responses to waste attacker resources")
+        self.autonomous_defense_check.toggled.connect(self._toggle_autonomous_defense)
+        control_layout.addWidget(self.autonomous_defense_check)
+        
+        self.defense_level_combo = QComboBox()
+        self.defense_level_combo.addItems(["Passive", "Reactive", "Proactive", "Aggressive"])
+        self.defense_level_combo.setCurrentIndex(1)  # Default: Reactive
+        self.defense_level_combo.setStyleSheet("background: #1a1a2e; color: #eee;")
+        self.defense_level_combo.setToolTip("Defense Level:\n"
+            "• Passive: Monitor and log only\n"
+            "• Reactive: Respond to detected threats\n"
+            "• Proactive: Actively hunt and deploy honeypots\n"
+            "• Aggressive: Maximum defense with countermeasures")
+        self.defense_level_combo.currentIndexChanged.connect(self._on_defense_level_changed)
+        control_layout.addWidget(self.defense_level_combo)
+        
         control_layout.addStretch()
         layout.addWidget(control_group)
         
@@ -4036,6 +4074,8 @@ please consider supporting its development.</p>
             ('attacks_blocked', 'Blocked', '0'),
             ('unique_ips', 'Unique IPs', '0'),
             ('blocked_ips', 'Blocked IPs', '0'),
+            ('honeypot_hits', 'Honeypot Hits', '0'),
+            ('auto_mitigated', 'Auto Mitigated', '0'),
         ]
         
         for key, label, default in stat_items:
@@ -4187,6 +4227,10 @@ please consider supporting its development.</p>
         self.network_monitor.set_defense_mode(self.defense_mode_check.isChecked())
         self.network_monitor.set_learning_mode(self.learning_mode_check.isChecked())
         
+        # Initialize Autonomous Defense Engine
+        if HAS_AUTONOMOUS_DEFENSE and self.autonomous_defense_check.isChecked():
+            self._init_autonomous_defense()
+        
         self.network_monitor.start()
         
         self.monitor_start_btn.setEnabled(False)
@@ -4197,11 +4241,114 @@ please consider supporting its development.</p>
         if self.network_monitor:
             self.network_monitor.stop()
             self.network_monitor.wait()
+        
+        # Stop Autonomous Defense
+        if self.autonomous_defense:
+            self.autonomous_defense.disable()
+            self.autonomous_defense = None
             
         self.monitor_start_btn.setEnabled(True)
         self.monitor_stop_btn.setEnabled(False)
         self.net_status_label.setText("🔴 Network Monitor STOPPED")
         self._add_chat_message("system", "🔴 Network Monitor stopped")
+    
+    def _init_autonomous_defense(self):
+        """Initialize the autonomous defense engine"""
+        if not HAS_AUTONOMOUS_DEFENSE:
+            self._add_chat_message("system", "⚠️ Autonomous defense module not available")
+            return
+        
+        try:
+            self.autonomous_defense = integrate_with_network_monitor(
+                self.network_monitor, 
+                self.ai.kb
+            )
+            
+            # Set defense level from combo
+            level_map = {
+                0: DefenseLevel.PASSIVE,
+                1: DefenseLevel.REACTIVE,
+                2: DefenseLevel.PROACTIVE,
+                3: DefenseLevel.AGGRESSIVE
+            }
+            defense_level = level_map.get(self.defense_level_combo.currentIndex(), DefenseLevel.REACTIVE)
+            
+            # Set callbacks
+            self.autonomous_defense.on_action_taken = self._on_defense_action
+            self.autonomous_defense.on_threat_mitigated = self._on_threat_mitigated
+            
+            self.autonomous_defense.enable(defense_level)
+            
+            level_name = defense_level.name
+            self._add_chat_message("system", 
+                f"🤖 Autonomous Defense ENABLED at {level_name} level\n"
+                f"   • Honeypot deployment: {'Active' if defense_level.value >= 2 else 'Standby'}\n"
+                f"   • Rate limiting: Active\n"
+                f"   • Threat auto-response: Active\n"
+                f"   • Deceptive responses: {'Active' if defense_level.value >= 2 else 'On-demand'}")
+        except Exception as e:
+            self._add_chat_message("system", f"⚠️ Failed to initialize autonomous defense: {str(e)}")
+    
+    def _toggle_autonomous_defense(self, enabled: bool):
+        """Toggle autonomous defense on/off"""
+        if not self.network_monitor or not self.network_monitor.isRunning():
+            if enabled:
+                self._add_chat_message("system", "ℹ️ Autonomous defense will activate when Network Monitor starts")
+            return
+        
+        if enabled:
+            self._init_autonomous_defense()
+        else:
+            if self.autonomous_defense:
+                self.autonomous_defense.disable()
+                self.autonomous_defense = None
+                self._add_chat_message("system", "🤖 Autonomous Defense DISABLED")
+    
+    def _on_defense_level_changed(self, index: int):
+        """Handle defense level change"""
+        if not self.autonomous_defense or not self.autonomous_defense.enabled:
+            return
+        
+        level_map = {
+            0: DefenseLevel.PASSIVE,
+            1: DefenseLevel.REACTIVE,
+            2: DefenseLevel.PROACTIVE,
+            3: DefenseLevel.AGGRESSIVE
+        }
+        new_level = level_map.get(index, DefenseLevel.REACTIVE)
+        
+        # Reinitialize with new level
+        self.autonomous_defense.disable()
+        self.autonomous_defense.enable(new_level)
+        self._add_chat_message("system", f"🤖 Defense level changed to: {new_level.name}")
+    
+    def _on_defense_action(self, action_data: dict):
+        """Handle autonomous defense action taken"""
+        actions = action_data.get('actions', [])
+        ip = action_data.get('ip', 'Unknown')
+        threat = action_data.get('threat', 'Unknown')
+        
+        action_str = ', '.join(actions) if actions else 'logged'
+        self.net_status_label.setText(f"🤖 AUTO-DEFENSE: {action_str} for {ip} ({threat})")
+        
+        # Update stats
+        if 'auto_mitigated' in self.net_stats_labels:
+            current = int(self.net_stats_labels['auto_mitigated'].text())
+            self.net_stats_labels['auto_mitigated'].setText(str(current + 1))
+    
+    def _on_threat_mitigated(self, threat_data: dict, actions: list):
+        """Handle threat mitigation event"""
+        threat_type = threat_data.get('threat_type', 'Unknown')
+        remote_ip = threat_data.get('remote_ip', 'Unknown')
+        action_names = [a.value if hasattr(a, 'value') else str(a) for a in actions]
+        
+        msg = f"⚔️ AUTONOMOUS DEFENSE: {threat_type} from {remote_ip}\n   Actions: {', '.join(action_names)}"
+        self._add_chat_message("threat", msg)
+        
+        # Update honeypot stats if applicable
+        if self.autonomous_defense and 'honeypot_hits' in self.net_stats_labels:
+            stats = self.autonomous_defense.get_stats()
+            self.net_stats_labels['honeypot_hits'].setText(str(stats.get('honeypot_hits', 0)))
     def _create_web_knowledge_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
