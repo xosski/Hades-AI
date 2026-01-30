@@ -865,3 +865,62 @@ def integrate_with_network_monitor(network_monitor, kb=None) -> AutonomousDefens
         network_monitor.threat_detected.connect(on_threat)
     
     return defense
+
+
+def main():
+    """
+    Standalone execution - demonstrates autonomous defense capabilities
+    Run from Modules tab or command line for status/testing
+    """
+    print("=" * 60)
+    print("🛡️  AUTONOMOUS DEFENSE MODULE")
+    print("=" * 60)
+    print()
+    
+    # Initialize engine for demo
+    engine = AutonomousDefenseEngine()
+    
+    print("📋 Available Defense Levels:")
+    for level in DefenseLevel:
+        print(f"   • {level.name} (value: {level.value})")
+    print()
+    
+    print("⚔️  Available Defense Actions:")
+    for action in DefenseAction:
+        print(f"   • {action.value}")
+    print()
+    
+    print("📜 Default Defense Rules:")
+    for rule in engine.defense_rules:
+        actions_str = ", ".join([a.value for a in rule.actions])
+        print(f"   [{rule.min_threat_level}] {rule.name}")
+        print(f"       Trigger: {rule.trigger_type}")
+        print(f"       Actions: {actions_str}")
+    print()
+    
+    print("🍯 Honeypot Fake Banners Available:")
+    for port, banner in list(HoneypotService.FAKE_BANNERS.items())[:5]:
+        banner_preview = repr(banner[:30]) if len(banner) > 30 else repr(banner)
+        print(f"   Port {port}: {banner_preview}")
+    print(f"   ... and {len(HoneypotService.FAKE_BANNERS) - 5} more")
+    print()
+    
+    print("🎭 Deceptive Response Samples:")
+    deceiver = DeceptiveResponder()
+    fake_creds = deceiver.generate_fake_credentials()
+    print(f"   Fake Credentials: {fake_creds['username']}:{fake_creds['password']}")
+    print(f"   Canary Token: {deceiver.generate_canary_token()}")
+    print()
+    
+    print("✅ Module loaded successfully!")
+    print("   Enable via Network Monitor → '🤖 Autonomous Defense' checkbox")
+    print()
+    print("=" * 60)
+    
+    return {
+        "status": "ready",
+        "defense_levels": [l.name for l in DefenseLevel],
+        "defense_actions": [a.value for a in DefenseAction],
+        "rules_count": len(engine.defense_rules),
+        "honeypot_ports": list(HoneypotService.FAKE_BANNERS.keys())
+    }
