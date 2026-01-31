@@ -48,6 +48,7 @@ class DefenseAction(Enum):
     BLOCK_TEMP = "block_temp"
     BLOCK_PERM = "block_perm"
     HONEYPOT = "honeypot"
+    PHANTOM_FS = "phantom_fs"  # Deploy phantom filesystem
     SINKHOLE = "sinkhole"
     ISOLATE = "isolate"
     DECEIVE = "deceive"
@@ -514,6 +515,8 @@ class AutonomousDefenseEngine:
         self.tarpit = TarpitHandler()
         self.dns_sinkhole = DNSSinkhole()
         self.deceiver = DeceptiveResponder()
+        self.phantom_fs = None  # Lazy-loaded phantom filesystem
+        self.phantom_deployed = False
         
         # Tracking
         self.attacker_profiles: Dict[str, AttackerProfile] = {}
@@ -524,6 +527,7 @@ class AutonomousDefenseEngine:
             'ips_blocked': 0,
             'honeypot_hits': 0,
             'connections_throttled': 0,
+            'phantom_deployments': 0,
             'active_since': None
         }
         
@@ -572,6 +576,18 @@ class AutonomousDefenseEngine:
                 trigger_type="BLOCKED_IP",
                 min_threat_level="CRITICAL",
                 actions=[DefenseAction.HONEYPOT, DefenseAction.DECEIVE, DefenseAction.LOG]
+            ),
+            DefenseRule(
+                name="Deploy Phantom FS on Intrusion",
+                trigger_type="LATERAL_MOVEMENT",
+                min_threat_level="HIGH",
+                actions=[DefenseAction.PHANTOM_FS, DefenseAction.DECEIVE, DefenseAction.ALERT]
+            ),
+            DefenseRule(
+                name="Phantom FS for File System Access",
+                trigger_type="SUSPICIOUS_FILE_ACCESS",
+                min_threat_level="HIGH",
+                actions=[DefenseAction.PHANTOM_FS, DefenseAction.LOG]
             )
         ]
     
@@ -708,6 +724,9 @@ class AutonomousDefenseEngine:
                 logger.info(f"🐌 TARPIT mode for {remote_ip}")
                 return True
             
+            elif action == DefenseAction.PHANTOM_FS:
+                return self._deploy_phantom_filesystem(threat_data)
+            
             return False
             
         except Exception as e:
@@ -753,6 +772,59 @@ class AutonomousDefenseEngine:
         except Exception as e:
             logger.debug(f"Failed to kill process {pid}: {e}")
             return False
+    
+    def _deploy_phantom_filesystem(self, threat_data: Dict) -> bool:
+        """Deploy phantom filesystem as a deception tactic"""
+        try:
+            # Import here to avoid circular imports
+            from modules.PhantomFilessytemBuilder import (
+                PhantomFileSystemBuilder, 
+                deploy_phantom_filesystem
+            )
+            
+            trigger = threat_data.get('threat_type', 'unknown')
+            remote_ip = threat_data.get('remote_ip', 'unknown')
+            
+            # Only deploy once per session (don't spam filesystem)
+            if self.phantom_deployed:
+                logger.debug("[PhantomFS] Already deployed, skipping")
+                return True
+            
+            # Deploy phantom filesystem
+            result = deploy_phantom_filesystem(
+                trigger_source=f"{trigger} from {remote_ip}",
+                base_path="./phantom_root"
+            )
+            
+            if 'error' not in result:
+                self.phantom_deployed = True
+                self.stats['phantom_deployments'] += 1
+                
+                # Store canary tokens for later monitoring
+                if self.phantom_fs is None:
+                    self.phantom_fs = {
+                        'deployed_at': datetime.now().isoformat(),
+                        'trigger': trigger,
+                        'attacker_ip': remote_ip,
+                        'canary_tokens': result.get('canary_tokens', {})
+                    }
+                
+                logger.info(f"👻 PhantomFS deployed: {result.get('files_created', 0)} files created")
+                return True
+            else:
+                logger.warning(f"[PhantomFS] Deployment failed: {result.get('error')}")
+                return False
+                
+        except ImportError:
+            logger.warning("[PhantomFS] Module not available")
+            return False
+        except Exception as e:
+            logger.error(f"[PhantomFS] Deployment error: {e}")
+            return False
+    
+    def get_phantom_status(self) -> Optional[Dict]:
+        """Get phantom filesystem deployment status"""
+        return self.phantom_fs
     
     def _update_attacker_profile(self, ip: str, threat_data: Dict):
         """Update or create attacker profile"""
