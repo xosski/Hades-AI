@@ -66,6 +66,14 @@ except ImportError:
     AutonomousDefenseEngine = None
     HAS_AUTONOMOUS_DEFENSE = False
 
+# Payload Generator GUI
+try:
+    from payload_generator_gui import PayloadGeneratorTab
+    HAS_PAYLOAD_GEN = True
+except ImportError:
+    PayloadGeneratorTab = None
+    HAS_PAYLOAD_GEN = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -3862,6 +3870,8 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_injection_tab(), "💉 Request Injection")
         self.tabs.addTab(self._create_auth_bypass_tab(), "🔓 Auth Bypass")
         self.tabs.addTab(self._create_proxy_tab(), "🌐 Proxy Settings")
+        if HAS_PAYLOAD_GEN:
+            self.tabs.addTab(PayloadGeneratorTab(), "📦 Payload Gen")
         self.tabs.addTab(self._create_findings_tab(), "🔍 Threat Findings")
         self.tabs.addTab(self._create_learned_tab(), "🧠 Learned Exploits")
         self.tabs.addTab(self._create_cache_tab(), "📂 Cache Scanner")
