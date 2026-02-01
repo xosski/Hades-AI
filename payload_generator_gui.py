@@ -6,7 +6,9 @@ import json
 import logging
 import os
 import mimetypes
+import csv
 from pathlib import Path
+from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit,
     QTableWidget, QTableWidgetItem, QGroupBox, QFormLayout,
@@ -328,34 +330,68 @@ class PayloadGeneratorTab(QWidget):
         self.payloads_table.setMaximumHeight(300)
         layout.addWidget(self.payloads_table)
         
-        # ===== PAYLOAD DETAILS =====
-        details_group = QGroupBox("Payload Details")
-        details_layout = QVBoxLayout()
+        # ===== PAYLOAD VIEWER =====
+        viewer_group = QGroupBox("Payload Viewer")
+        viewer_layout = QVBoxLayout()
         
+        # Tabs for different views
+        viewer_tabs = QTabWidget()
+        
+        # Raw payload tab
+        self.raw_payload_text = QTextEdit()
+        self.raw_payload_text.setReadOnly(True)
+        self.raw_payload_text.setStyleSheet(
+            "QTextEdit { background-color: #1e1e1e; color: #00ff00; font-family: Courier; font-size: 11px; }"
+        )
+        viewer_tabs.addTab(self.raw_payload_text, "Raw Payload")
+        
+        # All payloads tab
+        self.all_payloads_text = QTextEdit()
+        self.all_payloads_text.setReadOnly(True)
+        self.all_payloads_text.setStyleSheet(
+            "QTextEdit { background-color: #1e1e1e; color: #00ff00; font-family: Courier; font-size: 10px; }"
+        )
+        viewer_tabs.addTab(self.all_payloads_text, "All Payloads")
+        
+        # Details tab
         self.details_text = QTextEdit()
         self.details_text.setReadOnly(True)
-        self.details_text.setMaximumHeight(200)
         self.details_text.setStyleSheet(
-            "QTextEdit { background-color: #1e1e1e; color: #00ff00; font-family: Courier; }"
+            "QTextEdit { background-color: #1e1e1e; color: #4dabf7; font-family: Courier; }"
         )
-        details_layout.addWidget(self.details_text)
+        viewer_tabs.addTab(self.details_text, "Info")
         
-        details_group.setLayout(details_layout)
-        layout.addWidget(details_group)
+        viewer_layout.addWidget(viewer_tabs)
+        
+        viewer_group.setLayout(viewer_layout)
+        layout.addWidget(viewer_group)
         
         # ===== ACTION BUTTONS =====
         action_layout = QHBoxLayout()
         
-        copy_btn = QPushButton("Copy Selected Payload")
+        copy_btn = QPushButton("📋 Copy Selected")
         copy_btn.clicked.connect(self._copy_payload)
+        copy_btn.setToolTip("Copy selected payload to clipboard")
         action_layout.addWidget(copy_btn)
         
-        export_btn = QPushButton("Export All Payloads")
+        copy_all_btn = QPushButton("📋 Copy All")
+        copy_all_btn.clicked.connect(self._copy_all_payloads)
+        copy_all_btn.setToolTip("Copy all payloads to clipboard (one per line)")
+        action_layout.addWidget(copy_all_btn)
+        
+        export_btn = QPushButton("💾 Export All")
         export_btn.clicked.connect(self._export_payloads)
+        export_btn.setToolTip("Export payloads to file (TXT, JSON, or CSV)")
         action_layout.addWidget(export_btn)
         
-        clear_btn = QPushButton("Clear")
+        show_raw_btn = QPushButton("📄 Show Raw")
+        show_raw_btn.clicked.connect(self._show_raw_payload)
+        show_raw_btn.setToolTip("Show raw selected payload in large view")
+        action_layout.addWidget(show_raw_btn)
+        
+        clear_btn = QPushButton("🗑️ Clear")
         clear_btn.clicked.connect(self._clear)
+        clear_btn.setToolTip("Clear all data")
         action_layout.addWidget(clear_btn)
         
         action_layout.addStretch()
@@ -439,17 +475,36 @@ class PayloadGeneratorTab(QWidget):
             self.payloads_table.setItem(idx, 0, QTableWidgetItem(str(idx + 1)))
             self.payloads_table.setItem(idx, 1, QTableWidgetItem(str(payload)))
         
+        # Update all payloads viewer
+        all_payloads_text = f"=== ALL PAYLOADS FOR {file_type.upper()} ===\n"
+        all_payloads_text += f"Total: {len(payloads)} payload{'s' if len(payloads) != 1 else ''}\n"
+        all_payloads_text += "=" * 70 + "\n\n"
+        
+        for idx, payload in enumerate(payloads, 1):
+            all_payloads_text += f"{idx}. {payload}\n\n"
+        
+        self.all_payloads_text.setText(all_payloads_text)
+        
         # Update details
-        details = f"File Type: {file_type}\n"
+        details = f"FILE TYPE: {file_type.upper()}\n"
+        details += "=" * 50 + "\n\n"
         details += f"Total Payloads: {len(payloads)}\n"
-        details += f"Category: {file_type.upper()}\n\n"
-        details += "Payload Types:\n"
-        for idx, payload in enumerate(payloads[:3], 1):
-            details += f"{idx}. {payload[:80]}\n"
-        if len(payloads) > 3:
-            details += f"... and {len(payloads) - 3} more"
+        details += f"Category: {file_type.upper()}\n"
+        details += f"File: {Path(self.current_file).name if self.current_file else 'N/A'}\n"
+        details += f"File Size: {self.file_size_label.text()}\n\n"
+        details += "SAMPLE PAYLOADS:\n"
+        details += "-" * 50 + "\n"
+        for idx, payload in enumerate(payloads[:5], 1):
+            truncated = payload[:60] + "..." if len(payload) > 60 else payload
+            details += f"{idx}. {truncated}\n"
+        if len(payloads) > 5:
+            details += f"\n... and {len(payloads) - 5} more payloads"
         
         self.details_text.setText(details)
+        
+        # Initialize raw payload viewer with first payload
+        if payloads:
+            self.raw_payload_text.setText(payloads[0])
     
     def _on_payload_selected(self):
         """Handle payload selection"""
@@ -458,9 +513,17 @@ class PayloadGeneratorTab(QWidget):
             row = selected_rows[0].row()
             payload = self.payloads_table.item(row, 1).text()
             
-            details = f"Selected Payload ({row + 1}):\n\n"
-            details += payload
-            details += f"\n\nLength: {len(payload)} characters"
+            # Show raw payload
+            self.raw_payload_text.setText(payload)
+            
+            # Update details with payload info
+            details = f"SELECTED PAYLOAD #{row + 1}\n"
+            details += "=" * 50 + "\n\n"
+            details += f"Payload:\n{payload}\n\n"
+            details += "-" * 50 + "\n"
+            details += f"Length: {len(payload)} characters\n"
+            details += f"Lines: {payload.count(chr(10)) + 1}\n"
+            details += f"Type: {self.file_type_combo.currentText()}\n"
             
             self.details_text.setText(details)
     
@@ -476,7 +539,34 @@ class PayloadGeneratorTab(QWidget):
         
         from PyQt6.QtGui import QApplication
         QApplication.clipboard().setText(payload)
-        QMessageBox.information(self, "Success", "Payload copied to clipboard")
+        QMessageBox.information(self, "✅ Success", f"Payload #{row + 1} copied to clipboard\n\n{payload[:100]}...")
+    
+    def _copy_all_payloads(self):
+        """Copy all payloads to clipboard"""
+        if not self.payloads:
+            QMessageBox.warning(self, "Error", "No payloads to copy")
+            return
+        
+        all_text = "\n".join(self.payloads)
+        
+        from PyQt6.QtGui import QApplication
+        QApplication.clipboard().setText(all_text)
+        QMessageBox.information(self, "✅ Success", f"All {len(self.payloads)} payloads copied to clipboard")
+    
+    def _show_raw_payload(self):
+        """Show raw payload in large view"""
+        selected_rows = self.payloads_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Error", "Please select a payload")
+            return
+        
+        row = selected_rows[0].row()
+        payload = self.payloads_table.item(row, 1).text()
+        
+        # Display in raw payload tab
+        self.raw_payload_text.setText(payload)
+        # Note: In PyQt6, we can't directly switch tabs from here,
+        # but we set the content and user can see it in the Raw Payload tab
     
     def _export_payloads(self):
         """Export all payloads to file"""
@@ -488,30 +578,59 @@ class PayloadGeneratorTab(QWidget):
             self,
             "Export Payloads",
             f"{Path(self.current_file).stem}_payloads.txt",
-            "Text Files (*.txt);;JSON Files (*.json)"
+            "Text Files (*.txt);;JSON Files (*.json);;Comma-Separated (*.csv)"
         )
         
         if not file_path:
             return
         
         try:
+            file_type = self.file_type_label.text()
+            filename = Path(self.current_file).name if self.current_file else "Unknown"
+            
             if file_path.endswith('.json'):
+                # JSON Export
                 data = {
-                    'file': self.current_file,
-                    'file_type': self.file_type_label.text(),
+                    'metadata': {
+                        'source_file': self.current_file,
+                        'source_filename': filename,
+                        'file_type': file_type,
+                        'payload_count': len(self.payloads),
+                        'generated_at': datetime.now().isoformat()
+                    },
                     'payloads': self.payloads
                 }
                 with open(file_path, 'w') as f:
                     json.dump(data, f, indent=2)
-            else:
-                with open(file_path, 'w') as f:
-                    f.write(f"Payloads for: {self.current_file}\n")
-                    f.write(f"Type: {self.file_type_label.text()}\n")
-                    f.write("=" * 80 + "\n\n")
+                
+            elif file_path.endswith('.csv'):
+                # CSV Export
+                import csv
+                with open(file_path, 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['Payload Number', 'Payload Type', 'Payload'])
                     for idx, payload in enumerate(self.payloads, 1):
-                        f.write(f"{idx}. {payload}\n\n")
+                        writer.writerow([idx, file_type, payload])
+                
+            else:
+                # TXT Export (default)
+                with open(file_path, 'w') as f:
+                    f.write("╔" + "═" * 78 + "╗\n")
+                    f.write(f"║ PAYLOAD EXPORT - {file_type.upper():<60}║\n")
+                    f.write("╚" + "═" * 78 + "╝\n\n")
+                    f.write(f"Source File: {filename}\n")
+                    f.write(f"File Type: {file_type}\n")
+                    f.write(f"Total Payloads: {len(self.payloads)}\n")
+                    f.write(f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("\n" + "─" * 80 + "\n\n")
+                    
+                    for idx, payload in enumerate(self.payloads, 1):
+                        f.write(f"PAYLOAD #{idx}\n")
+                        f.write("-" * 80 + "\n")
+                        f.write(f"{payload}\n")
+                        f.write("\n" + "─" * 80 + "\n\n")
             
-            QMessageBox.information(self, "Success", f"Exported to {file_path}")
+            QMessageBox.information(self, "Success", f"Exported {len(self.payloads)} payloads to:\n{file_path}")
             logger.info(f"Exported {len(self.payloads)} payloads to {file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export:\n{e}")
