@@ -4603,6 +4603,9 @@ please consider supporting its development.</p>
         mode = "ENABLED" if enabled else "DISABLED"
         self._add_chat_message("system", f"⚔️ Active Defense Mode {mode}")
     def _display_recent_web_knowledge(self):
+        if not hasattr(self, 'web_knowledge_display'):
+            return
+        
         recent_patterns = self.ai.kb.fetch_recent_web_patterns(limit=5)
         if recent_patterns:
             summary = "\n\n".join(
