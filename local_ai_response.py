@@ -1,13 +1,19 @@
 """
 Local AI Response Generator
-Mimics Mistral-like responses without requiring API keys.
+Mimics Mistral/OpenAI-like responses without requiring API keys.
 Uses knowledge lookup + pattern-based response generation with context awareness.
+Features:
+- Structured reasoning and thinking traces
+- Multi-step logical progression
+- Context-aware response depth
+- Technical precision with clarity
 """
 
 import re
 from typing import Optional, Dict, List, Tuple
 from knowledge_lookup import KnowledgeLookup
 from datetime import datetime
+from modules.sophisticated_responses import SophisticatedResponseEngine
 
 
 class LocalAIResponse:
@@ -18,12 +24,14 @@ class LocalAIResponse:
     
     def __init__(self, use_knowledge_db: bool = True):
         self.lookup = KnowledgeLookup() if use_knowledge_db else None
-        self.personality = "technical, security-focused, analytical"
-        self.max_response_length = 2000
+        self.response_engine = SophisticatedResponseEngine()
+        self.personality = "technical, security-focused, analytical, precise"
+        self.max_response_length = 3000
         self.conversation_history: List[Dict] = []
         self.context_stack: List[Dict] = []
         self.follow_up_questions: Dict[str, List[str]] = {}
         self.expertise_level = "intermediate"
+        self.use_structured_reasoning = True  # Enable thinking traces
     
     def generate(self, user_input: str, system_prompt: str = "", mood: str = "neutral") -> str:
         """
@@ -181,20 +189,26 @@ class LocalAIResponse:
         return response + followup
     
     def _respond_vulnerability(self, query: str, context: str, mood: str, conv_context: str = "") -> str:
-        """Generate response about vulnerabilities"""
+        """Generate response about vulnerabilities with sophisticated analysis"""
         
         # Extract vulnerability type
         vuln_type = self._extract_topic(query)
         
-        response = f"**{vuln_type.title()} Vulnerability Analysis**\n\n"
+        # Use structured reasoning for advanced queries
+        if self.use_structured_reasoning and self.expertise_level in ["intermediate", "advanced"]:
+            base_response = f"**{vuln_type.title()} Vulnerability Analysis**\n\n"
+            
+            if conv_context and self.expertise_level == "advanced":
+                base_response += f"*Context from recent discussion:*\n{conv_context}\n\n"
+            
+            if context:
+                base_response += f"**Knowledge Base Reference:**\n{context}\n\n"
+        else:
+            base_response = f"**{vuln_type.title()} Vulnerability Analysis**\n\n"
+            if context:
+                base_response += f"{context}\n\n"
         
-        # Add conversation context if available
-        if conv_context and self.expertise_level == "advanced":
-            response += f"{conv_context}\n\n"
-        
-        # Add knowledge from database
-        if context:
-            response += f"**From Knowledge Base:**\n{context}\n\n"
+        response = base_response
         
         # Provide analysis based on detected type
         if "sql" in query.lower() and "injection" in query.lower():
