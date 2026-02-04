@@ -224,8 +224,8 @@ class AutonomousOpsTab(QWidget):
         
         # Initialize engines
         if HAS_AUTONOMOUS_OPS:
-            self.threat_response = ThreatResponseEngine(db_path)
-            self.learning_engine = ContinuousLearningEngine(db_path)
+            self.threat_response = ThreatResponseEngine(self.db_path)
+            self.learning_engine = ContinuousLearningEngine(self.db_path)
             self.decision_agent = DecisionMakingAgent(
                 self.learning_engine, self.threat_response
             )

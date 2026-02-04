@@ -112,7 +112,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QLabel, QProgressBar, QTabWidget,
     QTreeWidget, QTreeWidgetItem, QComboBox, QLineEdit, QPlainTextEdit,
-    QGroupBox, QFormLayout, QSpinBox, QCheckBox, QDoubleSpinBox,
+    QGroupBox, QFormLayout, QSpinBox, QCheckBox,
     QSplitter, QStatusBar, QMenuBar, QMenu, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QTableWidget,
     QTableWidgetItem, QHeaderView, QScrollArea
@@ -3863,7 +3863,6 @@ class HadesGUI(QMainWindow):
         layout.addWidget(self.tabs)
         
         self.tabs.addTab(self._create_chat_tab(), "💬 AI Chat")
-        self.tabs.addTab(self._create_active_defense_tab(), "🛡️ Active Defense")
         self.tabs.addTab(self._create_network_monitor_tab(), "🛡️ Network Monitor")
         self.tabs.addTab(self._create_web_knowledge_tab(), "🧠 Web Knowledge")
         self.tabs.addTab(self._create_tools_tab(), "🛠️ Tools & Targets")
@@ -4165,142 +4164,6 @@ please consider supporting its development.</p>
         layout.addWidget(self.net_status_label)
         
         return widget
-        
-    def _create_active_defense_tab(self) -> QWidget:
-        """Separate defense tab for managing autonomous defense independently from network monitor"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        if not HAS_AUTONOMOUS_DEFENSE:
-            layout.addWidget(QLabel("Autonomous defense module not available."))
-            widget.setLayout(layout)
-            return widget
-
-        # Create a separate autonomous defense instance for this tab
-        self.defense_tab_engine = AutonomousDefenseEngine()
-
-        status_group = QGroupBox("Defense Status")
-        status_layout = QVBoxLayout(status_group)
-        self.defense_status_label = QLabel("Status: Disabled")
-        self.defense_status_label.setStyleSheet("color: #ff6b6b;")
-        status_layout.addWidget(self.defense_status_label)
-
-        control_layout = QHBoxLayout()
-        self.defense_enable_btn = QPushButton("Enable Defense")
-        self.defense_enable_btn.clicked.connect(self._toggle_defense_tab)
-        self.defense_block_btn = QPushButton("Block IP")
-        self.defense_block_btn.clicked.connect(self._block_ip_from_defense_tab)
-        self.defense_block_input = QLineEdit()
-        self.defense_block_input.setPlaceholderText("IP address to block")
-
-        control_layout.addWidget(self.defense_enable_btn)
-        control_layout.addWidget(self.defense_block_input)
-        control_layout.addWidget(self.defense_block_btn)
-        control_layout.addStretch()
-
-        status_layout.addLayout(control_layout)
-        layout.addWidget(status_group)
-
-        config_group = QGroupBox("Configuration")
-        config_layout = QFormLayout(config_group)
-
-        self.defense_tab_level_combo = QComboBox()
-        self.defense_tab_level_combo.addItems(["PASSIVE", "REACTIVE", "PROACTIVE", "AGGRESSIVE"])
-        self.defense_tab_level_combo.setCurrentText("REACTIVE")
-        config_layout.addRow("Defense Level:", self.defense_tab_level_combo)
-
-        self.defense_auto_response_cb = QCheckBox("Auto-Response")
-        self.defense_auto_response_cb.setChecked(True)
-        config_layout.addRow("Auto-Response:", self.defense_auto_response_cb)
-
-        self.defense_block_threshold = QDoubleSpinBox()
-        self.defense_block_threshold.setRange(0.0, 1.0)
-        self.defense_block_threshold.setValue(0.7)
-        self.defense_block_threshold.setSingleStep(0.05)
-        config_layout.addRow("Block Threshold:", self.defense_block_threshold)
-
-        layout.addWidget(config_group)
-
-        layout.addWidget(QLabel("Threat Log (Recent)"))
-        self.defense_threat_log = QTextEdit()
-        self.defense_threat_log.setReadOnly(True)
-        self.defense_threat_log.setMaximumHeight(150)
-        layout.addWidget(self.defense_threat_log)
-
-        layout.addWidget(QLabel("Blocked IPs"))
-        self.defense_blocked_ips = QTextEdit()
-        self.defense_blocked_ips.setReadOnly(True)
-        self.defense_blocked_ips.setMaximumHeight(100)
-        layout.addWidget(self.defense_blocked_ips)
-
-        layout.addStretch()
-        widget.setLayout(layout)
-        return widget
-        
-    def _toggle_defense_tab(self):
-        """Toggle defense tab engine state"""
-        if not hasattr(self, 'defense_tab_engine'):
-            QMessageBox.warning(self, "Error", "Autonomous defense module not initialized")
-            return
-        
-        if self.defense_tab_engine.enabled:
-            self.defense_tab_engine.disable()
-            self.defense_enable_btn.setText("Enable Defense")
-            self.defense_status_label.setText("Status: Disabled")
-            self.defense_status_label.setStyleSheet("color: #ff6b6b;")
-        else:
-            # Get selected defense level
-            level_name = self.defense_tab_level_combo.currentText()
-            from modules.autonomous_defense import DefenseLevel
-            level = DefenseLevel[level_name]
-            
-            self.defense_tab_engine.enable(level)
-            self.defense_enable_btn.setText("Disable Defense")
-            self.defense_status_label.setText(f"Status: Enabled ({level_name})")
-            self.defense_status_label.setStyleSheet("color: #51cf66;")
-        
-    def _block_ip_from_defense_tab(self):
-        """Block an IP address from the defense tab"""
-        if not hasattr(self, 'defense_tab_engine'):
-            QMessageBox.warning(self, "Error", "Autonomous defense module not initialized")
-            return
-        
-        ip = self.defense_block_input.text().strip()
-        if not ip:
-            QMessageBox.warning(self, "Error", "Please enter an IP address")
-            return
-        
-        # Validate IP format
-        parts = ip.split('.')
-        if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
-            QMessageBox.warning(self, "Error", "Invalid IP address format")
-            return
-        
-        try:
-            self.defense_tab_engine.block_ip(ip)
-            
-            # Update blocked IPs display
-            self._update_defense_blocked_ips_log()
-            self.defense_block_input.clear()
-            QMessageBox.information(self, "Success", f"IP {ip} has been blocked")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to block IP: {str(e)}")
-        
-    def _update_defense_blocked_ips_log(self):
-        """Update the blocked IPs log from defense tab engine"""
-        if not hasattr(self, 'defense_tab_engine'):
-            return
-        
-        try:
-            # Get blocked IPs from the engine
-            blocked_ips = getattr(self.defense_tab_engine.rate_limiter, 'blocked_ips', set())
-            if blocked_ips:
-                self.defense_blocked_ips.setText('\n'.join(sorted(blocked_ips)))
-            else:
-                self.defense_blocked_ips.setText("No blocked IPs")
-        except Exception as e:
-            logger.warning(f"Failed to update blocked IPs log: {e}")
-
     def _create_modules_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -4614,7 +4477,7 @@ please consider supporting its development.</p>
         else:
             summary = "No recent web-based learning data found."
 
-        self.web_knowledge_display.setPlainText(f"[HadesAI :: Web Knowledge]\n\n{summary}")
+        self.output_display.setPlainText(f"[HadesAI :: Web Knowledge]\n\n{summary}")
     def _toggle_learning_mode(self, enabled: bool):
         if self.network_monitor:
             self.network_monitor.set_learning_mode(enabled)
