@@ -1,0 +1,62 @@
+from dataclasses import dataclass
+from datetime import datetime
+import uuid
+
+@dataclass
+class Memory:
+    id: str
+    content: str
+    embedding: list
+    importance: float
+    timestamp: datetime
+import numpy as np
+
+class MemoryStore:
+    def __init__(self):
+        self.memories = []
+
+    def add(self, memory: Memory):
+        self.memories.append(memory)
+
+    def search(self, query_embedding, top_k=5):
+        def cosine(a, b):
+            return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        scored = [
+            (cosine(query_embedding, m.embedding), m)
+            for m in self.memories
+        ]
+        return sorted(scored, reverse=True)[:top_k]
+class MemoryOptimizer:
+    def prune(self, store: MemoryStore, threshold=0.2):
+        store.memories = [
+            m for m in store.memories
+            if m.importance >= threshold
+        ]
+
+    def compress(self, store: MemoryStore):
+        # placeholder: summarize similar memories
+        pass
+class CognitiveLayer:
+    def __init__(self, embedder):
+        self.store = MemoryStore()
+        self.optimizer = MemoryOptimizer()
+        self.embedder = embedder
+
+    def remember(self, text, importance=0.5):
+        embedding = self.embedder(text)
+        mem = Memory(
+            id=str(uuid.uuid4()),
+            content=text,
+            embedding=embedding,
+            importance=importance,
+            timestamp=datetime.utcnow()
+        )
+        self.store.add(mem)
+
+    def recall(self, query, top_k=5):
+        query_embedding = self.embedder(query)
+        return self.store.search(query_embedding, top_k)
+
+    def optimize(self):
+        self.optimizer.prune(self.store)
+        self.optimizer.compress(self.store)

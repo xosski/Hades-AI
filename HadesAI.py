@@ -16,7 +16,7 @@ import sqlite3
 import numpy as np
 from datetime import datetime
 from collections import defaultdict, Counter
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
@@ -54,6 +54,14 @@ try:
 except ImportError:
     FallbackLLM = None
     HAS_FALLBACK_LLM = False
+
+# Cognitive Memory System
+try:
+    from modules.cognitive_memory import CognitiveLayer, Memory, MemoryStore
+    HAS_COGNITIVE_MEMORY = True
+except ImportError:
+    CognitiveLayer = None
+    HAS_COGNITIVE_MEMORY = False
 
 # Autonomous Defense Module
 try:
@@ -2821,6 +2829,18 @@ class HadesAI:
         self.last_code = ""
         self.files = {} # filename -> code str
         self.code_assistant = CodeEditorAssistant()
+        
+        # Initialize cognitive memory system
+        if HAS_COGNITIVE_MEMORY:
+            self.cognitive = CognitiveLayer()
+            logger.info("Cognitive memory layer initialized")
+            # Start background memory optimizer
+            self._start_background_optimizer()
+        else:
+            self.cognitive = None
+            logger.warning("Cognitive memory system not available")
+        
+        self._optimizer_thread = None
     def chat(self, message: str) -> Dict:
         return self.chat_processor.process(message)
         
@@ -2833,7 +2853,129 @@ class HadesAI:
         for table in ['experiences', 'security_patterns', 'learned_exploits', 'threat_findings', 'cache_entries']:
             cursor.execute(f'SELECT COUNT(*) FROM {table}')
             stats[table] = cursor.fetchone()[0]
+        if self.cognitive:
+            stats['cognitive_memories'] = self.cognitive.get_memory_stats()
         return stats
+    
+    # ========== Cognitive Memory Methods ==========
+    def remember(self, text: str, importance: float = 0.5, metadata: dict = None) -> Optional[str]:
+        """Store content in cognitive memory."""
+        if not self.cognitive:
+            return None
+        return self.cognitive.remember(text, importance, metadata)
+    
+    def recall(self, query: str, top_k: int = 5) -> List[tuple]:
+        """Retrieve relevant memories by semantic similarity."""
+        if not self.cognitive:
+            return []
+        return self.cognitive.recall(query, top_k)
+    
+    def optimize_memory(self, prune_threshold: float = 0.2, apply_decay: bool = True) -> Dict:
+        """Optimize cognitive memory storage."""
+        if not self.cognitive:
+            return {'error': 'Cognitive memory not available'}
+        return self.cognitive.optimize(prune_threshold, apply_decay)
+    
+    def forget(self, memory_id: str) -> bool:
+        """Remove a specific memory."""
+        if not self.cognitive:
+            return False
+        return self.cognitive.forget(memory_id)
+    
+    def get_memory_stats(self) -> Dict:
+        """Get cognitive memory statistics."""
+        if not self.cognitive:
+            return {'error': 'Cognitive memory not available'}
+        return self.cognitive.get_memory_stats()
+    
+    # ========== Feedback Loop Methods ==========
+    def evaluate_response(self, user_input: str, ai_output: str, 
+                         success_score: float, metadata: dict = None) -> Optional[str]:
+        """
+        Evaluate an AI response and update memory based on outcome.
+        
+        Args:
+            user_input: User's original query
+            ai_output: AI's response
+            success_score: Success evaluation (0.0-1.0)
+            metadata: Optional metadata about interaction
+            
+        Returns:
+            Reflection ID or None if cognitive memory unavailable
+        """
+        if not self.cognitive:
+            return None
+        return self.cognitive.evaluate_response(user_input, ai_output, success_score, metadata)
+    
+    def reinforce_memory(self, memory_id: str, success_score: float) -> bool:
+        """Reinforce a specific memory based on feedback."""
+        if not self.cognitive:
+            return False
+        return self.cognitive.reinforce_memory(memory_id, success_score)
+    
+    def generate_with_memory(self, query: str, llm_call: Callable) -> tuple:
+        """
+        Generate a response using cognitive memory for context.
+        Memory-augmented generation improves response quality and speed.
+        
+        Args:
+            query: User query
+            llm_call: LLM function that accepts (query, memory_context)
+            
+        Returns:
+            Tuple of (response, recalled_memories)
+        """
+        if not self.cognitive:
+            return llm_call(query, ""), []
+        
+        def context_provider(q, mem_context):
+            prompt = f"""Relevant prior knowledge:
+{mem_context}
+
+Current query:
+{q}"""
+            return llm_call(prompt)
+        
+        return self.cognitive.generate_with_memory(query, context_provider)
+    
+    def get_full_cognitive_stats(self) -> Dict:
+        """Get comprehensive statistics about memories and reflections."""
+        if not self.cognitive:
+            return {'error': 'Cognitive memory not available'}
+        return self.cognitive.get_full_stats()
+    
+    # ========== Background Optimizer ==========
+    def _start_background_optimizer(self, interval_seconds: int = 3600):
+        """
+        Start background memory optimizer thread.
+        Runs periodically to prune and compress memories.
+        
+        Args:
+            interval_seconds: Optimization interval (default: 1 hour)
+        """
+        if not self.cognitive:
+            return
+        
+        def background_optimizer():
+            while True:
+                try:
+                    time.sleep(interval_seconds)
+                    if self.cognitive:
+                        stats = self.cognitive.optimize(
+                            prune_threshold=0.25,
+                            apply_decay=True
+                        )
+                        logger.info(f"Background optimization: pruned {stats['pruned_count']} memories")
+                except Exception as e:
+                    logger.error(f"Background optimizer error: {e}")
+        
+        self._optimizer_thread = threading.Thread(
+            target=background_optimizer,
+            daemon=True,
+            name="HadesAI-MemoryOptimizer"
+        )
+        self._optimizer_thread.start()
+        logger.info("Background memory optimizer started")
     def dispatch(self, user_input):
         """Dispatch commands - supports file operations, GPT analysis, and mode switching"""
         user_input = user_input.strip()
