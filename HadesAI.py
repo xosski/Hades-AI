@@ -7685,20 +7685,96 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
             
         self.vuln_tree.clear()
         
+        # Enhanced vulnerability patterns with descriptions
         patterns = {
-            'sql_injection': [r'execute\s*\([^)]*\+', r'cursor\.execute\s*\([^,]+%'],
-            'xss': [r'innerHTML\s*=', r'document\.write'],
-            'command_injection': [r'os\.system', r'subprocess.*shell\s*=\s*True', r'eval\s*\('],
-            'hardcoded_secrets': [r'password\s*=\s*["\'][^"\']+["\']', r'api_key\s*='],
+            'sql_injection': [
+                (r'execute\s*\([^)]*\+', 'String concatenation in SQL query execution - allows attackers to inject SQL commands'),
+                (r'cursor\.execute\s*\([^,]+%', 'Unescaped % formatting in SQL queries - vulnerable to parameter injection'),
+                (r"\.format\s*\([^)]*\)" , 'Using .format() for SQL queries - not using parameterized queries')
+            ],
+            'xss': [
+                (r'innerHTML\s*=', 'Direct innerHTML assignment - risk of script injection if user input is used'),
+                (r'document\.write\s*\(', 'document.write() can execute scripts - vulnerable to XSS if content is user-controlled'),
+                (r'dangerouslySetInnerHTML', 'React dangerouslySetInnerHTML - explicitly bypasses XSS protection')
+            ],
+            'command_injection': [
+                (r'os\.system\s*\(', 'os.system() with unvalidated input allows arbitrary command execution'),
+                (r'subprocess.*shell\s*=\s*True', 'shell=True in subprocess enables command injection from user input'),
+                (r'eval\s*\(', 'eval() executes arbitrary code - extreme security risk'),
+                (r'exec\s*\(', 'exec() executes arbitrary code - extreme security risk')
+            ],
+            'hardcoded_secrets': [
+                (r'password\s*=\s*["\'][^"\']+["\']', 'Hardcoded password in source code - credentials exposed in version control'),
+                (r'api_key\s*=\s*["\'][^"\']+["\']', 'Hardcoded API key/token - compromises service access'),
+                (r'secret\s*=\s*["\'][^"\']+["\']', 'Hardcoded secret value - should use environment variables')
+            ],
+            'insecure_deserialization': [
+                (r'pickle\.loads\s*\(', 'pickle.loads() on untrusted data can execute arbitrary code'),
+                (r'yaml\.load\s*\(', 'yaml.load() without Loader specified - use yaml.safe_load()'),
+                (r'json\.loads\s*\(.*eval', 'Evaluating JSON as Python code - use json.loads() instead')
+            ],
+            'path_traversal': [
+                (r'open\s*\([^)]*\+', 'File path built with string concatenation - vulnerable to ../ traversal attacks'),
+                (r'os\.path\.join.*\+', 'Path operations with concatenation - attackers can escape base directory'),
+            ]
         }
         
-        for vuln_type, pats in patterns.items():
-            for pat in pats:
-                for match in re.finditer(pat, code, re.IGNORECASE):
-                    line = code[:match.start()].count('\n') + 1
-                    item = QTreeWidgetItem([vuln_type, 'HIGH', str(line), match.group()[:50]])
-                    item.setForeground(0, QColor('#ff6b6b'))
-                    self.vuln_tree.addTopLevelItem(item)
+        vulnerabilities_found = []
+        
+        for vuln_type, patterns_list in patterns.items():
+            for pattern, description in patterns_list:
+                for match in re.finditer(pattern, code, re.IGNORECASE):
+                    line_num = code[:match.start()].count('\n') + 1
+                    line_text = code.split('\n')[line_num - 1].strip()
+                    
+                    # Determine severity
+                    severity = 'CRITICAL' if vuln_type in ['hardcoded_secrets', 'command_injection'] else 'HIGH'
+                    
+                    # Create tree item with details
+                    parent_item = QTreeWidgetItem([
+                        f"⚠️ {vuln_type.replace('_', ' ').title()}",
+                        severity,
+                        f"Line {line_num}",
+                        match.group()[:40] + ('...' if len(match.group()) > 40 else '')
+                    ])
+                    parent_item.setForeground(0, QColor('#ff6b6b' if severity == 'CRITICAL' else '#ffa500'))
+                    
+                    # Add description as child
+                    desc_item = QTreeWidgetItem(['Description', '', '', description[:100] + ('...' if len(description) > 100 else '')])
+                    desc_item.setForeground(0, QColor('#ffffff'))
+                    parent_item.addChild(desc_item)
+                    
+                    # Add code context
+                    context_item = QTreeWidgetItem(['Code Context', '', '', f'"{line_text}"'])
+                    context_item.setForeground(0, QColor('#90EE90'))
+                    parent_item.addChild(context_item)
+                    
+                    # Add remediation
+                    remediation = self._get_remediation(vuln_type, match.group())
+                    if remediation:
+                        rem_item = QTreeWidgetItem(['Fix Suggestion', '', '', remediation[:100]])
+                        rem_item.setForeground(0, QColor('#87CEEB'))
+                        parent_item.addChild(rem_item)
+                    
+                    self.vuln_tree.addTopLevelItem(parent_item)
+                    vulnerabilities_found.append(vuln_type)
+        
+        if not vulnerabilities_found:
+            no_vuln = QTreeWidgetItem(["✅ No vulnerabilities detected", 'INFO', '0', 'Code appears safe'])
+            no_vuln.setForeground(0, QColor('#90EE90'))
+            self.vuln_tree.addTopLevelItem(no_vuln)
+    
+    def _get_remediation(self, vuln_type: str, matched_code: str) -> str:
+        """Get remediation suggestions based on vulnerability type"""
+        remediations = {
+            'sql_injection': 'Use parameterized queries: cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))',
+            'xss': 'Use innerHTML for sanitized content or textContent for text. Sanitize with libraries like DOMPurify.',
+            'command_injection': 'Use subprocess.run() with a list of args, not shell=True. Validate/whitelist inputs.',
+            'hardcoded_secrets': 'Move to environment variables: import os; password = os.getenv("DB_PASSWORD")',
+            'insecure_deserialization': 'Use json instead of pickle. For YAML: use yaml.safe_load() instead of yaml.load()',
+            'path_traversal': 'Use os.path.abspath() and validate it stays within base dir. Or use pathlib.Path.resolve().'
+        }
+        return remediations.get(vuln_type, 'Review the OWASP documentation for this vulnerability type.')
 
     # ========== AUTONOMOUS CODING AGENT ==========
 
