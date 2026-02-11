@@ -82,6 +82,14 @@ except ImportError:
     PayloadGeneratorTab = None
     HAS_PAYLOAD_GEN = False
 
+# Data Mapping GUI
+try:
+    from data_mapping_gui import DataMappingTab
+    HAS_DATA_MAPPING = True
+except ImportError:
+    DataMappingTab = None
+    HAS_DATA_MAPPING = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4015,6 +4023,8 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_proxy_tab(), "🌐 Proxy Settings")
         if HAS_PAYLOAD_GEN:
             self.tabs.addTab(PayloadGeneratorTab(), "📦 Payload Gen")
+        if HAS_DATA_MAPPING:
+            self.tabs.addTab(DataMappingTab(), "🗺️ Data Mapping")
         self.tabs.addTab(self._create_findings_tab(), "🔍 Threat Findings")
         self.tabs.addTab(self._create_learned_tab(), "🧠 Learned Exploits")
         self.tabs.addTab(self._create_cache_tab(), "📂 Cache Scanner")
