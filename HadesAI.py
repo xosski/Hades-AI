@@ -98,6 +98,14 @@ except ImportError:
     create_realistic_simulations_tab = None
     HAS_REALISTIC_SIMS = False
 
+# Python Script Editor
+try:
+    from python_script_editor import PythonScriptEditorTab
+    HAS_SCRIPT_EDITOR = True
+except ImportError:
+    PythonScriptEditorTab = None
+    HAS_SCRIPT_EDITOR = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4041,6 +4049,8 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_self_improvement_tab(), "🔧 Self-Improvement")
         self.tabs.addTab(self._create_autorecon_tab(), "🧠 AutoRecon")
         self.tabs.addTab(self._create_modules_tab(), "🧩 Modules")
+        if HAS_SCRIPT_EDITOR:
+            self.tabs.addTab(PythonScriptEditorTab(), "📜 Script Editor")
         if HAS_REALISTIC_SIMS:
             self.tabs.addTab(create_realistic_simulations_tab(), "🎯 Simulations")
         if HAS_AUTONOMOUS_AGENT:
