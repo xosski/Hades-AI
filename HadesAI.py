@@ -90,6 +90,14 @@ except ImportError:
     DataMappingTab = None
     HAS_DATA_MAPPING = False
 
+# Realistic Simulations
+try:
+    from realistic_simulations import create_realistic_simulations_tab
+    HAS_REALISTIC_SIMS = True
+except ImportError:
+    create_realistic_simulations_tab = None
+    HAS_REALISTIC_SIMS = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4033,6 +4041,8 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_self_improvement_tab(), "🔧 Self-Improvement")
         self.tabs.addTab(self._create_autorecon_tab(), "🧠 AutoRecon")
         self.tabs.addTab(self._create_modules_tab(), "🧩 Modules")
+        if HAS_REALISTIC_SIMS:
+            self.tabs.addTab(create_realistic_simulations_tab(), "🎯 Simulations")
         if HAS_AUTONOMOUS_AGENT:
             self.tabs.addTab(self._create_agent_tab(), "🤖 Autonomous Coder")
         
@@ -4452,6 +4462,370 @@ please consider supporting its development.</p>
                 self.defense_blocked_ips.setText("No blocked IPs")
         except Exception as e:
             logger.warning(f"Failed to update blocked IPs log: {e}")
+
+    def _create_simulations_tab(self) -> QWidget:
+        """Create realistic pentesting simulations with AI guidance and learning"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Header
+        header = QGroupBox("🎮 Pentesting Simulations")
+        header_layout = QVBoxLayout(header)
+        header_layout.addWidget(QLabel("Practice your pentesting skills in safe, simulated environments."))
+        layout.addWidget(header)
+        
+        # Splitter for scenario list and details
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left side - Available Scenarios
+        scenarios_group = QGroupBox("📋 Available Scenarios")
+        scenarios_layout = QVBoxLayout(scenarios_group)
+        self.scenarios_list = QListWidget()
+        self.scenarios_list.itemSelectionChanged.connect(self._on_scenario_selected)
+        
+        # Populate scenarios
+        scenarios_data = [
+            ("🔓 SQL Injection (Easy)", "SQL Injection", "Practice basic SQL injection techniques"),
+            ("🕸️ XSS Attack (Easy)", "XSS", "Learn about Cross-Site Scripting vulnerabilities"),
+            ("🔐 Authentication Bypass (Medium)", "Auth Bypass", "Bypass weak authentication mechanisms"),
+            ("💉 Command Injection (Medium)", "Command Injection", "Execute arbitrary commands on the target"),
+            ("🎭 SSRF Attack (Medium)", "SSRF", "Server-Side Request Forgery exploitation"),
+            ("🏗️ Web App Pentesting (Hard)", "Web App", "Full web application penetration test"),
+            ("🌐 Network Enumeration (Medium)", "Enumeration", "Discover hosts and services on a network"),
+            ("🔑 Privilege Escalation (Hard)", "Privesc", "Escalate privileges to gain admin access"),
+        ]
+        
+        self.scenarios = {}
+        for display_name, scenario_id, description in scenarios_data:
+            item = QListWidgetItem(display_name)
+            item.setData(Qt.ItemDataRole.UserRole, scenario_id)
+            self.scenarios_list.addItem(item)
+            self.scenarios[scenario_id] = {
+                'name': display_name,
+                'description': description,
+                'difficulty': 'Easy' if 'Easy' in display_name else 'Medium' if 'Medium' in display_name else 'Hard'
+            }
+        
+        scenarios_layout.addWidget(self.scenarios_list)
+        
+        # Scenario controls
+        ctrl_layout = QHBoxLayout()
+        start_btn = QPushButton("▶️ Start Scenario")
+        start_btn.clicked.connect(self._start_simulation)
+        reset_btn = QPushButton("🔄 Reset")
+        reset_btn.clicked.connect(self._reset_simulation)
+        ctrl_layout.addWidget(start_btn)
+        ctrl_layout.addWidget(reset_btn)
+        scenarios_layout.addLayout(ctrl_layout)
+        
+        splitter.addWidget(scenarios_group)
+        
+        # Right side - Scenario Details
+        details_group = QGroupBox("📝 Scenario Details")
+        details_layout = QVBoxLayout(details_group)
+        
+        # Difficulty badge
+        difficulty_layout = QHBoxLayout()
+        difficulty_layout.addWidget(QLabel("Difficulty:"))
+        self.difficulty_label = QLabel("—")
+        self.difficulty_label.setStyleSheet("color: #e94560; font-weight: bold;")
+        difficulty_layout.addWidget(self.difficulty_label)
+        difficulty_layout.addStretch()
+        details_layout.addLayout(difficulty_layout)
+        
+        # Description
+        details_layout.addWidget(QLabel("Description:"))
+        self.scenario_description = QTextEdit()
+        self.scenario_description.setReadOnly(True)
+        self.scenario_description.setMaximumHeight(100)
+        details_layout.addWidget(self.scenario_description)
+        
+        # Objectives
+        details_layout.addWidget(QLabel("Objectives:"))
+        self.scenario_objectives = QTextEdit()
+        self.scenario_objectives.setReadOnly(True)
+        self.scenario_objectives.setMaximumHeight(150)
+        details_layout.addWidget(self.scenario_objectives)
+        
+        # Hints section
+        details_layout.addWidget(QLabel("Hints (Click to reveal):"))
+        self.hints_list = QListWidget()
+        self.hints_list.itemClicked.connect(self._reveal_hint)
+        self.hints_list.setMaximumHeight(120)
+        details_layout.addWidget(self.hints_list)
+        
+        details_layout.addStretch()
+        splitter.addWidget(details_group)
+        
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        layout.addWidget(splitter)
+        
+        # Simulation environment
+        sim_group = QGroupBox("🖥️ Simulation Environment")
+        sim_layout = QVBoxLayout(sim_group)
+        
+        # Target info
+        target_layout = QHBoxLayout()
+        target_layout.addWidget(QLabel("Target URL:"))
+        self.target_url_input = QLineEdit()
+        self.target_url_input.setReadOnly(True)
+        self.target_url_input.setPlaceholderText("http://vulnerable-app.local")
+        target_layout.addWidget(self.target_url_input)
+        sim_layout.addLayout(target_layout)
+        
+        # Command/Payload input
+        sim_layout.addWidget(QLabel("Test Payload:"))
+        self.payload_input = QPlainTextEdit()
+        self.payload_input.setPlaceholderText("Enter your exploit payload or SQL injection here...")
+        self.payload_input.setMaximumHeight(100)
+        sim_layout.addWidget(self.payload_input)
+        
+        # Execute button
+        exec_btn = QPushButton("🚀 Execute Payload")
+        exec_btn.clicked.connect(self._execute_payload)
+        sim_layout.addWidget(exec_btn)
+        
+        # Results
+        sim_layout.addWidget(QLabel("📊 Results:"))
+        self.simulation_output = QTextEdit()
+        self.simulation_output.setReadOnly(True)
+        self.simulation_output.setFont(QFont("Consolas", 9))
+        sim_layout.addWidget(self.simulation_output)
+        
+        # Score tracking
+        score_layout = QHBoxLayout()
+        score_layout.addWidget(QLabel("Score: "))
+        self.score_label = QLabel("0/100")
+        self.score_label.setStyleSheet("color: #00fff2; font-weight: bold; font-size: 14px;")
+        score_layout.addWidget(self.score_label)
+        score_layout.addWidget(QLabel("  |  Status: "))
+        self.status_label = QLabel("Not Started")
+        self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        score_layout.addWidget(self.status_label)
+        score_layout.addStretch()
+        sim_layout.addLayout(score_layout)
+        
+        layout.addWidget(sim_group)
+        
+        # Initialize state
+        self.current_scenario = None
+        self.simulation_running = False
+        
+        return widget
+    
+    def _on_scenario_selected(self):
+        """Handle scenario selection"""
+        current_item = self.scenarios_list.currentItem()
+        if not current_item:
+            return
+        
+        scenario_id = current_item.data(Qt.ItemDataRole.UserRole)
+        scenario = self.scenarios.get(scenario_id)
+        
+        if scenario:
+            self.difficulty_label.setText(scenario['difficulty'])
+            self.scenario_description.setText(scenario['description'])
+            
+            # Set objectives based on scenario type
+            objectives_map = {
+                'SQL Injection': 'Bypass login form using SQL injection.\nExtract user credentials from the database.',
+                'XSS': 'Inject JavaScript to steal session cookies.\nBypass content security policies.',
+                'Auth Bypass': 'Gain access without valid credentials.\nExploit weak authentication logic.',
+                'Command Injection': 'Execute system commands through input fields.\nAchieve remote code execution.',
+                'SSRF': 'Access internal resources via server requests.\nExfiltrate metadata from internal services.',
+                'Web App': 'Identify all vulnerabilities in the application.\nDocument findings and create a report.',
+                'Enumeration': 'Discover all hosts and open ports.\nIdentify running services and versions.',
+                'Privesc': 'Elevate privileges from user to root.\nMaintain persistence on the system.',
+            }
+            
+            self.scenario_objectives.setText(objectives_map.get(scenario_id, "Complete the scenario objectives."))
+            
+            # Set hints
+            hints_map = {
+                'SQL Injection': ['Check login form for input validation', 'Try basic payloads like " OR "1"="1', 'Look at error messages for clues'],
+                'XSS': ['Find input fields that reflect user data', 'Test with <script>alert("xss")</script>', 'Check for HTML entity encoding'],
+                'Auth Bypass': ['Check for hardcoded credentials', 'Look for logic flaws in authentication', 'Try common default passwords'],
+                'Command Injection': ['Look for fields that execute system commands', 'Try command separators like ; or |', 'Use output redirection to see results'],
+                'SSRF': ['Identify URL input fields', 'Try localhost and internal IP addresses', 'Check for URL filtering bypass techniques'],
+                'Web App': ['Start with information gathering', 'Test each input field systematically', 'Review client-side code for vulnerabilities'],
+                'Enumeration': ['Use tools like nmap for port scanning', 'Check common ports (22, 80, 443)', 'Identify service versions for known exploits'],
+                'Privesc': ['Look for SUID binaries', 'Check for weak file permissions', 'Search for sudo misconfigurations'],
+            }
+            
+            self.hints_list.clear()
+            for hint in hints_map.get(scenario_id, ['Start the scenario to get hints']):
+                self.hints_list.addItem(QListWidgetItem(f"💡 {hint}"))
+            
+            self.current_scenario = scenario_id
+            self.target_url_input.setText("http://vulnerable-app.local/scenario/" + scenario_id.lower())
+    
+    def _reveal_hint(self, item):
+        """Reveal a hint"""
+        hint_text = item.text().replace("💡 ", "")
+        self._add_chat_message("system", f"💡 Hint: {hint_text}")
+    
+    def _start_simulation(self):
+        """Start a simulation scenario"""
+        if not self.current_scenario:
+            self._add_chat_message("system", "❌ Please select a scenario first")
+            return
+        
+        self.simulation_running = True
+        self.simulation_output.clear()
+        self.payload_input.clear()
+        self.score_label.setText("0/100")
+        self.status_label.setText("In Progress")
+        self.status_label.setStyleSheet("color: #00fff2; font-weight: bold;")
+        
+        scenario = self.scenarios[self.current_scenario]
+        output = f"""🎮 SIMULATION STARTED
+    ═══════════════════════════════════════
+    Scenario: {scenario['name']}
+    Difficulty: {scenario['difficulty']}
+    Target: {self.target_url_input.text()}
+    ═══════════════════════════════════════
+
+    Enter your payloads in the test field and click "Execute Payload" to simulate your attack.
+    This is a safe, sandboxed environment for learning and practice.
+
+    Tips:
+    • Read all available hints carefully
+    • Test your assumptions methodically
+    • Document what you find
+    • Think about why vulnerabilities exist
+
+    Good luck! 🚀
+    """
+        self.simulation_output.setText(output)
+    
+    def _reset_simulation(self):
+        """Reset the simulation"""
+        self.simulation_running = False
+        self.simulation_output.clear()
+        self.payload_input.clear()
+        self.score_label.setText("0/100")
+        self.status_label.setText("Not Started")
+        self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+    
+    def _execute_payload(self):
+        """Execute a payload against the simulation target"""
+        if not self.simulation_running:
+            self._add_chat_message("system", "❌ Start a simulation first")
+            return
+        
+        payload = self.payload_input.toPlainText().strip()
+        if not payload:
+            self._add_chat_message("system", "❌ Enter a payload first")
+            return
+        
+        # Simulate payload execution based on scenario type
+        scenario_id = self.current_scenario
+        response = self._simulate_payload_response(scenario_id, payload)
+        
+        current_output = self.simulation_output.toPlainText()
+        self.simulation_output.setText(current_output + f"\n\n$ {payload}\n{response}")
+        
+        # Update score
+        self._update_simulation_score(scenario_id, payload, response)
+        
+        # Clear input for next attempt
+        self.payload_input.clear()
+    
+    def _simulate_payload_response(self, scenario_id: str, payload: str) -> str:
+        """Simulate target response to a payload"""
+        responses = {
+            'SQL Injection': {
+                "admin'--": "✓ Login successful! Admin access granted.",
+                "' OR '1'='1": "✓ Login successful! Admin access granted.",
+                "' OR 1=1--": "✓ Login successful! Admin access granted.",
+                "UNION SELECT": "Retrieving user database... Users found: admin, user1, user2",
+                "default": "❌ Login failed. Invalid credentials."
+            },
+            'XSS': {
+                "<script>alert('xss')</script>": "✓ XSS Payload Executed! Session cookie stolen: sess_12345abcde",
+                "<img src=x onerror=alert('xss')>": "✓ XSS Payload Executed! Session cookie stolen: sess_12345abcde",
+                "javascript:alert('xss')": "⚠️  Payload blocked by CSP, but technique documented.",
+                "default": "❌ Payload blocked or not reflected."
+            },
+            'Auth Bypass': {
+                "admin": "⚠️  Username found, needs password",
+                "admin:admin": "✓ Authentication Bypassed! Access granted.",
+                "admin:password": "✓ Authentication Bypassed! Access granted.",
+                "root:root": "✓ Authentication Bypassed! Root access granted.",
+                "default": "❌ Invalid credentials."
+            },
+            'Command Injection': {
+                "id": "uid=33(www-data) gid=33(www-data) groups=33(www-data)",
+                "; cat /etc/passwd": "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data...",
+                "| whoami": "www-data",
+                "$(id)": "uid=33(www-data) gid=33(www-data) groups=33(www-data)",
+                "default": "❌ Command not executed."
+            },
+            'SSRF': {
+                "http://localhost:8080": "✓ Internal service discovered: Admin Dashboard (localhost:8080)",
+                "http://169.254.169.254": "✓ AWS Metadata Service accessed: Found API keys and credentials",
+                "http://internal.service": "✓ Internal service found: Database server responding",
+                "file:///etc/passwd": "⚠️  File protocol detected but blocked",
+                "default": "❌ URL rejected or not accessible."
+            },
+            'Web App': {
+                "test": "✓ Found 1 vulnerability",
+                "admin": "✓ Found 2 vulnerabilities",
+                "'; DROP TABLE": "⚓ SQL Injection confirmed",
+                "<script>": "⚓ XSS confirmed",
+                "default": "Performing analysis..."
+            },
+            'Enumeration': {
+                "22": "✓ SSH (OpenSSH 7.4)",
+                "80": "✓ HTTP (Apache 2.4.6)",
+                "443": "✓ HTTPS (Apache 2.4.6)",
+                "3306": "✓ MySQL (5.7.32)",
+                "default": "❌ Port closed or filtered."
+            },
+            'Privesc': {
+                "sudo -l": "User may run the following commands without password: /usr/bin/python3",
+                "find / -perm -4000": "✓ Found SUID binaries: /usr/bin/find, /usr/bin/chmod",
+                "cat /etc/sudoers": "✓ Sudoers configuration accessed!",
+                "chmod +s /bin/bash": "✓ Privilege escalation successful!",
+                "default": "Permission denied."
+            }
+        }
+        
+        scenario_responses = responses.get(scenario_id, {})
+        # Check if payload exactly matches a key
+        if payload in scenario_responses:
+            return scenario_responses[payload]
+        # Check if payload contains keywords
+        for key, response in scenario_responses.items():
+            if key != 'default' and key.lower() in payload.lower():
+                return response
+        # Return default response
+        return scenario_responses.get('default', "❌ No response from target.")
+    
+    def _update_simulation_score(self, scenario_id: str, payload: str, response: str):
+        """Update the simulation score based on progress"""
+        current_score = int(self.score_label.text().split('/')[0])
+        
+        # Check for success indicators
+        if '✓' in response:
+            new_score = min(100, current_score + 20)
+        elif '⚓' in response:
+            new_score = min(100, current_score + 15)
+        elif '⚠️' in response:
+            new_score = min(100, current_score + 10)
+        else:
+            new_score = current_score + 1
+        
+        self.score_label.setText(f"{new_score}/100")
+        
+        # Update status
+        if new_score >= 80:
+            self.status_label.setText("✅ Completed!")
+            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        elif new_score >= 50:
+            self.status_label.setText("⏳ Making Progress...")
+            self.status_label.setStyleSheet("color: #00fff2; font-weight: bold;")
 
     def _create_modules_tab(self) -> QWidget:
         widget = QWidget()
