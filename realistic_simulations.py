@@ -1,19 +1,132 @@
 """
 Real-World Pentesting Simulations Module with AI Integration
 Provides dynamic scenario-based learning with AI coaching
+Now supports pulling data from live websites/targets
 """
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox,
     QListWidget, QListWidgetItem, QTextEdit, QLineEdit, QPushButton,
-    QLabel
+    QLabel, QCheckBox, QComboBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import threading
+import json
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+import ssl
+import warnings
+
+
+class WebTargetScanner:
+    """Fetches real data from live websites for simulation"""
+    
+    def __init__(self):
+        self.session = requests.Session()
+        # Retry strategy for resilience
+        retry = Retry(connect=3, backoff_factor=0.5, status_forcelist=(500, 502, 503, 504))
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+    
+    def fetch_url(self, url, timeout=10) -> str:
+        """Fetch raw content from URL"""
+        try:
+            warnings.filterwarnings('ignore', message='Unverified HTTPS request')
+            response = self.session.get(url, timeout=timeout, verify=False)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            return f"Error fetching {url}: {str(e)}"
+    
+    def analyze_forms(self, url) -> dict:
+        """Extract form data from target website"""
+        try:
+            html = self.fetch_url(url)
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            forms = []
+            for form in soup.find_all('form'):
+                form_data = {
+                    'action': form.get('action', ''),
+                    'method': form.get('method', 'GET').upper(),
+                    'inputs': []
+                }
+                
+                for inp in form.find_all(['input', 'textarea', 'select']):
+                    form_data['inputs'].append({
+                        'name': inp.get('name', ''),
+                        'type': inp.get('type', 'text'),
+                        'value': inp.get('value', '')
+                    })
+                
+                if form_data['inputs']:
+                    forms.append(form_data)
+            
+            return {'forms': forms, 'url': url}
+        except Exception as e:
+            return {'error': str(e), 'url': url}
+    
+    def check_headers(self, url) -> dict:
+        """Analyze security headers from target"""
+        try:
+            response = self.session.head(url, timeout=10, verify=False)
+            headers = {k: v for k, v in response.headers.items()}
+            
+            # Check for security headers
+            security_check = {
+                'has_csp': 'Content-Security-Policy' in headers,
+                'has_hsts': 'Strict-Transport-Security' in headers,
+                'has_x_frame': 'X-Frame-Options' in headers,
+                'server': headers.get('Server', 'Unknown'),
+                'all_headers': headers
+            }
+            return security_check
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def extract_endpoints(self, url) -> dict:
+        """Extract API endpoints and internal links"""
+        try:
+            html = self.fetch_url(url)
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            endpoints = {
+                'scripts': [],
+                'api_calls': [],
+                'links': []
+            }
+            
+            # Extract script sources
+            for script in soup.find_all('script'):
+                src = script.get('src')
+                if src:
+                    endpoints['scripts'].append(urljoin(url, src))
+            
+            # Extract all links
+            for link in soup.find_all('a'):
+                href = link.get('href')
+                if href and not href.startswith('#'):
+                    endpoints['links'].append(urljoin(url, href))
+            
+            return endpoints
+        except Exception as e:
+            return {'error': str(e)}
 
 
 class RealisticSimulationEngine:
     """Generates realistic responses to pentesting commands"""
+    
+    def __init__(self):
+        self.web_scanner = WebTargetScanner()
+        self.live_target_data = {}
     
     SCENARIO_RESPONSES = {
         'ecommerce_login': {
@@ -75,11 +188,14 @@ class RealisticSimulationEngine:
         }
     }
     
-    @staticmethod
-    def get_response(scenario_id: str, command: str) -> str:
+    def get_response(self, scenario_id: str, command: str, use_live_data=False, target_url=None) -> str:
         """Get realistic response to a penetesting command"""
-        responses = RealisticSimulationEngine.SCENARIO_RESPONSES.get(scenario_id, {})
         
+        # If live data requested, fetch from target first
+        if use_live_data and target_url:
+            return self._get_live_response(command, target_url)
+        
+        responses = self.SCENARIO_RESPONSES.get(scenario_id, {})
         command_lower = command.lower()
         
         # Exact match
@@ -88,6 +204,34 @@ class RealisticSimulationEngine:
                 return responses[key]
         
         return responses.get('default', 'Command executed successfully')
+    
+    def _get_live_response(self, command: str, target_url: str) -> str:
+        """Generate response based on live target data"""
+        command_lower = command.lower()
+        
+        # curl command - fetch from target
+        if 'curl' in command_lower or 'http' in command_lower:
+            content = self.web_scanner.fetch_url(target_url)
+            if content.startswith('Error'):
+                return content
+            return f"HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: {len(content)}\n\n{content[:500]}..."
+        
+        # nmap-like scan
+        if 'nmap' in command_lower or 'scan' in command_lower:
+            headers = self.web_scanner.check_headers(target_url)
+            return f"Security Headers Analysis:\n{json.dumps(headers, indent=2)}"
+        
+        # Form enumeration
+        if 'form' in command_lower or 'fuzzing' in command_lower:
+            forms = self.web_scanner.analyze_forms(target_url)
+            return f"Forms Discovered:\n{json.dumps(forms, indent=2)}"
+        
+        # Endpoint extraction
+        if 'endpoint' in command_lower or 'api' in command_lower:
+            endpoints = self.web_scanner.extract_endpoints(target_url)
+            return f"Endpoints Found:\n{json.dumps(endpoints, indent=2)}"
+        
+        return "Command executed. Use curl, nmap, form, or endpoint commands with live targets."
 
 
 class AICoachingEngine:
@@ -155,8 +299,23 @@ def create_realistic_simulations_tab() -> QWidget:
     # Header
     header = QGroupBox("🎯 Real-World Pentesting Simulations")
     header_layout = QVBoxLayout(header)
-    header_layout.addWidget(QLabel("Practice real-world pentesting with AI coaching. Commands are simulated realistically."))
+    header_layout.addWidget(QLabel("Practice real-world pentesting with AI coaching. Supports both simulated and live target data."))
     layout.addWidget(header)
+    
+    # Target Configuration
+    target_group = QGroupBox("🎯 Target Configuration")
+    target_layout = QVBoxLayout(target_group)
+    
+    target_url_input = QLineEdit()
+    target_url_input.setPlaceholderText("Enter target URL (e.g., http://example.com) - optional for live scanning")
+    target_layout.addWidget(QLabel("Live Target URL:"))
+    target_layout.addWidget(target_url_input)
+    
+    use_live_checkbox = QCheckBox("Use Live Target Data (fetch real data from URL)")
+    use_live_checkbox.setChecked(False)
+    target_layout.addWidget(use_live_checkbox)
+    
+    layout.addWidget(target_group)
     
     # Main splitter
     main_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -236,6 +395,9 @@ def create_realistic_simulations_tab() -> QWidget:
     
     layout.addWidget(main_splitter)
     
+    # Initialize simulation engine
+    sim_engine = RealisticSimulationEngine()
+    
     # Connect signals
     def on_execute():
         command = command_input.text().strip()
@@ -243,25 +405,50 @@ def create_realistic_simulations_tab() -> QWidget:
             return
         
         current_item = scenarios_list.currentItem()
-        if not current_item:
+        scenario_id = current_item.data(Qt.ItemDataRole.UserRole) if current_item else None
+        
+        # Check if using live data
+        use_live = use_live_checkbox.isChecked()
+        target_url = target_url_input.text().strip() if use_live else None
+        
+        if use_live and not target_url:
+            coaching_text.setText("❌ Please enter a target URL to use live data mode")
+            return
+        
+        if not use_live and not current_item:
             coaching_text.setText("Please select a scenario first")
             return
         
-        scenario_id = current_item.data(Qt.ItemDataRole.UserRole)
+        # Get response
+        status_label.setText("⏳ Executing...")
         
-        # Get realistic response
-        response = RealisticSimulationEngine.get_response(scenario_id, command)
+        def fetch_response():
+            try:
+                response = sim_engine.get_response(scenario_id, command, use_live_data=use_live, target_url=target_url)
+                
+                # Update console
+                current = console_output.toPlainText()
+                console_output.setText(current + f"\n$ {command}\n{response}\n")
+                
+                # Get AI coaching (if scenario selected)
+                if scenario_id:
+                    coaching = AICoachingEngine.get_coaching(scenario_id)
+                    coaching_text.setText(f"🤖 AI Analysis:\n\n{coaching}")
+                else:
+                    coaching_text.setText(f"✓ Live target data fetched successfully from {target_url}")
+                
+                # Update status
+                status_label.setText("🟢 Command Executed")
+            except Exception as e:
+                current = console_output.toPlainText()
+                console_output.setText(current + f"\n$ {command}\n❌ Error: {str(e)}\n")
+                status_label.setText("🔴 Error")
         
-        # Update console
-        current = console_output.toPlainText()
-        console_output.setText(current + f"\n$ {command}\n{response}\n")
+        # Run in background thread to avoid freezing UI
+        thread = threading.Thread(target=fetch_response)
+        thread.daemon = True
+        thread.start()
         
-        # Get AI coaching
-        coaching = AICoachingEngine.get_coaching(scenario_id)
-        coaching_text.setText(f"🤖 AI Analysis:\n\n{coaching}")
-        
-        # Update status
-        status_label.setText("🟢 Command Executed")
         command_input.clear()
     
     execute_btn.clicked.connect(on_execute)
