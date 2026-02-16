@@ -7,10 +7,11 @@ Now supports pulling data from live websites/targets
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox,
     QListWidget, QListWidgetItem, QTextEdit, QLineEdit, QPushButton,
-    QLabel, QCheckBox, QComboBox
+    QLabel, QCheckBox, QComboBox, QTabWidget, QTableWidget, QTableWidgetItem,
+    QScrollArea
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -20,6 +21,10 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import ssl
 import warnings
+
+from attack_vectors_engine import (
+    AttackVectorEngine, AttackPhase, VulnerabilityType
+)
 
 
 class WebTargetScanner:
@@ -289,6 +294,254 @@ class AICoachingEngine:
             return 'Excellent work! You\'ve successfully completed the scenario. Can you think of defensive measures?'
         
         return coaching_list[min(attempt_number, len(coaching_list) - 1)]
+
+
+def create_attack_vectors_tab() -> QWidget:
+    """Create attack vectors and threat scenarios reference tab"""
+    widget = QWidget()
+    layout = QVBoxLayout(widget)
+    
+    # Initialize engine
+    engine = AttackVectorEngine()
+    
+    # Header
+    header = QGroupBox("🎯 Attack Vectors & Threat Scenarios")
+    header_layout = QVBoxLayout(header)
+    header_layout.addWidget(QLabel("Comprehensive catalog of attack vectors and threat scenarios mapped to MITRE ATT&CK"))
+    layout.addWidget(header)
+    
+    # Tabs
+    tabs = QTabWidget()
+    
+    # TAB 1: Threat Scenarios
+    scenarios_tab = QWidget()
+    scenarios_layout = QVBoxLayout(scenarios_tab)
+    
+    scenarios_list = QListWidget()
+    for scenario in engine.scenarios.values():
+        item = QListWidgetItem(f"[{scenario.severity}] {scenario.name}")
+        item.setData(Qt.ItemDataRole.UserRole, scenario.scenario_id)
+        
+        # Color code by severity
+        if scenario.severity == 'Critical':
+            item.setBackground(QColor(255, 100, 100))
+        elif scenario.severity == 'High':
+            item.setBackground(QColor(255, 165, 0))
+        
+        scenarios_list.addItem(item)
+    
+    scenarios_layout.addWidget(QLabel("Threat Scenarios:"))
+    scenarios_layout.addWidget(scenarios_list)
+    
+    # Scenario details
+    scenario_details = QTextEdit()
+    scenario_details.setReadOnly(True)
+    scenarios_layout.addWidget(QLabel("Scenario Details:"))
+    scenarios_layout.addWidget(scenario_details)
+    
+    def show_scenario_details():
+        item = scenarios_list.currentItem()
+        if not item:
+            return
+        
+        scenario_id = item.data(Qt.ItemDataRole.UserRole)
+        scenario = engine.get_scenario(scenario_id)
+        
+        details = f"""
+╔═══════════════════════════════════════════════╗
+║  THREAT SCENARIO: {scenario.name}
+╚═══════════════════════════════════════════════╝
+
+📋 Description:
+{scenario.description}
+
+🎯 Target Type: {scenario.target_type}
+⚠️  Severity: {scenario.severity}
+⏱️  Estimated Time: {scenario.estimated_time} minutes
+📊 Difficulty: {scenario.difficulty}
+
+🔗 Attack Vectors Used:
+"""
+        for vid in scenario.attack_vectors:
+            vector = engine.get_vector(vid)
+            if vector:
+                details += f"  • {vector.name} ({vector.difficulty})\n"
+        
+        details += "\n📈 Attack Chain:\n"
+        for step, (phase, vector_id) in enumerate(scenario.attack_chain, 1):
+            vector = engine.get_vector(vector_id)
+            details += f"  {step}. [{phase}] {vector.name if vector else 'Unknown'}\n"
+        
+        details += "\n🎓 Learning Objectives:\n"
+        for obj in scenario.learning_objectives:
+            details += f"  • {obj}\n"
+        
+        details += "\n✅ Success Criteria:\n"
+        for criteria in scenario.success_criteria:
+            details += f"  ✓ {criteria}\n"
+        
+        scenario_details.setText(details)
+    
+    scenarios_list.itemSelectionChanged.connect(show_scenario_details)
+    tabs.addTab(scenarios_tab, "🎭 Threat Scenarios")
+    
+    # TAB 2: Attack Vectors
+    vectors_tab = QWidget()
+    vectors_layout = QVBoxLayout(vectors_tab)
+    
+    # Filter by type
+    filter_layout = QHBoxLayout()
+    filter_layout.addWidget(QLabel("Filter by:"))
+    
+    vuln_filter = QComboBox()
+    vuln_filter.addItem("All Vulnerabilities", None)
+    for vuln_type in VulnerabilityType:
+        vuln_filter.addItem(vuln_type.value, vuln_type)
+    
+    phase_filter = QComboBox()
+    phase_filter.addItem("All Phases", None)
+    for phase in AttackPhase:
+        phase_filter.addItem(phase.value, phase)
+    
+    filter_layout.addWidget(QLabel("Vulnerability:"))
+    filter_layout.addWidget(vuln_filter)
+    filter_layout.addWidget(QLabel("Phase:"))
+    filter_layout.addWidget(phase_filter)
+    vectors_layout.addLayout(filter_layout)
+    
+    vectors_list = QListWidget()
+    for vector in engine.vectors.values():
+        item = QListWidgetItem(f"[{vector.difficulty}] {vector.name}")
+        item.setData(Qt.ItemDataRole.UserRole, vector.vector_id)
+        vectors_list.addItem(item)
+    
+    vectors_layout.addWidget(QLabel("Attack Vectors:"))
+    vectors_layout.addWidget(vectors_list)
+    
+    # Vector details
+    vector_details = QTextEdit()
+    vector_details.setReadOnly(True)
+    vectors_layout.addWidget(QLabel("Vector Details:"))
+    vectors_layout.addWidget(vector_details)
+    
+    def show_vector_details():
+        item = vectors_list.currentItem()
+        if not item:
+            return
+        
+        vector_id = item.data(Qt.ItemDataRole.UserRole)
+        vector = engine.get_vector(vector_id)
+        
+        details = f"""
+╔═══════════════════════════════════════════════╗
+║  ATTACK VECTOR: {vector.name}
+╚═══════════════════════════════════════════════╝
+
+📖 Description:
+{vector.description}
+
+🔍 Vulnerability Type: {vector.vuln_type.value}
+📍 Attack Phase: {vector.phase.value}
+📊 Difficulty: {vector.difficulty}
+
+🛠️ Tools:
+{', '.join(vector.tools)}
+
+⚙️ Payloads:
+"""
+        for payload in vector.payloads:
+            details += f"  • {payload}\n"
+        
+        details += f"\n📚 CVE References:\n"
+        for cve in vector.cve_refs:
+            details += f"  • {cve}\n"
+        
+        details += f"\n🔴 Detection Signals:\n"
+        for signal in vector.detection_signals:
+            details += f"  • {signal}\n"
+        
+        details += f"\n✅ Mitigation:\n"
+        for mitigation in vector.mitigation:
+            details += f"  • {mitigation}\n"
+        
+        details += f"\n🔗 References:\n"
+        for ref in vector.references:
+            details += f"  • {ref}\n"
+        
+        # Show related scenarios
+        related = engine.get_related_scenarios(vector_id)
+        if related:
+            details += f"\n📋 Used in Scenarios:\n"
+            for scenario in related:
+                details += f"  • {scenario.name}\n"
+        
+        vector_details.setText(details)
+    
+    def apply_filters():
+        vuln_type = vuln_filter.currentData()
+        phase = phase_filter.currentData()
+        
+        vectors_list.clear()
+        for vector in engine.vectors.values():
+            if vuln_type and vector.vuln_type != vuln_type:
+                continue
+            if phase and vector.phase != phase:
+                continue
+            
+            item = QListWidgetItem(f"[{vector.difficulty}] {vector.name}")
+            item.setData(Qt.ItemDataRole.UserRole, vector.vector_id)
+            vectors_list.addItem(item)
+    
+    vuln_filter.currentIndexChanged.connect(apply_filters)
+    phase_filter.currentIndexChanged.connect(apply_filters)
+    vectors_list.itemSelectionChanged.connect(show_vector_details)
+    tabs.addTab(vectors_tab, "🗡️ Attack Vectors")
+    
+    # TAB 3: Learning Paths
+    learning_tab = QWidget()
+    learning_layout = QVBoxLayout(learning_tab)
+    
+    difficulty_filter = QComboBox()
+    for difficulty in ['Easy', 'Medium', 'Hard', 'Expert']:
+        difficulty_filter.addItem(difficulty, difficulty)
+    
+    learning_layout.addWidget(QLabel("Select Learning Path Difficulty:"))
+    learning_layout.addWidget(difficulty_filter)
+    
+    learning_path_text = QTextEdit()
+    learning_path_text.setReadOnly(True)
+    learning_layout.addWidget(learning_path_text)
+    
+    def show_learning_path():
+        difficulty = difficulty_filter.currentData()
+        path = engine.get_learning_path(difficulty)
+        
+        text = f"🎓 Learning Path: {difficulty} Level\n\n"
+        for item in path:
+            scenario = item['scenario']
+            text += f"""
+═══════════════════════════════════════════════
+Step {item['progression']}: {scenario['name']}
+═══════════════════════════════════════════════
+{scenario['description']}
+
+Time: {scenario['estimated_time']} min | Vectors: {len(item['vectors'])}
+
+Attack Vectors:
+"""
+            for vector in item['vectors']:
+                text += f"  • {vector['name']} ({vector['difficulty']})\n"
+            text += "\n"
+        
+        learning_path_text.setText(text)
+    
+    difficulty_filter.currentIndexChanged.connect(show_learning_path)
+    learning_layout.addStretch()
+    tabs.addTab(learning_tab, "🎓 Learning Paths")
+    
+    layout.addWidget(tabs)
+    
+    return widget
 
 
 def create_realistic_simulations_tab() -> QWidget:
