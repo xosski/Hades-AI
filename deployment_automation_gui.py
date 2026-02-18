@@ -597,6 +597,11 @@ class DeploymentAutomationTab(QWidget):
     
     def _run_single_test(self, test_type: str):
         """Run a single test"""
+        # Stop previous runner if still running
+        if hasattr(self, 'test_runner') and self.test_runner.isRunning():
+            self.test_runner.quit()
+            self.test_runner.wait()
+        
         self.test_runner = TestRunner(test_type, {})
         self.test_runner.progress_update.connect(self._update_test_output)
         self.test_runner.progress_value.connect(self.test_progress.setValue)
@@ -620,6 +625,11 @@ class DeploymentAutomationTab(QWidget):
         self.test_results_table.setItem(row, 0, QTableWidgetItem(test_type))
         self.test_results_table.setItem(row, 1, QTableWidgetItem(status))
         self.test_results_table.setItem(row, 2, QTableWidgetItem(json.dumps(results, default=str)[:100]))
+        
+        # Properly cleanup thread
+        if self.test_runner.isRunning():
+            self.test_runner.quit()
+            self.test_runner.wait()
     
     # Deployment Methods
     
@@ -643,6 +653,11 @@ class DeploymentAutomationTab(QWidget):
         if not files:
             QMessageBox.warning(self, "No Files", "Please add files to deploy")
             return
+        
+        # Stop previous stager if still running
+        if hasattr(self, 'deployment_stager') and self.deployment_stager.isRunning():
+            self.deployment_stager.quit()
+            self.deployment_stager.wait()
         
         self.deploy_progress.setVisible(True)
         self.deploy_progress.setValue(0)
@@ -668,6 +683,11 @@ class DeploymentAutomationTab(QWidget):
         """Deployment completed"""
         status = results.get("status", "UNKNOWN")
         self.deploy_output.append(f"\n[{status}] Deployment Complete")
+        
+        # Properly cleanup thread
+        if self.deployment_stager.isRunning():
+            self.deployment_stager.quit()
+            self.deployment_stager.wait()
         
         if status == "SUCCESS":
             QMessageBox.information(self, "Success", f"Deployment staged successfully!\nBackup: {results.get('backup_dir', 'N/A')}")
@@ -767,6 +787,18 @@ class DeploymentAutomationTab(QWidget):
                 QMessageBox.information(self, "Success", "Backup restored successfully")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Restore failed: {e}")
+    
+    def cleanup(self):
+        """Cleanup threads on application close"""
+        # Stop and wait for test runner
+        if hasattr(self, 'test_runner') and self.test_runner.isRunning():
+            self.test_runner.quit()
+            self.test_runner.wait(5000)  # 5 second timeout
+        
+        # Stop and wait for deployment stager
+        if hasattr(self, 'deployment_stager') and self.deployment_stager.isRunning():
+            self.deployment_stager.quit()
+            self.deployment_stager.wait(5000)  # 5 second timeout
 
 
 def main():

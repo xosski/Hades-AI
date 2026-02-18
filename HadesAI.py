@@ -8497,7 +8497,32 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         self._add_chat_message("assistant", f"🤖 Agent finished. Success={success}. {summ}\nErrors: {errs[-1] if errs else 'None'}")
         self.agent_start.setEnabled(True)
         self.agent_stop.setEnabled(False)
-
+    
+    def closeEvent(self, event):
+        """Handle application close - cleanup all threads"""
+        try:
+            # Cleanup deployment automation threads
+            if hasattr(self, 'deployment_automation_tab') and self.deployment_automation_tab:
+                if hasattr(self.deployment_automation_tab, 'cleanup'):
+                    self.deployment_automation_tab.cleanup()
+            
+            # Cleanup autonomous agent
+            if hasattr(self, '_agent') and self._agent and self._agent.isRunning():
+                self._agent.stop()
+                self._agent.wait(2000)
+            
+            # Cleanup other threads gracefully
+            if hasattr(self, 'scanner') and self.scanner and self.scanner.isRunning():
+                self.scanner.quit()
+                self.scanner.wait(1000)
+            
+            if hasattr(self, 'network_monitor') and self.network_monitor and self.network_monitor.isRunning():
+                self.network_monitor.quit()
+                self.network_monitor.wait(1000)
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+        finally:
+            event.accept()
 
 
 class AutoReconScanner(QThread):
