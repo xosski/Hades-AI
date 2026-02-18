@@ -1,0 +1,4 @@
+# CANARY:PHANTOM_376c0bd4d47884d6
+root:$6$rounds=5000$fakesalt$longhashvaluegoesherewithmoredata:18000:0:99999:7:::
+admin:$6$rounds=5000$anothersalt$differenthashvalueforthisuser:18500:0:99999:7:::
+backup:$6$rounds=5000$backupsalt$backupuserhashvalue:18200:0:99999:7:::

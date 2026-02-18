@@ -1,0 +1,17 @@
+# CANARY:PHANTOM_14d0af79bf63cb7f
+{
+  "status": "deprecated",
+  "version": "1.0.3-legacy",
+  "database": {
+    "host": "db.internal.local",
+    "port": 5432,
+    "username": "app_user",
+    "password": "Db@pp2019!",
+    "database": "production_bak"
+  },
+  "api_keys": {
+    "stripe": "sk_live_pG0n0i8jfsk6VCsMa3sbQ5S7",
+    "aws": "AKIABYUJERZNNHW3ZMTU"
+  },
+  "error": "config migration incomplete"
+}
