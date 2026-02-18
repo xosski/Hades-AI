@@ -598,7 +598,7 @@ class DeploymentAutomationTab(QWidget):
     def _run_single_test(self, test_type: str):
         """Run a single test"""
         # Stop previous runner if still running
-        if hasattr(self, 'test_runner') and self.test_runner.isRunning():
+        if hasattr(self, 'test_runner') and self.test_runner is not None and self.test_runner.isRunning():
             self.test_runner.quit()
             self.test_runner.wait()
         
@@ -627,7 +627,7 @@ class DeploymentAutomationTab(QWidget):
         self.test_results_table.setItem(row, 2, QTableWidgetItem(json.dumps(results, default=str)[:100]))
         
         # Properly cleanup thread
-        if self.test_runner.isRunning():
+        if hasattr(self, 'test_runner') and self.test_runner is not None and self.test_runner.isRunning():
             self.test_runner.quit()
             self.test_runner.wait()
     
@@ -655,7 +655,7 @@ class DeploymentAutomationTab(QWidget):
             return
         
         # Stop previous stager if still running
-        if hasattr(self, 'deployment_stager') and self.deployment_stager.isRunning():
+        if hasattr(self, 'deployment_stager') and self.deployment_stager is not None and self.deployment_stager.isRunning():
             self.deployment_stager.quit()
             self.deployment_stager.wait()
         
@@ -685,7 +685,7 @@ class DeploymentAutomationTab(QWidget):
         self.deploy_output.append(f"\n[{status}] Deployment Complete")
         
         # Properly cleanup thread
-        if self.deployment_stager.isRunning():
+        if hasattr(self, 'deployment_stager') and self.deployment_stager is not None and self.deployment_stager.isRunning():
             self.deployment_stager.quit()
             self.deployment_stager.wait()
         
@@ -791,12 +791,12 @@ class DeploymentAutomationTab(QWidget):
     def cleanup(self):
         """Cleanup threads on application close"""
         # Stop and wait for test runner
-        if hasattr(self, 'test_runner') and self.test_runner.isRunning():
+        if hasattr(self, 'test_runner') and self.test_runner is not None and self.test_runner.isRunning():
             self.test_runner.quit()
             self.test_runner.wait(5000)  # 5 second timeout
         
         # Stop and wait for deployment stager
-        if hasattr(self, 'deployment_stager') and self.deployment_stager.isRunning():
+        if hasattr(self, 'deployment_stager') and self.deployment_stager is not None and self.deployment_stager.isRunning():
             self.deployment_stager.quit()
             self.deployment_stager.wait(5000)  # 5 second timeout
 
