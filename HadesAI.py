@@ -98,6 +98,14 @@ except ImportError:
     create_realistic_simulations_tab = None
     HAS_REALISTIC_SIMS = False
 
+# Deployment & Testing Automation
+try:
+    from deployment_automation_gui import DeploymentAutomationTab
+    HAS_DEPLOYMENT_AUTOMATION = True
+except ImportError:
+    DeploymentAutomationTab = None
+    HAS_DEPLOYMENT_AUTOMATION = False
+
 # Python Script Editor
 try:
     from python_script_editor import PythonScriptEditorTab
@@ -4053,6 +4061,12 @@ class HadesGUI(QMainWindow):
             self.tabs.addTab(PythonScriptEditorTab(), "📜 Script Editor")
         if HAS_REALISTIC_SIMS:
             self.tabs.addTab(create_realistic_simulations_tab(), "🎯 Simulations")
+        if HAS_DEPLOYMENT_AUTOMATION:
+            try:
+                self.deployment_automation_tab = DeploymentAutomationTab(db_path=self.ai.db_path)
+                self.tabs.addTab(self.deployment_automation_tab, "🚀 Deploy & Test")
+            except Exception as e:
+                logger.warning(f"Deployment Automation tab failed: {e}")
         if HAS_AUTONOMOUS_AGENT:
             self.tabs.addTab(self._create_agent_tab(), "🤖 Autonomous Coder")
         
