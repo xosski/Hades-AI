@@ -114,6 +114,17 @@ except ImportError:
     PythonScriptEditorTab = None
     HAS_SCRIPT_EDITOR = False
 
+# P2P Exploit Sharing & Seeking
+try:
+    from p2p_exploit_sharing import P2PExploitSharer, ExploitFinding
+    from exploit_seek_tab import create_exploit_seek_tab
+    HAS_EXPLOIT_SEEK = True
+except ImportError:
+    P2PExploitSharer = None
+    ExploitFinding = None
+    create_exploit_seek_tab = None
+    HAS_EXPLOIT_SEEK = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4021,6 +4032,13 @@ class HadesGUI(QMainWindow):
         self.network_monitor = None
         self.autonomous_defense = None  # Autonomous defense engine
         self.brain = pcore.load_brain()
+        
+        # Initialize exploit sharing
+        self.exploit_sharer = None
+        if HAS_EXPLOIT_SEEK:
+            import uuid
+            self.exploit_sharer = P2PExploitSharer(instance_id=str(uuid.uuid4()))
+        
         self.init_ui()
         self._show_startup_dialog()
         
@@ -4061,9 +4079,15 @@ class HadesGUI(QMainWindow):
             self.tabs.addTab(PythonScriptEditorTab(), "📜 Script Editor")
         if HAS_REALISTIC_SIMS:
             self.tabs.addTab(create_realistic_simulations_tab(), "🎯 Simulations")
+        if HAS_EXPLOIT_SEEK and self.exploit_sharer:
+            try:
+                self.exploit_seek_tab = create_exploit_seek_tab(self, self.exploit_sharer, self.ai)
+                self.tabs.addTab(self.exploit_seek_tab, "🔍 Exploit Seek")
+            except Exception as e:
+                logger.warning(f"Exploit Seek tab failed: {e}")
         if HAS_DEPLOYMENT_AUTOMATION:
             try:
-                self.deployment_automation_tab = DeploymentAutomationTab(db_path=self.ai.db_path)
+                self.deployment_automation_tab = DeploymentAutomationTab(db_path="hades_knowledge.db")
                 self.tabs.addTab(self.deployment_automation_tab, "🚀 Deploy & Test")
             except Exception as e:
                 logger.warning(f"Deployment Automation tab failed: {e}")

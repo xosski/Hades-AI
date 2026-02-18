@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel, QCheckBox, QComboBox, QTabWidget, QTableWidget, QTableWidgetItem,
     QScrollArea
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
 import requests
 from requests.adapters import HTTPAdapter
@@ -675,31 +675,42 @@ def create_realistic_simulations_tab() -> QWidget:
         # Get response
         status_label.setText("⏳ Executing...")
         
-        def fetch_response():
+        def run_in_thread():
+            """Run command in background thread"""
             try:
                 response = sim_engine.get_response(scenario_id, command, use_live_data=use_live, target_url=target_url)
                 
-                # Update console
-                current = console_output.toPlainText()
-                console_output.setText(current + f"\n$ {command}\n{response}\n")
-                
-                # Get AI coaching (if scenario selected)
+                # Get AI coaching
                 if scenario_id:
                     coaching = AICoachingEngine.get_coaching(scenario_id)
-                    coaching_text.setText(f"🤖 AI Analysis:\n\n{coaching}")
                 else:
-                    coaching_text.setText(f"✓ Live target data fetched successfully from {target_url}")
+                    coaching = f"✓ Live target data fetched successfully"
                 
-                # Update status
-                status_label.setText("🟢 Command Executed")
+                # Schedule UI updates on main thread using QTimer
+                def update_ui():
+                    try:
+                        current = console_output.toPlainText()
+                        console_output.setText(current + f"\n$ {command}\n{response}\n")
+                        coaching_text.setText(f"🤖 AI Analysis:\n\n{coaching}")
+                        status_label.setText("🟢 Command Executed")
+                    except Exception as ui_err:
+                        status_label.setText(f"🔴 UI Error: {str(ui_err)}")
+                
+                QTimer.singleShot(0, update_ui)
             except Exception as e:
-                current = console_output.toPlainText()
-                console_output.setText(current + f"\n$ {command}\n❌ Error: {str(e)}\n")
-                status_label.setText("🔴 Error")
+                # Schedule error update on main thread
+                def update_error():
+                    try:
+                        current = console_output.toPlainText()
+                        console_output.setText(current + f"\n$ {command}\n❌ Error: {str(e)}\n")
+                        status_label.setText("🔴 Error")
+                    except:
+                        pass
+                
+                QTimer.singleShot(0, update_error)
         
-        # Run in background thread to avoid freezing UI
-        thread = threading.Thread(target=fetch_response)
-        thread.daemon = True
+        # Run in background thread
+        thread = threading.Thread(target=run_in_thread, daemon=True)
         thread.start()
         
         command_input.clear()

@@ -281,7 +281,7 @@ class AttackVectorsCatalog:
             tools=['LinPEAS', 'GTFObins', 'kernel_exploits'],
             payloads=[
                 'sudo -l /usr/bin/find',
-                'find . -exec /bin/bash \; -quit',
+                r'find . -exec /bin/bash \; -quit',
                 'capability cap_setuid+ep /usr/bin/python',
                 'LD_PRELOAD exploit',
             ],
