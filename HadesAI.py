@@ -5182,12 +5182,28 @@ please consider supporting its development.</p>
         
         recent_patterns = self.ai.kb.fetch_recent_web_patterns(limit=5)
         if recent_patterns:
-            summary = "\n\n".join(
-                f"[Set {i+1}]\n" + "\n".join(
-                    f"- {p.get('pattern_type', 'Unknown')}: {p.get('signature', '')}" for p in patterns
-                )
-                for i, patterns in enumerate(recent_patterns)
-            )
+            summary_parts = []
+            for i, patterns in enumerate(recent_patterns, 1):
+                if patterns:  # Check if patterns list is not empty
+                    pattern_lines = []
+                    for p in patterns:
+                        # Handle both old format (pattern_type/signature) and new format (type/pattern)
+                        pattern_type = p.get('pattern_type') or p.get('type', 'Unknown')
+                        signature = p.get('signature') or p.get('pattern', '')
+                        
+                        # Only add if we have actual content
+                        if signature:
+                            pattern_lines.append(f"- {pattern_type}: {signature[:80]}")
+                        else:
+                            pattern_lines.append(f"- {pattern_type}")
+                    
+                    if pattern_lines:
+                        summary_parts.append(f"[Set {i}]\n" + "\n".join(pattern_lines))
+            
+            if summary_parts:
+                summary = "\n\n".join(summary_parts)
+            else:
+                summary = "No web knowledge patterns extracted yet. Run AutoRecon or analyze URLs to populate this tab."
         else:
             summary = "No recent web-based learning data found."
 
