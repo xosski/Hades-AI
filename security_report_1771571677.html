@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analysis Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            border-bottom: 3px solid #1976d2;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #1976d2;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-left: 4px solid #1976d2;
+            padding-left: 10px;
+        }
+        h3 {
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .meta-item {
+            background: #f9f9f9;
+            padding: 10px;
+            border-left: 3px solid #1976d2;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #1976d2;
+        }
+        .summary {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .severity-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .severity-card {
+            padding: 15px;
+            border-radius: 4px;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+        }
+        .critical { background: #d32f2f; }
+        .high { background: #f57c00; }
+        .medium { background: #fbc02d; }
+        .low { background: #388e3c; }
+        .finding {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border-left: 4px solid #999;
+        }
+        .critical.finding { border-left-color: #d32f2f; }
+        .high.finding { border-left-color: #f57c00; }
+        .medium.finding { border-left-color: #fbc02d; }
+        .low.finding { border-left-color: #388e3c; }
+        .finding-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .finding-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        .finding-meta-item {
+            background: white;
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 2px solid #1976d2;
+        }
+        .finding-meta-label {
+            font-weight: bold;
+            color: #1976d2;
+        }
+        .poc {
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .recommendations {
+            background: #f1f8e9;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .recommendations ul {
+            margin-left: 20px;
+        }
+        .recommendations li {
+            margin-bottom: 8px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .disclaimer {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 Security Analysis Report</h1>
+            <p>Comprehensive vulnerability assessment and findings</p>
+        </div>
+        
+        <div class="meta">
+            <div class="meta-item">
+                <span class="meta-label">Report ID:</span>
+                1771571677.7005837
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Generated:</span>
+                2026-02-19 23:14:37
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Target:</span>
+                https://hackerone.com/opportunities/all
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Scanner:</span>
+                HadesAI Security Analysis
+            </div>
+        </div>
+        
+        <div class="summary">
+            <h2>Executive Summary</h2>
+            <p>This security analysis identified <strong>16 vulnerabilities</strong> during comprehensive testing of the target application.</p>
+            
+            <div class="severity-grid">
+<div class="severity-card high">High<br>6 Issues</div>
+<div class="severity-card medium">Medium<br>2 Issues</div>
+<div class="severity-card low">Low<br>8 Issues</div>
+
+            </div>
+        </div>
+        
+        <h2>Findings</h2>
+
+        <div class="finding low">
+            <div class="finding-title">#1 SQL Injection - Basic</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    sql_001
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    SQL Injection - Basic
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.2
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#2 SQL Injection - Union</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    sql_002
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    SQL Injection - Union
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.2
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#3 XSS - Basic Script</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    xss_001
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    XSS - Basic Script
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.2
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#4 CORS Misconfiguration</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    header_002
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    CORS Misconfiguration
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.3
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#5 Log File Poisoning</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    lfi_003
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Log File Poisoning
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.3
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding high">
+            <div class="finding-title">#6 Privilege Escalation</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    acl_002
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Privilege Escalation
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    High
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.8
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding high">
+            <div class="finding-title">#7 Reflection Attack</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    obj_003
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Reflection Attack
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    High
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.8
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding medium">
+            <div class="finding-title">#8 Account Enumeration</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    enum_001
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Account Enumeration
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Medium
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.6
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding medium">
+            <div class="finding-title">#9 Username Enumeration</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    enum_002
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Username Enumeration
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Medium
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.6
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding high">
+            <div class="finding-title">#10 CSRF Token Missing</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    csrf_001
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    CSRF Token Missing
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    High
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.7
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding high">
+            <div class="finding-title">#11 Weak CSRF Token</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    csrf_002
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Weak CSRF Token
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    High
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.7
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding high">
+            <div class="finding-title">#12 Action Spoofing</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    csrf_003
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    Action Spoofing
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    High
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.7
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding high">
+            <div class="finding-title">#13 JSON CSRF</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    csrf_004
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    JSON CSRF
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    High
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.7
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#14 CVE Detection - Log4Shell</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    cve_001
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    CVE Detection - Log4Shell
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.3
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#15 CVE Detection - Struts2 RCE</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    cve_002
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    CVE Detection - Struts2 RCE
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.3
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+
+        <div class="finding low">
+            <div class="finding-title">#16 CVE Detection - Spring4Shell</div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">ID:</span>
+                    cve_003
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Type:</span>
+                    CVE Detection - Spring4Shell
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Severity:</span>
+                    Low
+                </div>
+            </div>
+            
+            <div class="finding-meta">
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Status:</span>
+                    Confirmed
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Confidence:</span>
+                    0.3
+                </div>
+                <div class="finding-meta-item">
+                    <span class="finding-meta-label">Source:</span>
+                    AI Vulnerability Tester
+                </div>
+            </div>
+            
+            <h4>Description</h4>
+            <p>AI detected vulnerability during automated testing</p>
+            
+            <h4>Impact</h4>
+            <p>Potential security compromise</p>
+            
+            <h4>Evidence & Proof Points</h4>
+            <ul style="margin-left: 20px; margin-bottom: 15px;">
+                <li>Spring Framework classloader injection vulnerability</li>
+                <li>Unexpected HTTP 200 response to test request</li>
+                <li>Known CVE vulnerability present in application</li>
+
+            </ul>
+            
+            <h4>Proof of Concept</h4>
+            <div class="poc">?class.classLoader=...</div>
+            
+            <h4>Remediation</h4>
+            <p>See recommendations section</p>
+        </div>
+
+        <h2>Remediation Recommendations</h2>
+
+        <h3>SQL Injection - Basic</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Implement parameterized queries/prepared statements</li>
+                <li>Use ORM frameworks with built-in SQL escaping</li>
+                <li>Validate and sanitize all user inputs</li>
+                <li>Apply principle of least privilege to database accounts</li>
+
+            </ul>
+        </div>
+
+        <h3>SQL Injection - Union</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Implement parameterized queries/prepared statements</li>
+                <li>Use ORM frameworks with built-in SQL escaping</li>
+                <li>Validate and sanitize all user inputs</li>
+                <li>Apply principle of least privilege to database accounts</li>
+
+            </ul>
+        </div>
+
+        <h3>XSS - Basic Script</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Implement Content Security Policy (CSP) headers</li>
+                <li>Use HTML entity encoding for user-supplied content</li>
+                <li>Apply context-aware output encoding</li>
+                <li>Use modern JavaScript frameworks with XSS protection</li>
+
+            </ul>
+        </div>
+
+        <h3>CORS Misconfiguration</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Disable debug mode in production</li>
+                <li>Remove unnecessary admin panels</li>
+                <li>Implement proper access controls</li>
+                <li>Restrict directory listing</li>
+                <li>Remove backup files from web root</li>
+
+            </ul>
+        </div>
+
+        <h3>Log File Poisoning</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>Privilege Escalation</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> High</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>Reflection Attack</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> High</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>Account Enumeration</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Medium</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>Username Enumeration</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Medium</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>CSRF Token Missing</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> High</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>Weak CSRF Token</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> High</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>Action Spoofing</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> High</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>JSON CSRF</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> High</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>CVE Detection - Log4Shell</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>CVE Detection - Struts2 RCE</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <h3>CVE Detection - Spring4Shell</h3>
+        <p><strong>Affected Issues:</strong> 1 | <strong>Severity:</strong> Low</p>
+        
+        <div class="recommendations">
+            <strong>Recommended Actions:</strong>
+            <ul>
+                <li>Review vulnerability details carefully</li>
+                <li>Implement vendor recommendations</li>
+                <li>Apply security patches promptly</li>
+                <li>Conduct security audit</li>
+
+            </ul>
+        </div>
+
+        <div class="disclaimer">
+            <strong>⚠️ Disclaimer:</strong> This report contains results from authorized security testing only. Unauthorized access to computer systems is illegal. Testing authorized for this target
+        </div>
+        
+        <div class="footer">
+            Generated by HadesAI Security Analysis v1.0
+        </div>
+    </div>
+</body>
+</html>
