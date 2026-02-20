@@ -7772,9 +7772,63 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
             self.cache_tree.addTopLevelItem(item)
             
         findings = data.get('findings', [])
-        self._add_chat_message('assistant', f"Cache scan complete! Found {len(findings)} threats. I've learned {len(findings)} new patterns.")
+        
+        # Learn exploits from cache findings
+        exploits_learned = self._learn_from_cache_findings(findings)
+        
+        self._add_chat_message('assistant', f"Cache scan complete! Found {len(findings)} threats. I've learned {exploits_learned} new exploits from cache patterns.")
         self._refresh_findings()
         
+    # ========== Cache Learning Methods ==========
+    
+    def _learn_from_cache_findings(self, findings: List[Dict]) -> int:
+        """Extract exploitable patterns from cache findings and store as learned exploits"""
+        exploits_learned = 0
+        
+        for finding in findings:
+            try:
+                threat_type = finding.get('type', 'unknown')
+                severity = finding.get('severity', 'LOW')
+                code_snippet = finding.get('code', '')
+                
+                # Only learn from HIGH and MEDIUM severity findings
+                if severity not in ['HIGH', 'MEDIUM']:
+                    continue
+                
+                # Map threat types to exploit categories
+                exploit_type = self._map_threat_to_exploit_type(threat_type)
+                
+                # Generate description
+                description = f"Cache-based {threat_type} vulnerability detected with {severity} severity"
+                
+                # Store as learned exploit
+                if code_snippet and exploit_type:
+                    self.ai.kb.store_learned_exploit(
+                        source_url=f"cache://{threat_type}",
+                        exploit_type=exploit_type,
+                        code=code_snippet[:2000],  # Limit code size
+                        description=description
+                    )
+                    exploits_learned += 1
+            except Exception as e:
+                self._add_chat_message('tool', f"Error learning from finding: {str(e)[:100]}")
+                
+        return exploits_learned
+    
+    def _map_threat_to_exploit_type(self, threat_type: str) -> str:
+        """Map cache threat types to exploit categories"""
+        mapping = {
+            'malware': 'malware_detection',
+            'exploit': 'exploit_detection',
+            'eval_code': 'code_injection',
+            'obfuscation': 'obfuscation_bypass',
+            'data_exfil': 'data_exfiltration',
+            'injection': 'injection_attack',
+            'crypto': 'crypto_mining',
+            'backdoor': 'backdoor_detection'
+        }
+        return mapping.get(threat_type.lower(), threat_type)
+    
     # ========== Findings Methods ==========
     
     def _refresh_findings(self):
