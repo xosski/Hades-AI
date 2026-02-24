@@ -1,11 +1,15 @@
 """
 Payload Service - Unified payload management
 Integrates PayloadGenerator with ExploitExecutor for comprehensive vulnerability testing
+Enhanced with dynamic mutation and confidence scoring
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
 from payload_generator_gui import PayloadGenerator
+from payload_mutator import PayloadMutator, MutatedPayload
+from payload_scorer import PayloadScorer, PayloadMetrics, ScoredPayload
 
 logger = logging.getLogger("PayloadService")
 
@@ -75,10 +79,14 @@ class PayloadService:
     def __init__(self):
         """Initialize payload service"""
         self.generator = PayloadGenerator
+        self.mutator = PayloadMutator()
+        self.scorer = PayloadScorer()
+        
         self.cache: Dict[str, List[str]] = {}
         self.custom_payloads: Dict[str, List[str]] = {}
+        self.payload_metrics: Dict[str, PayloadMetrics] = {}  # Track metrics per payload
         
-        logger.info("Payload Service initialized")
+        logger.info("Payload Service initialized with mutation and scoring")
         logger.debug(f"Available file types: {list(self.generator.FILE_TYPE_PATTERNS.keys())}")
     
     def get_payloads_for_vulnerability(self, vuln_type: str) -> List[str]:
@@ -383,6 +391,248 @@ class PayloadService:
         
         logger.debug(f"Selected {len(unique_payloads)} payloads for target")
         return unique_payloads
+    
+    # New methods for mutation and scoring
+    
+    def get_mutated_payloads(
+        self,
+        payload: str,
+        technology: Optional[str] = None,
+        target_waf: Optional[str] = None,
+        max_mutations: int = 10
+    ) -> List[Tuple[str, float]]:
+        """
+        Get mutated variants of a payload for WAF evasion
+        
+        Args:
+            payload: Original payload
+            technology: Target technology stack
+            target_waf: Specific WAF to target
+            max_mutations: Maximum variants to generate
+        
+        Returns:
+            List of (mutated_payload, bypass_probability) tuples
+        """
+        mutations = self.mutator.generate_mutations(
+            payload,
+            technology=technology,
+            target_waf=target_waf,
+            max_mutations=max_mutations
+        )
+        
+        # Rank and return
+        ranked = self.mutator.rank_mutations(mutations, target_waf)
+        
+        logger.info(f"Generated {len(mutations)} mutations for payload")
+        return [(m.mutated, score) for m, score in ranked]
+    
+    def get_scored_payloads(
+        self,
+        payloads: List[str],
+        exploit_type: str,
+        target_technologies: Optional[List[str]] = None,
+        target_waf: Optional[str] = None,
+        top_n: Optional[int] = None
+    ) -> List[Tuple[str, float]]:
+        """
+        Score payloads by confidence and return ranked list
+        
+        Args:
+            payloads: List of payloads to score
+            exploit_type: Type of exploit (sql_injection, xss, etc.)
+            target_technologies: Technologies to match
+            target_waf: WAF to target
+            top_n: Return only top N payloads
+        
+        Returns:
+            List of (payload, confidence_score) tuples
+        """
+        # Convert to metrics
+        metrics_list = []
+        for payload in payloads:
+            metrics = self.payload_metrics.get(payload)
+            
+            if not metrics:
+                # Create default metrics
+                metrics = PayloadMetrics(
+                    payload=payload,
+                    exploit_type=exploit_type,
+                    source='static',
+                    confidence=0.6
+                )
+                if target_technologies:
+                    metrics.target_technologies = target_technologies
+            
+            metrics_list.append(metrics)
+        
+        # Score them
+        scored = self.scorer.score_payloads(
+            metrics_list,
+            target_technologies=target_technologies,
+            target_waf=target_waf,
+            sort=True
+        )
+        
+        # Return top N if specified
+        if top_n:
+            scored = scored[:top_n]
+        
+        logger.info(f"Scored {len(scored)} payloads")
+        return [(sp.metrics.payload, sp.final_score) for sp in scored]
+    
+    def get_intelligent_payloads(
+        self,
+        target_info: Dict,
+        apply_mutations: bool = True,
+        apply_scoring: bool = True,
+        max_payloads: int = 20
+    ) -> List[Dict]:
+        """
+        Get payloads with mutations and confidence scores
+        
+        Args:
+            target_info: Target details
+            apply_mutations: Generate WAF evasion variants
+            apply_scoring: Rank by confidence
+            max_payloads: Maximum payloads to return
+        
+        Returns:
+            List of payload dicts with metadata
+        """
+        # Get base payloads
+        payloads = self.get_payloads_for_target(target_info)
+        
+        technology = target_info.get('technology')
+        target_waf = target_info.get('waf')
+        vuln_type = target_info.get('vulnerability', 'unknown')
+        
+        results = []
+        
+        for payload in payloads[:max_payloads]:
+            payload_dict = {
+                'payload': payload,
+                'exploit_type': vuln_type,
+                'base_payload': payload,
+                'mutations': []
+            }
+            
+            # Apply mutations
+            if apply_mutations:
+                mutations = self.get_mutated_payloads(
+                    payload,
+                    technology=technology,
+                    target_waf=target_waf,
+                    max_mutations=5
+                )
+                payload_dict['mutations'] = [
+                    {'variant': m, 'bypass_probability': prob}
+                    for m, prob in mutations
+                ]
+            
+            results.append(payload_dict)
+        
+        # Apply scoring
+        if apply_scoring:
+            base_payloads = [r['payload'] for r in results]
+            scores = self.get_scored_payloads(
+                base_payloads,
+                vuln_type,
+                target_technologies=target_info.get('technologies', []),
+                target_waf=target_waf,
+                top_n=max_payloads
+            )
+            
+            # Add scores to results
+            score_dict = {p: s for p, s in scores}
+            for result in results:
+                result['confidence_score'] = score_dict.get(result['payload'], 0.5)
+            
+            # Sort by confidence
+            results = sorted(results, key=lambda x: x['confidence_score'], reverse=True)
+        
+        logger.info(f"Prepared {len(results)} intelligent payloads")
+        return results
+    
+    def track_payload_execution(
+        self,
+        payload: str,
+        exploit_type: str,
+        success: bool,
+        target_technologies: Optional[List[str]] = None,
+        waf_name: Optional[str] = None
+    ):
+        """
+        Track execution results to improve future scoring
+        
+        Args:
+            payload: The payload that was executed
+            exploit_type: Type of exploit
+            success: Whether execution was successful
+            target_technologies: Technologies on target
+            waf_name: WAF that was present (if any)
+        """
+        # Get or create metrics
+        if payload not in self.payload_metrics:
+            self.payload_metrics[payload] = PayloadMetrics(
+                payload=payload,
+                exploit_type=exploit_type
+            )
+        
+        metrics = self.payload_metrics[payload]
+        
+        # Update metrics
+        metrics.execution_count += 1
+        if success:
+            metrics.successful_executions += 1
+        
+        metrics.last_used = datetime.now()
+        metrics.use_frequency += 1
+        
+        # Update success rate
+        metrics.historical_success_rate = (
+            metrics.successful_executions / metrics.execution_count
+        )
+        
+        # Track WAF bypass if applicable
+        if waf_name and success:
+            current_rate = metrics.waf_bypass_history.get(waf_name, 0)
+            metrics.waf_bypass_history[waf_name] = current_rate + 0.1
+            metrics.avg_waf_bypass_rate = sum(
+                metrics.waf_bypass_history.values()
+            ) / len(metrics.waf_bypass_history)
+        
+        logger.debug(
+            f"Tracked execution: {payload[:30]}... "
+            f"success={success}, count={metrics.execution_count}"
+        )
+    
+    def get_payload_statistics(self) -> Dict:
+        """Get statistics about tracked payloads"""
+        if not self.payload_metrics:
+            return {}
+        
+        metrics_list = list(self.payload_metrics.values())
+        
+        avg_success_rate = sum(
+            m.successful_executions / max(m.execution_count, 1)
+            for m in metrics_list
+        ) / len(metrics_list)
+        
+        total_executions = sum(m.execution_count for m in metrics_list)
+        total_successes = sum(m.successful_executions for m in metrics_list)
+        
+        return {
+            'tracked_payloads': len(self.payload_metrics),
+            'total_executions': total_executions,
+            'total_successes': total_successes,
+            'overall_success_rate': total_successes / max(total_executions, 1),
+            'average_success_rate': avg_success_rate,
+            'most_used_payloads': sorted(
+                metrics_list,
+                key=lambda m: m.use_frequency,
+                reverse=True
+            )[:5]
+        }
 
 
 # Convenience functions
@@ -401,50 +651,115 @@ if __name__ == "__main__":
     # Test the payload service
     logging.basicConfig(level=logging.INFO)
     
-    print("=== Payload Service Test ===\n")
+    print("=" * 70)
+    print("=== Enhanced Payload Service Test ===")
+    print("=" * 70 + "\n")
     
     service = PayloadService()
     
-    # Test 1: Get payloads by vulnerability type
+    # Test 1: Basic payload retrieval
     print("Test 1: SQL Injection Payloads")
     sqli_payloads = service.get_payloads_for_vulnerability('sql_injection')
     print(f"  Found {len(sqli_payloads)} payloads:")
-    for i, payload in enumerate(sqli_payloads[:3], 1):
+    for i, payload in enumerate(sqli_payloads[:2], 1):
         print(f"    {i}. {payload[:60]}...")
     
-    # Test 2: Get XSS payloads
-    print("\nTest 2: XSS Payloads")
-    xss_payloads = service.get_payloads_for_vulnerability('xss')
-    print(f"  Found {len(xss_payloads)} payloads")
+    # Test 2: Get WAF evasion mutations
+    print("\n" + "=" * 70)
+    print("Test 2: WAF Evasion Mutations")
+    sample_payload = "' OR '1'='1' --"
+    print(f"  Original: {sample_payload}")
+    print(f"  Target: PHP with ModSecurity WAF\n")
     
-    # Test 3: Get all payloads by type
-    print("\nTest 3: All Payloads by Type")
-    all_counts = service.get_payload_count_by_type()
-    total = service.get_total_payload_count()
-    print(f"  Total payloads: {total}")
-    for ftype, count in all_counts.items():
-        print(f"    {ftype}: {count}")
+    mutations = service.get_mutated_payloads(
+        sample_payload,
+        technology='php',
+        target_waf='modsecurity',
+        max_mutations=5
+    )
     
-    # Test 4: Search payloads
-    print("\nTest 4: Search Payloads")
-    results = service.search_payloads('alert')
-    print(f"  Found {len(results)} payloads containing 'alert'")
+    for i, (variant, prob) in enumerate(mutations[:4], 1):
+        print(f"    {i}. Bypass Prob: {prob:.2%}")
+        print(f"       {variant[:65]}...")
     
-    # Test 5: Custom payloads
-    print("\nTest 5: Custom Payloads")
-    service.register_custom_payloads('sql_injection', 
-                                     ["'; WAITFOR DELAY '00:00:10'--"])
-    custom = service.get_payloads_for_vulnerability('sql_injection')
-    print(f"  Total SQL payloads (with custom): {len(custom)}")
+    # Test 3: Confidence scoring
+    print("\n" + "=" * 70)
+    print("Test 3: Payload Confidence Scoring")
     
-    # Test 6: Target-based selection
-    print("\nTest 6: Target-Based Payload Selection")
+    payloads_to_score = sqli_payloads[:5]
+    scored = service.get_scored_payloads(
+        payloads_to_score,
+        exploit_type='sql_injection',
+        target_technologies=['PHP', 'MySQL'],
+        top_n=3
+    )
+    
+    print("  Top scored payloads:\n")
+    for i, (payload, score) in enumerate(scored, 1):
+        print(f"    {i}. Score: {score:.3f}")
+        print(f"       {payload[:60]}...")
+    
+    # Test 4: Intelligent payload generation with mutations + scoring
+    print("\n" + "=" * 70)
+    print("Test 4: Intelligent Payload Selection (Mutations + Scoring)")
+    
     target_info = {
         'technology': 'PHP',
-        'vulnerability': 'rce',
-        'file_type': 'php'
+        'vulnerability': 'sql_injection',
+        'waf': 'modsecurity',
+        'technologies': ['PHP', 'MySQL']
     }
-    target_payloads = service.get_payloads_for_target(target_info)
-    print(f"  Selected {len(target_payloads)} payloads for PHP RCE target")
     
-    print("\n=== All Tests Complete ===")
+    intelligent_payloads = service.get_intelligent_payloads(
+        target_info,
+        apply_mutations=True,
+        apply_scoring=True,
+        max_payloads=3
+    )
+    
+    for i, payload_dict in enumerate(intelligent_payloads, 1):
+        print(f"\n  {i}. Confidence: {payload_dict['confidence_score']:.3f}")
+        print(f"     Base: {payload_dict['payload'][:50]}...")
+        if payload_dict['mutations']:
+            print(f"     Variants ({len(payload_dict['mutations'])}):")
+            for mut in payload_dict['mutations'][:2]:
+                print(f"       • {mut['variant'][:40]}... (bypass: {mut['bypass_probability']:.2%})")
+    
+    # Test 5: Execution tracking
+    print("\n" + "=" * 70)
+    print("Test 5: Payload Execution Tracking")
+    
+    # Simulate some executions
+    test_payload = sqli_payloads[0]
+    service.track_payload_execution(
+        test_payload,
+        'sql_injection',
+        success=True,
+        target_technologies=['PHP', 'MySQL'],
+        waf_name='modsecurity'
+    )
+    service.track_payload_execution(
+        test_payload,
+        'sql_injection',
+        success=True,
+        target_technologies=['PHP', 'MySQL'],
+        waf_name='modsecurity'
+    )
+    service.track_payload_execution(
+        test_payload,
+        'sql_injection',
+        success=False,
+        target_technologies=['PHP', 'MySQL'],
+        waf_name='modsecurity'
+    )
+    
+    stats = service.get_payload_statistics()
+    if stats:
+        print(f"\n  Tracked payloads: {stats['tracked_payloads']}")
+        print(f"  Total executions: {stats['total_executions']}")
+        print(f"  Total successes: {stats['total_successes']}")
+        print(f"  Overall success rate: {stats['overall_success_rate']:.1%}")
+    
+    print("\n" + "=" * 70)
+    print("=== All Tests Complete ===")
+    print("=" * 70)
