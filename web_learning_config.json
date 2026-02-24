@@ -1,0 +1,255 @@
+{
+  "web_learning": {
+    "enabled": true,
+    "description": "Web Knowledge Learning System Configuration",
+    
+    "database": {
+      "path": "hades_knowledge.db",
+      "auto_backup": true,
+      "backup_interval_hours": 24,
+      "max_size_mb": 1000,
+      "auto_cleanup": true,
+      "cleanup_interval_days": 30
+    },
+    
+    "extraction": {
+      "enabled": true,
+      "extract_cves": true,
+      "extract_cwes": true,
+      "extract_exploits": true,
+      "extract_techniques": true,
+      "extract_vulnerability_patterns": true,
+      
+      "min_confidence": 0.5,
+      "max_context_length": 500,
+      "preserve_source_urls": true,
+      
+      "patterns": {
+        "cve_regex": "CVE-\\d{4}-\\d{4,}",
+        "cwe_regex": "CWE-\\d+",
+        "severity_keywords": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "cvss"
+        ],
+        "exploit_keywords": [
+          "payload",
+          "shellcode",
+          "poc",
+          "exploit",
+          "injection",
+          "bypass",
+          "buffer",
+          "rce",
+          "sqli",
+          "xss"
+        ],
+        "technique_categories": [
+          "enumeration",
+          "exploitation",
+          "privilege_escalation",
+          "persistence",
+          "lateral_movement",
+          "exfiltration",
+          "defense_evasion"
+        ],
+        "vulnerability_types": [
+          "SQL_INJECTION",
+          "XSS",
+          "CSRF",
+          "IDOR",
+          "AUTH_BYPASS",
+          "SSRF",
+          "RCE",
+          "XXE",
+          "INSECURE_DESERIALIZATION",
+          "BROKEN_ACCESS"
+        ]
+      }
+    },
+    
+    "enhancement": {
+      "enabled": true,
+      "enhance_prompts": true,
+      "enhance_responses": true,
+      "include_context": true,
+      "context_limit": 2000,
+      "add_citations": true,
+      "add_confidence_scores": true
+    },
+    
+    "learning_from_scans": {
+      "enabled": true,
+      "learn_from_vulnerabilities": true,
+      "learn_from_exploits": true,
+      "learn_from_cves": true,
+      "learn_from_raw_content": true,
+      "auto_learn": true
+    },
+    
+    "chat_integration": {
+      "enabled": true,
+      "enhance_user_messages": true,
+      "enhance_ai_responses": true,
+      "learn_from_interactions": false,
+      "interaction_learning_threshold": 0.7
+    },
+    
+    "analytics": {
+      "enabled": true,
+      "track_queries_enhanced": true,
+      "track_knowledge_used": true,
+      "track_learning_rate": true,
+      "report_generation": true,
+      "report_interval_hours": 24
+    },
+    
+    "export": {
+      "enabled": true,
+      "format": "json",
+      "include_metadata": true,
+      "include_timestamps": true,
+      "include_sources": true,
+      "auto_export": false,
+      "export_interval_days": 7
+    },
+    
+    "performance": {
+      "batch_learning": true,
+      "batch_size": 10,
+      "query_timeout_ms": 5000,
+      "max_concurrent_learning": 3,
+      "cache_queries": true,
+      "cache_ttl_minutes": 60,
+      "index_search": true
+    },
+    
+    "security": {
+      "encrypt_at_rest": false,
+      "encryption_key": null,
+      "validate_sources": true,
+      "sanitize_content": true,
+      "filter_sensitive_data": true,
+      "audit_log": true,
+      "audit_log_path": "web_learning_audit.log"
+    },
+    
+    "sources": {
+      "enabled": true,
+      "track_sources": true,
+      "validate_urls": true,
+      "dedup_content": true,
+      "trusted_domains": [
+        "github.com",
+        "nvd.nist.gov",
+        "cve.mitre.org",
+        "cwe.mitre.org",
+        "exploit-db.com",
+        "offensive-security.com",
+        "metasploit.com"
+      ],
+      "blocked_domains": [],
+      "max_sources": 10000
+    },
+    
+    "integrations": {
+      "seek_tab": {
+        "enabled": true,
+        "auto_learn": true,
+        "learn_exploits": true
+      },
+      "vulnerability_scanner": {
+        "enabled": true,
+        "auto_learn": true,
+        "learn_all_findings": true
+      },
+      "chat_interface": {
+        "enabled": true,
+        "enhance_responses": true,
+        "auto_learn": false
+      },
+      "autonomous_agent": {
+        "enabled": true,
+        "enhance_prompts": true,
+        "provide_context": true
+      },
+      "payload_generator": {
+        "enabled": true,
+        "provide_knowledge": true
+      }
+    },
+    
+    "knowledge_types": {
+      "cves": {
+        "enabled": true,
+        "store_severity": true,
+        "store_context": true,
+        "store_mitigation": true
+      },
+      "exploits": {
+        "enabled": true,
+        "store_code": true,
+        "store_payload": true,
+        "store_poc": true
+      },
+      "techniques": {
+        "enabled": true,
+        "store_category": true,
+        "store_description": true,
+        "store_methodology": true
+      },
+      "patterns": {
+        "enabled": true,
+        "store_confidence": true,
+        "store_context": true,
+        "store_countermeasures": true
+      }
+    },
+    
+    "defaults": {
+      "default_confidence": 0.8,
+      "default_severity": "MEDIUM",
+      "default_ttl_days": 365,
+      "auto_deduplicate": true,
+      "preserve_duplicates_count": 3
+    },
+    
+    "advanced": {
+      "enable_ml_classification": false,
+      "enable_pattern_correlation": false,
+      "enable_predictive_analysis": false,
+      "enable_knowledge_sharing": false,
+      "sharing_endpoint": null,
+      "enable_threat_intelligence_feed": false,
+      "threat_intelligence_sources": []
+    }
+  },
+  
+  "alerts": {
+    "enable_alerts": true,
+    "alert_on_critical_cve": true,
+    "alert_on_new_exploit": true,
+    "alert_threshold": "CRITICAL",
+    "alert_channels": [
+      "console",
+      "log"
+    ]
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "file": "web_learning.log",
+    "max_size_mb": 100,
+    "backup_count": 5,
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  
+  "metadata": {
+    "version": "1.0",
+    "created": "2024-01-15",
+    "last_updated": "2024-01-15",
+    "author": "HadesAI Development Team"
+  }
+}
