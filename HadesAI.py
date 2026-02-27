@@ -125,6 +125,14 @@ except ImportError:
     create_exploit_seek_tab = None
     HAS_EXPLOIT_SEEK = False
 
+# Exploit Tome - Centralized Exploit Repository
+try:
+    from exploit_tome_gui import ExploitTomeTab
+    HAS_EXPLOIT_TOME = True
+except ImportError:
+    ExploitTomeTab = None
+    HAS_EXPLOIT_TOME = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4069,6 +4077,11 @@ class HadesGUI(QMainWindow):
             self.tabs.addTab(DataMappingTab(), "🗺️ Data Mapping")
         self.tabs.addTab(self._create_findings_tab(), "🔍 Threat Findings")
         self.tabs.addTab(self._create_learned_tab(), "🧠 Learned Exploits")
+        if HAS_EXPLOIT_TOME:
+            try:
+                self.tabs.addTab(ExploitTomeTab(), "📚 Exploit Tome")
+            except Exception as e:
+                logger.warning(f"Exploit Tome tab failed: {e}")
         self.tabs.addTab(self._create_cache_tab(), "📂 Cache Scanner")
         self.tabs.addTab(self._create_code_tab(), "💻 Code Analysis")
         self.tabs.addTab(self._create_code_helper_tab(), "💻 Code Helper")
