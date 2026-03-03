@@ -1,0 +1,126 @@
+2026-03-03 00:23:41,801 - __main__ - INFO - 
+
+2026-03-03 00:23:41,804 - __main__ - INFO - \u2554====================================================================\u2557
+2026-03-03 00:23:41,804 - __main__ - INFO - \u2551                                                                    \u2551
+2026-03-03 00:23:41,804 - __main__ - INFO - \u2551      SEEK TAB + PAYLOAD SERVICE + EXPLOIT TOME INTEGRATION TEST    \u2551
+2026-03-03 00:23:41,804 - __main__ - INFO - \u2551                                                                    \u2551
+2026-03-03 00:23:41,804 - __main__ - INFO - \u255a====================================================================\u255d
+
+2026-03-03 00:23:41,804 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:41,804 - __main__ - INFO - TEST 1: Verifying Integration Components Import
+2026-03-03 00:23:41,804 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:41,980 - __main__ - INFO - \u2713 UnifiedSeekIntegration imported
+2026-03-03 00:23:41,980 - __main__ - INFO - \u2713 ExploitTome imported
+2026-03-03 00:23:41,980 - __main__ - INFO - \u2713 PayloadService imported
+2026-03-03 00:23:41,980 - __main__ - INFO - \u2705 All imports successful
+
+2026-03-03 00:23:41,980 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:41,980 - __main__ - INFO - TEST 2: Testing Payload Service
+2026-03-03 00:23:41,980 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:41,980 - PayloadMutator - INFO - PayloadMutator initialized
+2026-03-03 00:23:41,980 - PayloadScorer - INFO - PayloadScorer initialized
+2026-03-03 00:23:41,980 - PayloadService - INFO - Payload Service initialized with mutation and scoring
+2026-03-03 00:23:41,980 - __main__ - INFO - \u2713 SQL Injection payloads: 6
+2026-03-03 00:23:41,980 - __main__ - INFO - \u2713 XSS payloads: 6
+2026-03-03 00:23:41,981 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:41,981 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:41,981 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:41,981 - PayloadScorer - INFO - Scored 3 payloads
+2026-03-03 00:23:41,981 - PayloadService - INFO - Scored 3 payloads
+2026-03-03 00:23:41,981 - PayloadService - INFO - Prepared 3 intelligent payloads
+2026-03-03 00:23:41,981 - __main__ - INFO - \u2713 Intelligent payloads: 3 with mutations & scoring
+2026-03-03 00:23:41,981 - __main__ - INFO - \u2713 Payload execution tracking works
+2026-03-03 00:23:41,981 - __main__ - INFO - \u2705 Payload Service tests passed
+
+2026-03-03 00:23:41,981 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:41,981 - __main__ - INFO - TEST 3: Testing Exploit Tome
+2026-03-03 00:23:41,981 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,069 - exploit_tome - INFO - Added exploit: Test SQL Injection
+2026-03-03 00:23:42,069 - __main__ - INFO - \u2713 Exploit added to tome
+2026-03-03 00:23:42,069 - __main__ - INFO - \u2713 Exploit retrieved from tome
+2026-03-03 00:23:42,086 - __main__ - INFO - \u2713 Execution logged
+2026-03-03 00:23:42,086 - __main__ - INFO - \u2713 Statistics: 1 total exploits
+2026-03-03 00:23:42,087 - __main__ - INFO - \u2713 Search returned 1 results
+2026-03-03 00:23:42,101 - exploit_tome - INFO - Deleted exploit: test_001
+2026-03-03 00:23:42,101 - __main__ - INFO - \u2705 Exploit Tome tests passed
+
+2026-03-03 00:23:42,101 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,101 - __main__ - INFO - TEST 4: Testing Unified Integration
+2026-03-03 00:23:42,101 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,161 - PayloadMutator - INFO - PayloadMutator initialized
+2026-03-03 00:23:42,161 - PayloadScorer - INFO - PayloadScorer initialized
+2026-03-03 00:23:42,161 - PayloadService - INFO - Payload Service initialized with mutation and scoring
+2026-03-03 00:23:42,162 - SeekTabUnifiedIntegration - INFO - Unified Seek Integration initialized
+2026-03-03 00:23:42,162 - __main__ - INFO - \u2713 Callback registration works
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadScorer - INFO - Scored 5 payloads
+2026-03-03 00:23:42,162 - PayloadService - INFO - Scored 5 payloads
+2026-03-03 00:23:42,162 - PayloadService - INFO - Prepared 5 intelligent payloads
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,162 - PayloadService - INFO - Generated 0 mutations for payload
+2026-03-03 00:23:42,163 - PayloadScorer - INFO - Scored 5 payloads
+2026-03-03 00:23:42,163 - PayloadService - INFO - Scored 5 payloads
+2026-03-03 00:23:42,163 - PayloadService - INFO - Prepared 5 intelligent payloads
+2026-03-03 00:23:42,163 - __main__ - INFO - \u2713 Smart payloads generated for 2 types
+2026-03-03 00:23:42,178 - exploit_tome - INFO - Added exploit: SQL_INJECTION - https://test.example.com
+2026-03-03 00:23:42,179 - SeekTabUnifiedIntegration - INFO - Exploit added to tome: fa758d689a4b7753de1b05b2678479f8 (sql_injection, success=True)
+2026-03-03 00:23:42,179 - __main__ - INFO - \u2713 Exploit processed and added to tome
+2026-03-03 00:23:42,179 - __main__ - INFO - \u2713 Callback fired: exploit_discovered
+2026-03-03 00:23:42,179 - __main__ - INFO - \u2713 Recommendations retrieved: 1 types
+2026-03-03 00:23:42,180 - __main__ - INFO - \u2713 Integration statistics available
+2026-03-03 00:23:42,180 - __main__ - INFO - \u2713 Success rates calculated for 1 types
+2026-03-03 00:23:42,180 - __main__ - INFO - \u2705 Unified Integration tests passed
+
+2026-03-03 00:23:42,180 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,180 - __main__ - INFO - TEST 5: Testing Seek Results Enhancement
+2026-03-03 00:23:42,180 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,236 - PayloadMutator - INFO - PayloadMutator initialized
+2026-03-03 00:23:42,236 - PayloadScorer - INFO - PayloadScorer initialized
+2026-03-03 00:23:42,236 - PayloadService - INFO - Payload Service initialized with mutation and scoring
+2026-03-03 00:23:42,236 - SeekTabUnifiedIntegration - INFO - Unified Seek Integration initialized
+2026-03-03 00:23:42,253 - exploit_tome - INFO - Added exploit: SQL_INJECTION - https://test.example.com
+2026-03-03 00:23:42,253 - SeekTabUnifiedIntegration - INFO - Exploit added to tome: fa758d689a4b7753de1b05b2678479f8 (sql_injection, success=True)
+2026-03-03 00:23:42,253 - __main__ - INFO - \u2713 Results enhanced with tome status
+2026-03-03 00:23:42,253 - __main__ - INFO - \u2713 Payload metrics included
+2026-03-03 00:23:42,254 - __main__ - INFO - \u2713 Successful exploits auto-added to tome
+2026-03-03 00:23:42,254 - __main__ - INFO - \u2705 Seek Results Enhancement tests passed
+
+2026-03-03 00:23:42,254 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,254 - __main__ - INFO - TEST 6: Testing Seek Completion Handler
+2026-03-03 00:23:42,254 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,255 - PayloadMutator - INFO - PayloadMutator initialized
+2026-03-03 00:23:42,255 - PayloadScorer - INFO - PayloadScorer initialized
+2026-03-03 00:23:42,255 - PayloadService - INFO - Payload Service initialized with mutation and scoring
+2026-03-03 00:23:42,255 - SeekTabUnifiedIntegration - INFO - Unified Seek Integration initialized
+2026-03-03 00:23:42,257 - exploit_tome - ERROR - Failed to add exploit: UNIQUE constraint failed: exploits.id
+2026-03-03 00:23:42,257 - exploit_tome - ERROR - Failed to add exploit: UNIQUE constraint failed: exploits.id
+2026-03-03 00:23:42,257 - SeekTabUnifiedIntegration - INFO - Batch added 0/2 exploits to tome
+2026-03-03 00:23:42,257 - SeekTabUnifiedIntegration - INFO - Auto-processed 0 successful exploits from seek: https://test.example.com
+2026-03-03 00:23:42,257 - __main__ - INFO - \u2713 1 callbacks fired
+2026-03-03 00:23:42,257 - __main__ - INFO - \u2713 Exploits auto-added to tome
+2026-03-03 00:23:42,257 - __main__ - INFO - \u2705 Seek Completion Handler tests passed
+
+2026-03-03 00:23:42,258 - __main__ - INFO - 
+
+2026-03-03 00:23:42,258 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,258 - __main__ - INFO - TEST SUMMARY
+2026-03-03 00:23:42,258 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,258 - __main__ - INFO - \u2705 PASS - Integration Components
+2026-03-03 00:23:42,258 - __main__ - INFO - \u2705 PASS - Payload Service
+2026-03-03 00:23:42,258 - __main__ - INFO - \u2705 PASS - Exploit Tome
+2026-03-03 00:23:42,258 - __main__ - INFO - \u2705 PASS - Unified Integration
+2026-03-03 00:23:42,258 - __main__ - INFO - \u2705 PASS - Seek Results Enhancement
+2026-03-03 00:23:42,258 - __main__ - INFO - \u2705 PASS - Seek Completion Handling
+2026-03-03 00:23:42,258 - __main__ - INFO - ======================================================================
+2026-03-03 00:23:42,258 - __main__ - INFO - TOTAL: 6/6 tests passed
+2026-03-03 00:23:42,258 - __main__ - INFO - ======================================================================
+
+2026-03-03 00:23:42,259 - __main__ - INFO - \U0001f389 ALL TESTS PASSED! Integration is ready to use.
+
