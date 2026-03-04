@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Test suite for Clockworks Obfuscation integration
 """
@@ -6,6 +7,12 @@ Test suite for Clockworks Obfuscation integration
 import sys
 import json
 import logging
+import os
+
+# Fix encoding on Windows
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from modules.obfuscation_engine import (
     ClockworksObfuscator, keystream, xor_bytes, DriftState, DIRECTIONS
 )
@@ -27,10 +34,10 @@ def test_basic_obfuscation():
     decrypted = obf.deobfuscate(encrypted, format="b64")
     
     assert decrypted == original, "Roundtrip failed"
-    print(f"✓ Original:   {original}")
-    print(f"✓ Encrypted:  {encrypted[:50]}...")
-    print(f"✓ Decrypted:  {decrypted}")
-    print("✓ PASSED")
+    print(f"[PASS] Original:   {original}")
+    print(f"[PASS] Encrypted:  {encrypted[:50]}...")
+    print(f"[PASS] Decrypted:  {decrypted}")
+    print("[OK] PASSED")
 
 
 def test_lua_obfuscation():
@@ -45,10 +52,10 @@ def test_lua_obfuscation():
     assert "keystream" in obfuscated, "Keystream not present"
     assert len(obfuscated) > len(lua_code), "Should be larger"
     
-    print(f"✓ Original size:     {len(lua_code)} bytes")
-    print(f"✓ Obfuscated size:   {len(obfuscated)} bytes")
-    print(f"✓ Expansion ratio:   {len(obfuscated) / len(lua_code):.2f}x")
-    print("✓ PASSED")
+    print(f"[OK] Original size:     {len(lua_code)} bytes")
+    print(f"[OK] Obfuscated size:   {len(obfuscated)} bytes")
+    print(f"[OK] Expansion ratio:   {len(obfuscated) / len(lua_code):.2f}x")
+    print("[OK] PASSED")
 
 
 def test_different_seeds():
@@ -64,9 +71,9 @@ def test_different_seeds():
     result2 = obf2.obfuscate_binary(payload, format="b64")
     
     assert result1 != result2, "Different seeds should produce different outputs"
-    print(f"✓ Seed 7:   {result1[:50]}...")
-    print(f"✓ Seed 11:  {result2[:50]}...")
-    print("✓ PASSED - Outputs are different")
+    print(f"[OK] Seed 7:   {result1[:50]}...")
+    print(f"[OK] Seed 11:  {result2[:50]}...")
+    print("[OK] PASSED - Outputs are different")
 
 
 def test_different_rounds():
@@ -82,9 +89,9 @@ def test_different_rounds():
     result2 = obf2.obfuscate_binary(payload, format="b64")
     
     assert result1 != result2, "Different rounds should produce different outputs"
-    print(f"✓ Rounds 5:  {result1[:50]}...")
-    print(f"✓ Rounds 15: {result2[:50]}...")
-    print("✓ PASSED - Outputs are different")
+    print(f"[OK] Rounds 5:  {result1[:50]}...")
+    print(f"[OK] Rounds 15: {result2[:50]}...")
+    print("[OK] PASSED - Outputs are different")
 
 
 def test_keystream_determinism():
@@ -95,9 +102,9 @@ def test_keystream_determinism():
     ks2 = keystream(seed=7, n=100, rounds=9)
     
     assert ks1 == ks2, "Keystreams should be identical for same seed/rounds"
-    print(f"✓ Keystream 1: {ks1.hex()[:50]}...")
-    print(f"✓ Keystream 2: {ks2.hex()[:50]}...")
-    print("✓ PASSED - Deterministic")
+    print(f"[OK] Keystream 1: {ks1.hex()[:50]}...")
+    print(f"[OK] Keystream 2: {ks2.hex()[:50]}...")
+    print("[OK] PASSED - Deterministic")
 
 
 def test_hades_integration():
@@ -119,12 +126,12 @@ def test_hades_integration():
     assert result["seed"] == 7, "Wrong seed"
     assert result["rounds"] == 9, "Wrong rounds"
     
-    print(f"✓ Payload type:        {result['type']}")
-    print(f"✓ Original size:       {result['original_size']} bytes")
-    print(f"✓ Obfuscated size:     {result['obfuscated_size']} bytes")
-    print(f"✓ Seed:                {result['seed']}")
-    print(f"✓ Rounds:              {result['rounds']}")
-    print("✓ PASSED")
+    print(f"[OK] Payload type:        {result['type']}")
+    print(f"[OK] Original size:       {result['original_size']} bytes")
+    print(f"[OK] Obfuscated size:     {result['obfuscated_size']} bytes")
+    print(f"[OK] Seed:                {result['seed']}")
+    print(f"[OK] Rounds:              {result['rounds']}")
+    print("[OK] PASSED")
 
 
 def test_polymorphic_generation():
@@ -146,11 +153,11 @@ def test_polymorphic_generation():
     obfuscated = [v["obfuscated"] for v in variations]
     assert len(set(obfuscated)) == 5, "All variations should be unique"
     
-    print(f"✓ Generated {len(variations)} variations")
+    print(f"[OK] Generated {len(variations)} variations")
     for i, var in enumerate(variations):
         print(f"  Variation {var['variation']}: seed={var['seed']}, rounds={var['rounds']}")
     
-    print("✓ PASSED - All unique")
+    print("[OK] PASSED - All unique")
 
 
 def test_batch_obfuscation():
@@ -166,11 +173,11 @@ def test_batch_obfuscation():
     assert len(results) == 3, "Should process 3 payloads"
     assert all("obfuscated" in r for r in results), "All should be obfuscated"
     
-    print(f"✓ Processed {len(results)} payloads")
+    print(f"[OK] Processed {len(results)} payloads")
     for i, result in enumerate(results):
         print(f"  Payload {i+1}: {result['obfuscated_size']} bytes")
     
-    print("✓ PASSED")
+    print("[OK] PASSED")
 
 
 def test_caching():
@@ -197,9 +204,9 @@ def test_caching():
     stats = service.get_obfuscation_stats()
     assert stats["cached_payloads"] == 1, "Should have 1 cached payload"
     
-    print(f"✓ Cached payloads: {stats['cached_payloads']}")
-    print(f"✓ Cache compression: {stats['compression_ratio']:.2f}x")
-    print("✓ PASSED")
+    print(f"[OK] Cached payloads: {stats['cached_payloads']}")
+    print(f"[OK] Cache compression: {stats['compression_ratio']:.2f}x")
+    print("[OK] PASSED")
 
 
 def test_all_payload_types():
@@ -224,12 +231,12 @@ def test_all_payload_types():
                 "test",
                 ptype
             )
-            print(f"✓ {ptype.value:10} - {result['type']}")
+            print(f"[OK] {ptype.value:10} - {result['type']}")
         except Exception as e:
-            print(f"✗ {ptype.value:10} - FAILED: {e}")
+            print(f"[FAIL] {ptype.value:10} - FAILED: {e}")
             return False
     
-    print("✓ PASSED - All types supported")
+    print("[OK] PASSED - All types supported")
     return True
 
 
@@ -243,8 +250,8 @@ def test_seed_normalization():
     service.set_seed(13)
     assert 1 <= service.default_seed <= 12, "Seed should be normalized"
     
-    print(f"✓ Seed 13 normalized to {service.default_seed}")
-    print("✓ PASSED")
+    print(f"[OK] Seed 13 normalized to {service.default_seed}")
+    print("[OK] PASSED")
 
 
 def test_deobfuscation():
@@ -273,10 +280,10 @@ def test_deobfuscation():
     )
     
     assert original.decode() == payload, "Deobfuscation should recover original"
-    print(f"✓ Original:       {payload}")
-    print(f"✓ Obfuscated:     {result['obfuscated'][:50]}...")
-    print(f"✓ Deobfuscated:   {original.decode()}")
-    print("✓ PASSED")
+    print(f"[OK] Original:       {payload}")
+    print(f"[OK] Obfuscated:     {result['obfuscated'][:50]}...")
+    print(f"[OK] Deobfuscated:   {original.decode()}")
+    print("[OK] PASSED")
 
 
 def run_all_tests():
@@ -308,7 +315,7 @@ def run_all_tests():
             test()
             passed += 1
         except Exception as e:
-            print(f"\n✗ FAILED: {e}")
+            print(f"\n[FAIL] FAILED: {e}")
             failed += 1
     
     print("\n" + "=" * 60)

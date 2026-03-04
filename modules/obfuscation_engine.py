@@ -87,7 +87,7 @@ def xor_bytes(data: bytes, ks: bytes) -> bytes:
 class ClockworksObfuscator:
     """Hades AI Clockworks Obfuscation Engine"""
 
-    LUA_LOADER_TEMPLATE = r'''-- Generated Clockworks Obfuscator (Clock-Drift Packer)
+    LUA_LOADER_TEMPLATE = """-- Generated Clockworks Obfuscator (Clock-Drift Packer)
 -- NOT real security. Reversible. For basic IP deterrence.
 
 local b64 = [[{B64_PAYLOAD}]]
@@ -177,7 +177,7 @@ local src = xor_str(enc, ks)
 local fn, err = load(src, "clock_drift_payload", "t", _G)
 if not fn then error("decode/load failed: "..tostring(err)) end
 return fn()
-'''
+"""
 
     def __init__(self, seed: int = 7, rounds: int = 9):
         """Initialize obfuscator with seed and round count"""

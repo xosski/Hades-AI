@@ -217,12 +217,20 @@ class HadesObfuscationIntegration:
     def update_defaults(self, seed: Optional[int] = None, rounds: Optional[int] = None) -> None:
         """Update default seed and rounds"""
         if seed is not None:
-            self.obfuscator.set_seed(seed)
             self.default_seed = seed
+            self.obfuscator = ClockworksObfuscator(seed=self.default_seed, rounds=self.default_rounds)
         if rounds is not None:
-            self.obfuscator.set_rounds(rounds)
             self.default_rounds = rounds
+            self.obfuscator = ClockworksObfuscator(seed=self.default_seed, rounds=self.default_rounds)
         logger.info(f"Defaults updated: seed={self.default_seed}, rounds={self.default_rounds}")
+    
+    def set_seed(self, seed: int) -> None:
+        """Alias for update_defaults"""
+        self.update_defaults(seed=seed)
+    
+    def set_rounds(self, rounds: int) -> None:
+        """Alias for update_defaults"""
+        self.update_defaults(rounds=rounds)
 
 
 # Global integration instance
