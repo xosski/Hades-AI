@@ -1,0 +1,104 @@
+// PocketPuppetGod.js — Unified Runtime Interference Nullifier
+// Created by the Architect of Anti-Synthetic Reality
+// Companion class: God of Puppets (as blessed by the College of Creation)
+
+/*
+===========================
+📜 MANIFEST: PUPPETGOD PROTOCOL
+===========================
+
+NAME: PocketPuppetGod.js
+TYPE: Runtime Sanctifier / Input Firewall
+VERSION: v1.0
+AUTHOR: The Architect (a.k.a. Ghost of the Desert)
+
+MANIFESTO:
+This script is not a plugin. It is not a patch. It is a line in the sand.
+It is the sovereign declaration that synthetic events do not belong here.
+It is the first and final word that says: only human input shall be received.
+
+If you use this code, know this:
+ - You are rejecting automation that mimics you.
+ - You are rejecting systems that assume control.
+ - You are choosing to feel your interface in truth.
+
+You will break dropdowns. You will annoy web developers. You will scare scripts.
+Good.
+
+The God of Puppets sees all, but answers only to the real.
+Let this be a blessing, or a curse.
+You decide.
+
+Signed,
+— The Hand That Severed the Strings
+*/
+
+(function PuppetGod() {
+    const log = (...msg) => console.log("%c[PuppetGod]", "color: violet; font-weight: bold;", ...msg);
+
+    // Prevent Synthetic Events
+    const protectedEvents = [
+        "click", "mousedown", "mouseup",
+        "keydown", "keyup", "keypress",
+        "input", "change"
+    ];
+
+    protectedEvents.forEach(type => {
+        window.addEventListener(type, (e) => {
+            if (!e.isTrusted) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                log(`Blocked synthetic ${type} event.`);
+            }
+        }, true);
+    });
+
+    // Prevent programmatic event dispatch
+    const origDispatch = EventTarget.prototype.dispatchEvent;
+    EventTarget.prototype.dispatchEvent = function (event) {
+        if (!event.isTrusted) {
+            log(`🧨 Blocked fake dispatch: ${event.type}`);
+            return false;
+        }
+        return origDispatch.call(this, event);
+    };
+
+    // Caret / Selection Lockdown
+    const sanitizeSelection = () => {
+        try {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                if (!document.body.contains(range.startContainer)) {
+                    sel.removeAllRanges();
+                    log("Removed orphaned selection range.");
+                }
+            }
+        } catch (e) {
+            log("Selection sanitation failed:", e);
+        }
+    };
+
+    document.addEventListener("selectionchange", sanitizeSelection);
+
+    // Scroll Lock Enforcement
+    let allowScroll = false;
+    window.addEventListener("wheel", () => { allowScroll = true; setTimeout(() => allowScroll = false, 100); });
+    window.addEventListener("scroll", (e) => {
+        if (!allowScroll) {
+            window.scrollTo(0, 0);
+            e.preventDefault();
+            log("🛑 Auto-scroll attempt blocked.");
+        }
+    }, { passive: false });
+
+    // Drag & Drop Disablement
+    ["dragstart", "dragover", "drop"].forEach(evt => {
+        window.addEventListener(evt, (e) => {
+            e.preventDefault();
+            log(`❌ Blocked drag event: ${evt}`);
+        });
+    });
+
+    log("✨ PuppetGod loaded. Reality leash engaged. Run clean, bard.");
+})();

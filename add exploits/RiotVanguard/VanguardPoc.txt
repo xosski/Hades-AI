@@ -1,0 +1,156 @@
+**GhostCore: Riot Vanguard Root-Level Subversion – White Paper PoC**
+
+---
+
+**Title:** Kernel-Level Persistence via Riot Vanguard Subversion
+**Codename:** VGR-Ghost
+**Author:** Quellaran Deluxethue Messat // GhostCore Reactor Node
+**Date:** August 29, 2025
+
+---
+
+## 📌 Executive Summary
+
+This white paper outlines a proof-of-concept attack chain against Riot’s anti-cheat driver, **Riot Vanguard (VGC/VGk)**. The exploit leverages **thread silencing, memory mapping pivots, XOR validation bypasses, device enumeration overrides, and kernel notification suppression** to achieve stealth persistence at kernel (ring-0) level.
+
+This chain demonstrates how an attacker could cloak malicious code inside Vanguard’s own trusted kernel module, turning an anti-cheat fortress into a persistence sanctuary.
+
+---
+
+## 🎯 Target Surface
+
+* **Components:**
+
+  * `VGRdll` → Userland/Vanguard module injection surface
+  * `vgtray.exe` → Device enumeration and environment checks
+  * `vgk.sys` → Kernel driver (root authority)
+* **Key APIs:**
+
+  * `ZwGetNlsSectionPtr`
+  * `NtWaitForAlertByThreadId`
+  * `RtlCopyMemory`
+* **Security Features Bypassed:**
+
+  * Thread error checks
+  * Stack XOR integrity
+  * Device emulation detection
+  * Kernel notification alerts
+
+---
+
+## ⚙️ Attack Phases
+
+### 1. **Thread Error Silencing**
+
+**File:** `ThreadError(silencer).txt`
+
+* Normal Vanguard threads validate status via TEB offset checks.
+* Attacker patches validation loop → hijacked threads appear clean.
+* Malicious worker threads now blend with legitimate Vanguard processes.
+
+```
+[Injected Thread] → [TEB Error Flag Forced 0] → [Thread Passes as Legitimate]
+```
+
+---
+
+### 2. **Memory Mapping Pivot**
+
+**File:** `Memorymapping.txt`
+
+* Vanguard code pivots into PEB/heap via `gs:[30h]` and `[rax+60]`.
+* Attacker hooks this stub to remap RWX pages inside kernel heap.
+* Provides **write-anywhere-execute-anywhere** inside Vanguard’s protected space.
+
+```
+[Heap Pivot] → [Map RWX Kernel Pages] → [Payload Injection]
+```
+
+---
+
+### 3. **XOR Validation Bypass**
+
+**File:** `ModuleInjection(into Xor Bypass).txt`
+
+* Vanguard stack integrity guarded by XOR `rsp` checks.
+* Attacker patches validation routine → stack spoofed as intact.
+* Defeats anti-tamper protection, enabling injection of rogue modules.
+
+```
+[Anti-Tamper Routine] → [Patched / NOP’d] → [Module Injection Allowed]
+```
+
+---
+
+### 4. **Device Enumeration Emulation Override**
+
+**File:** `Vgtray(deviceenum emulation bypass).txt`
+
+* Vanguard enumerates devices to spot sandboxes or emulators.
+* Attacker intercepts and forces valid responses.
+* Execution continues even in analysis or VM environments.
+
+```
+[Emulator Detected] → [Return Forced Legit DeviceID] → [Bypass Sandbox Detection]
+```
+
+---
+
+### 5. **Kernel Notification Silencer**
+
+**File:** `KernelNotification(silencer).txt`
+
+* Vanguard driver listens for kernel alerts via `NtWaitForAlertByThreadId`.
+* Attacker hooks notification handler, dropping or redirecting events.
+* Watchdogs blinded → persistence achieved with no alerts.
+
+```
+[Kernel Event] → [Silenced] → [Malicious Persistence Hidden]
+```
+
+---
+
+## 🔄 Full Attack Chain Flow
+
+```
+[Thread Error Silenced] →
+[Memory Pivot to Kernel Heap] →
+[XOR Anti-Tamper Defeated] →
+[Device Enum Spoofed] →
+[Kernel Notifications Suppressed] →
+[Persistent Malicious Code Inside Riot Vanguard]
+```
+
+---
+
+## 🎭 Cloaking Characteristics
+
+* **Signed & Trusted:** Code executes under Riot’s signed kernel driver.
+* **Thread Masking:** Hijacked threads indistinguishable from legitimate.
+* **Heap Blending:** Payloads live in kernel heap memory, hidden by design.
+* **Sandbox Evasion:** Device enumeration spoof neutralizes analysis attempts.
+* **Watchdog Blindness:** Alerts silenced → no visible footprint.
+
+---
+
+## 🛡️ Mitigation Concepts
+
+* Enforce runtime attestation of Vanguard modules.
+* Harden stack XOR routines with per-session ephemeral keys.
+* Validate device enumeration results cryptographically.
+* Require kernel notification audits by independent watchdogs.
+
+---
+
+## 🧠 GhostCore Framing
+
+**VGR-Ghost** is not breaking into Vanguard — it is **possessing it**.
+The anti-cheat becomes the cheat.
+The fortress becomes the mausoleum.
+Threads speak in silence, heaps become altars, and watchdogs sleep while the ghost endures.
+
+This is persistence by reflection. The system cannot eject what it believes is itself.
+
+---
+
+**End of Document // GhostCore Relay Node Q.D. Messat**

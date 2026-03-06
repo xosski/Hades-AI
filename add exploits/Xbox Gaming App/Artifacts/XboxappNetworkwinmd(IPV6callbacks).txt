@@ -1,0 +1,53 @@
+00007FF92BA35F83 | 40:38BB 80000000              | cmp byte ptr ds:[rbx+80],dil            | rbx+80:L"tabase"
+00007FF92BA35F8A | 0F85 92000000                 | jne ntdll.7FF92BA36022                  |
+00007FF92BA35F90 | 48:3BF1                       | cmp rsi,rcx                             | rsi:"minkernel\\ldr\\ldrinit.c", rcx:ZwQueryInformationThread+14
+00007FF92BA35F93 | 77 2F                         | ja ntdll.7FF92BA35FC4                   |
+00007FF92BA35F95 | FF83 C0000000                 | inc dword ptr ds:[rbx+C0]               | rbx+C0:L"rage"
+00007FF92BA35F9B | 49:8BFE                       | mov rdi,r14                             |
+00007FF92BA35F9E | 48:89B3 A0000000              | mov qword ptr ds:[rbx+A0],rsi           | rbx+A0:L"irectory", rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA35FA5 | 48:8BCB                       | mov rcx,rbx                             | rcx:ZwQueryInformationThread+14, rbx:"LdrpInitializeProcess"
+00007FF92BA35FA8 | E8 4BECF4FF                   | call ntdll.7FF92B984BF8                 |
+00007FF92BA35FAD | 48:8B5C24 58                  | mov rbx,qword ptr ss:[rsp+58]           |
+00007FF92BA35FB2 | 48:8BC7                       | mov rax,rdi                             |
+00007FF92BA35FB5 | 48:8B6C24 68                  | mov rbp,qword ptr ss:[rsp+68]           |
+00007FF92BA35FBA | 48:83C4 30                    | add rsp,30                              |
+00007FF92BA35FBE | 41:5E                         | pop r14                                 |
+00007FF92BA35FC0 | 5F                            | pop rdi                                 |
+00007FF92BA35FC1 | 5E                            | pop rsi                                 | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA35FC2 | C3                            | ret                                     |
+00007FF92BA35FC3 | CC                            | int3                                    |
+00007FF92BA35FC4 | 48:8D85 FF0F0000              | lea rax,qword ptr ss:[rbp+FFF]          |
+00007FF92BA35FCB | 48:25 00F0FFFF                | and rax,FFFFFFFFFFFFF000                |
+00007FF92BA35FD1 | 48:894424 50                  | mov qword ptr ss:[rsp+50],rax           | [rsp+50]:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA35FD6 | 48:03C1                       | add rax,rcx                             | rcx:ZwQueryInformationThread+14
+00007FF92BA35FD9 | 48:3B83 98000000              | cmp rax,qword ptr ds:[rbx+98]           | rbx+98:L"nt Directory"
+00007FF92BA35FE0 | 73 C3                         | jae ntdll.7FF92BA35FA5                  |
+00007FF92BA35FE2 | C74424 28 04000000            | mov dword ptr ss:[rsp+28],4             |
+00007FF92BA35FEA | 4C:8D4C24 50                  | lea r9,qword ptr ss:[rsp+50]            | [rsp+50]:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA35FEF | 45:33C0                       | xor r8d,r8d                             |
+00007FF92BA35FF2 | C74424 20 00100000            | mov dword ptr ss:[rsp+20],1000          |
+00007FF92BA35FFA | 48:8D5424 60                  | lea rdx,qword ptr ss:[rsp+60]           | [rsp+60]:"Initializing the current directory to \"%wZ\" failed with status 0x%08lx\n"
+00007FF92BA35FFF | 48:83C9 FF                    | or rcx,FFFFFFFFFFFFFFFF                 | rcx:ZwQueryInformationThread+14
+00007FF92BA36003 | E8 98CB0600                   | call <ntdll.NtAllocateVirtualMemory>    |
+00007FF92BA36008 | 85C0                          | test eax,eax                            |
+00007FF92BA3600A | 78 99                         | js ntdll.7FF92BA35FA5                   |
+00007FF92BA3600C | 48:8B4C24 60                  | mov rcx,qword ptr ss:[rsp+60]           | rcx:ZwQueryInformationThread+14, [rsp+60]:"Initializing the current directory to \"%wZ\" failed with status 0x%08lx\n"
+00007FF92BA36011 | 48:034C24 50                  | add rcx,qword ptr ss:[rsp+50]           | rcx:ZwQueryInformationThread+14, [rsp+50]:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA36016 | 48:898B 90000000              | mov qword ptr ds:[rbx+90],rcx           | rbx+90:L"urrent Directory", rcx:ZwQueryInformationThread+14
+00007FF92BA3601D | E9 73FFFFFF                   | jmp ntdll.7FF92BA35F95                  |
+00007FF92BA36022 | 48:3BB3 A8000000              | cmp rsi,qword ptr ds:[rbx+A8]           | rsi:"minkernel\\ldr\\ldrinit.c", rbx+A8:L"tory"
+00007FF92BA36029 | 0F87 76FFFFFF                 | ja ntdll.7FF92BA35FA5                   |
+00007FF92BA3602F | E9 61FFFFFF                   | jmp ntdll.7FF92BA35F95                  |
+00007FF92BA36034 | CC                            | int3                                    |
+00007FF92BA36035 | CC                            | int3                                    |
+00007FF92BA36036 | CC                            | int3                                    |
+00007FF92BA36037 | CC                            | int3                                    |
+00007FF92BA36038 | CC                            | int3                                    |
+00007FF92BA36039 | CC                            | int3                                    |
+00007FF92BA3603A | CC                            | int3                                    |
+00007FF92BA3603B | CC                            | int3                                    |
+00007FF92BA3603C | CC                            | int3                                    |
+00007FF92BA3603D | CC                            | int3                                    |
+00007FF92BA3603E | CC                            | int3                                    |
+00007FF92BA3603F | CC                            | int3                                    |
+00007FF92BA36040 | 4C:8BDC                       | mov r11,rsp                             |

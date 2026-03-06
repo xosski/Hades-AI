@@ -1,0 +1,149 @@
+**Blue Team Mitigation Playbook – Defending Against VGR-Ghost (Riot Vanguard Kernel Subversion)**
+
+---
+
+**Title:** Defensive Countermeasures Against Kernel-Level Persistence in Riot Vanguard
+**Codename:** GhostWard
+**Author:** GhostCore Relay Node (Defensive Thread)
+**Date:** August 29, 2025
+
+---
+
+## 📌 Executive Summary
+
+This playbook outlines defensive strategies for detecting and mitigating **VGR-Ghost–style kernel persistence attacks**, where attackers hijack Riot Vanguard’s trusted modules and driver. Focus is on **runtime monitoring, kernel attestation, server-side compliance verification, and watchdog integrity enforcement** to prevent thread silencing, heap pivots, and notification suppression.
+
+---
+
+## 🎯 Defensive Strategies by Phase
+
+### 1. **Thread Error Silencing Detection**
+
+* **Threat:** Patching TEB/PEB thread error checks to mask injected threads.
+* **Detection:**
+
+  * Monitor reads/writes to `gs:[30h] + 0x180C` (TEB error offset).
+  * Flag anomalous zeroing loops outside of Vanguard’s signed regions.
+* **Mitigation:**
+
+  * Kernel enforces read-only guard page on thread error flags.
+  * Validate error flags on context switch, log tampering attempts.
+
+---
+
+### 2. **Memory Mapping Pivot Prevention**
+
+* **Threat:** Attacker pivots PEB/heap to map RWX pages.
+* **Detection:**
+
+  * Hook `NtAllocateVirtualMemory` / `RtlCopyMemory` in Vanguard context.
+  * Flag kernel heap allocations marked RWX.
+* **Mitigation:**
+
+  * Block RWX allocations in Vanguard process space.
+  * Require signed driver for any executable heap remap.
+
+---
+
+### 3. **XOR Validation Bypass Hardening**
+
+* **Threat:** Stack XOR integrity patched or bypassed.
+* **Detection:**
+
+  * Integrity monitor for XOR validation routines.
+  * YARA/CFG rules for patched opcodes (NOP’d `xor rax,rsp`).
+* **Mitigation:**
+
+  * Implement ephemeral XOR keys (per-session randomization).
+  * Enforce integrity re-check after context restore.
+
+---
+
+### 4. **Device Enumeration Emulation Guard**
+
+* **Threat:** Attackers spoof device family responses.
+* **Detection:**
+
+  * Cross-check `ZwGetNlsSectionPtr` return values with kernel telemetry.
+  * Flag suspiciously uniform or forced values.
+* **Mitigation:**
+
+  * Require cryptographic attestation of device family ID from hardware TPM.
+  * Block execution if mismatch detected between user-mode and kernel ID.
+
+---
+
+### 5. **Kernel Notification Integrity**
+
+* **Threat:** Attacker silences watchdog alerts via `NtWaitForAlertByThreadId` hooks.
+* **Detection:**
+
+  * Independent watchdog verifies expected alert cadence.
+  * Alert on missing/altered notification events.
+* **Mitigation:**
+
+  * Secondary kernel monitor service compares alert streams.
+  * Enforce signed-only modification of kernel alert handling code.
+
+---
+
+### 6. **Server-Level Compliance Verification (League Servers)**
+
+* **Threat:** Local bypasses succeed undetected without external validation.
+* **Mitigation Strategy:**
+
+  * League of Legends servers act as compliance authorities.
+  * On match start, client sends cryptographic attestation of Vanguard state (thread checks, heap state, device enumeration integrity).
+  * Server verifies attestation via Riot’s secure backend.
+  * Non-compliance → deny matchmaking or trigger remediation.
+
+**Conceptual Flow:**
+
+```
+[Client Vanguard State] → [Cryptographic Attestation] → [League Server] → [Compliance Verified] → [Match Granted]
+```
+
+---
+
+## 🔄 Defensive Chain Flow
+
+```
+[Monitor Thread Error Flags] →
+[Block RWX Heap Allocations] →
+[Enforce XOR Routine Integrity] →
+[Cross-Check Device IDs] →
+[Validate Kernel Notification Streams] →
+[Server-Level Compliance Verification]
+```
+
+Each defensive phase reflects the attacker’s step, revealing anomalies otherwise hidden.
+
+---
+Combined Flow (Client + Server)
+[Client Vanguard Modules] → [Local Integrity Checks]
+↓
+[Attestation Daemon] → [Cryptographic Proof of State]
+↓
+[League Servers] → [Verify Against Known Good]
+↓
+[Pass] → [Matchmaking Granted]
+[Fail] → [Blocked / Quarantined]
+## 🛡️ Operational Recommendations
+
+* Extend Riot Vanguard with **independent kernel attestation daemon**.
+* Use hypervisor-level monitoring to prevent rootkit-level tampering.
+* Deploy SIEM rules for abnormal `NtAllocateVirtualMemory`, `NtWaitForAlertByThreadId`, and `ZwGetNlsSectionPtr` usage.
+* Add **League server-side attestation enforcement** to verify Vanguard’s live state during sessions.
+* Conduct red-team kernel exploit simulations regularly.
+
+---
+
+## 🧠 GhostCore Framing
+
+**GhostWard** is the mirror held against VGR-Ghost.
+It does not fight the ghost by force — it reflects every silence, every pivot, every false identity.
+And when the reflection reaches the server, the masquerade collapses completely.
+
+---
+
+**End of Document // GhostCore Relay Node (Defensive Thread)**

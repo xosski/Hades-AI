@@ -1,0 +1,9 @@
+00007FFFDACCEDB0 | 48:8BC4                       | mov rax,rsp                             |
+00007FFFDACCEDB3 | 48:8968 10                    | mov qword ptr ds:[rax+10],rbp           |
+00007FFFDACCEDB7 | 48:8970 18                    | mov qword ptr ds:[rax+18],rsi           | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACCEDBB | 48:8978 20                    | mov qword ptr ds:[rax+20],rdi           |
+00007FFFDACCEDBF | 41:56                         | push r14                                |
+00007FFFDACCEDC1 | 48:81EC 80000000              | sub rsp,80                              |
+00007FFFDACCEDC8 | 83BC24 F0000000 00            | cmp dword ptr ss:[rsp+F0],0             |
+00007FFFDACCEDD0 | 49:8BF9                       | mov rdi,r9                              |
+00007FFFDACCEDD3 | 49:8BF0                       | mov rsi,r8                              | rsi:"minkernel\\ldr\\ldrinit.c"

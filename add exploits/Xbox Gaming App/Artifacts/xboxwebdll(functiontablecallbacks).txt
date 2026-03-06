@@ -1,0 +1,2 @@
+00007FF92BA65370 | 48:8D05 F91E0C00              | lea rax,qword ptr ds:[7FF92BB27270]     |
+00007FF92BA65377 | C3                            | ret                                     |

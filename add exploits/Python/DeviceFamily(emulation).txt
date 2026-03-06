@@ -1,0 +1,93 @@
+00007FF92BA3FBC2 | 48:85C0                       | test rax,rax                            |
+00007FF92BA3FBC5 | 74 11                         | je ntdll.7FF92BA3FBD8                   |
+00007FF92BA3FBC7 | 6644:3908                     | cmp word ptr ds:[rax],r9w               |
+00007FF92BA3FBCB | 74 0B                         | je ntdll.7FF92BA3FBD8                   |
+00007FF92BA3FBCD | 0FB710                        | movzx edx,word ptr ds:[rax]             |
+00007FF92BA3FBD0 | 83C2 04                       | add edx,4                               |
+00007FF92BA3FBD3 | 41:03D0                       | add edx,r8d                             |
+00007FF92BA3FBD6 | 8911                          | mov dword ptr ds:[rcx],edx              |
+00007FF92BA3FBD8 | 4C:8B4424 30                  | mov r8,qword ptr ss:[rsp+30]            |
+00007FF92BA3FBDD | 8BC2                          | mov eax,edx                             |
+00007FF92BA3FBDF | 4D:85C0                       | test r8,r8                              |
+00007FF92BA3FBE2 | 74 11                         | je ntdll.7FF92BA3FBF5                   |
+00007FF92BA3FBE4 | 4D:3948 08                    | cmp qword ptr ds:[r8+8],r9              |
+00007FF92BA3FBE8 | 74 0B                         | je ntdll.7FF92BA3FBF5                   |
+00007FF92BA3FBEA | 41:0FB700                     | movzx eax,word ptr ds:[r8]              |
+00007FF92BA3FBEE | 83C0 04                       | add eax,4                               |
+00007FF92BA3FBF1 | 03C2                          | add eax,edx                             |
+00007FF92BA3FBF3 | 8901                          | mov dword ptr ds:[rcx],eax              |
+00007FF92BA3FBF5 | 4C:394C24 38                  | cmp qword ptr ss:[rsp+38],r9            |
+00007FF92BA3FBFA | 74 05                         | je ntdll.7FF92BA3FC01                   |
+00007FF92BA3FBFC | 83C0 38                       | add eax,38                              |
+00007FF92BA3FBFF | 8901                          | mov dword ptr ds:[rcx],eax              |
+00007FF92BA3FC01 | 4C:394C24 40                  | cmp qword ptr ss:[rsp+40],r9            |
+00007FF92BA3FC06 | 74 0F                         | je ntdll.7FF92BA3FC17                   |
+00007FF92BA3FC08 | 8B5424 48                     | mov edx,dword ptr ss:[rsp+48]           |
+00007FF92BA3FC0C | 85D2                          | test edx,edx                            |
+00007FF92BA3FC0E | 74 07                         | je ntdll.7FF92BA3FC17                   |
+00007FF92BA3FC10 | 83C0 02                       | add eax,2                               |
+00007FF92BA3FC13 | 03C2                          | add eax,edx                             |
+00007FF92BA3FC15 | 8901                          | mov dword ptr ds:[rcx],eax              |
+00007FF92BA3FC17 | B0 01                         | mov al,1                                |
+00007FF92BA3FC19 | C3                            | ret                                     |
+00007FF92BA3FC1A | CC                            | int3                                    |
+00007FF92BA3FC1B | CC                            | int3                                    |
+00007FF92BA3FC1C | CC                            | int3                                    |
+00007FF92BA3FC1D | CC                            | int3                                    |
+00007FF92BA3FC1E | CC                            | int3                                    |
+00007FF92BA3FC1F | CC                            | int3                                    |
+00007FF92BA3FC20 | CC                            | int3                                    |
+00007FF92BA3FC21 | CC                            | int3                                    |
+00007FF92BA3FC22 | CC                            | int3                                    |
+00007FF92BA3FC23 | CC                            | int3                                    |
+00007FF92BA3FC24 | 40:53                         | push rbx                                |
+00007FF92BA3FC26 | 48:83EC 30                    | sub rsp,30                              |
+00007FF92BA3FC2A | 33DB                          | xor ebx,ebx                             |
+00007FF92BA3FC2C | 48:895C24 48                  | mov qword ptr ss:[rsp+48],rbx           |
+00007FF92BA3FC31 | 66:85C9                       | test cx,cx                              |
+00007FF92BA3FC34 | 75 17                         | jne ntdll.7FF92BA3FC4D                  |
+00007FF92BA3FC36 | 48:891D FBE30C00              | mov qword ptr ds:[7FF92BB0E038],rbx     |
+00007FF92BA3FC3D | 48:891D FCE30C00              | mov qword ptr ds:[7FF92BB0E040],rbx     |
+00007FF92BA3FC44 | 48:891D E5E30C00              | mov qword ptr ds:[7FF92BB0E030],rbx     |
+00007FF92BA3FC4B | EB 57                         | jmp ntdll.7FF92BA3FCA4                  |
+00007FF92BA3FC4D | 33D2                          | xor edx,edx                             |
+00007FF92BA3FC4F | 48:895C24 20                  | mov qword ptr ss:[rsp+20],rbx           |
+00007FF92BA3FC54 | 4C:8D4C24 48                  | lea r9,qword ptr ss:[rsp+48]            |
+00007FF92BA3FC59 | 45:33C0                       | xor r8d,r8d                             |
+00007FF92BA3FC5C | 8D4A 0E                       | lea ecx,qword ptr ds:[rdx+E]            |
+00007FF92BA3FC5F | E8 6C4C0600                   | call <ntdll.ZwGetNlsSectionPtr>         |
+00007FF92BA3FC64 | 85C0                          | test eax,eax                            |
+00007FF92BA3FC66 | 79 45                         | jns ntdll.7FF92BA3FCAD                  |
+00007FF92BA3FC68 | 48:8BC3                       | mov rax,rbx                             |
+00007FF92BA3FC6B | 48:895C24 48                  | mov qword ptr ss:[rsp+48],rbx           |
+00007FF92BA3FC70 | 48:85C0                       | test rax,rax                            |
+00007FF92BA3FC73 | 74 C1                         | je ntdll.7FF92BA3FC36                   |
+00007FF92BA3FC75 | 48:83C0 04                    | add rax,4                               |
+00007FF92BA3FC79 | 48:8705 B8E30C00              | xchg qword ptr ds:[7FF92BB0E038],rax    |
+00007FF92BA3FC80 | 48:8B4C24 48                  | mov rcx,qword ptr ss:[rsp+48]           |
+00007FF92BA3FC85 | 0FB741 02                     | movzx eax,word ptr ds:[rcx+2]           |
+00007FF92BA3FC89 | 48:8D0C41                     | lea rcx,qword ptr ds:[rcx+rax*2]        |
+00007FF92BA3FC8D | 48:83C1 04                    | add rcx,4                               |
+00007FF92BA3FC91 | 48:870D A8E30C00              | xchg qword ptr ds:[7FF92BB0E040],rcx    |
+00007FF92BA3FC98 | 48:8B4424 48                  | mov rax,qword ptr ss:[rsp+48]           |
+00007FF92BA3FC9D | 48:8905 8CE30C00              | mov qword ptr ds:[7FF92BB0E030],rax     |
+00007FF92BA3FCA4 | 33C0                          | xor eax,eax                             |
+00007FF92BA3FCA6 | 48:83C4 30                    | add rsp,30                              |
+00007FF92BA3FCAA | 5B                            | pop rbx                                 |
+00007FF92BA3FCAB | C3                            | ret                                     |
+00007FF92BA3FCAC | CC                            | int3                                    |
+00007FF92BA3FCAD | 48:8B4424 48                  | mov rax,qword ptr ss:[rsp+48]           |
+00007FF92BA3FCB2 | EB BC                         | jmp ntdll.7FF92BA3FC70                  |
+00007FF92BA3FCB4 | CC                            | int3                                    |
+00007FF92BA3FCB5 | CC                            | int3                                    |
+00007FF92BA3FCB6 | CC                            | int3                                    |
+00007FF92BA3FCB7 | CC                            | int3                                    |
+00007FF92BA3FCB8 | CC                            | int3                                    |
+00007FF92BA3FCB9 | CC                            | int3                                    |
+00007FF92BA3FCBA | CC                            | int3                                    |
+00007FF92BA3FCBB | CC                            | int3                                    |
+00007FF92BA3FCBC | CC                            | int3                                    |
+00007FF92BA3FCBD | CC                            | int3                                    |
+00007FF92BA3FCBE | CC                            | int3                                    |
+00007FF92BA3FCBF | CC                            | int3                                    |
+00007FF92BA3FCC0 | E9 3B48F3FF                   | jmp <ntdll.RtlpGetDeviceFamilyInfoEnum> |

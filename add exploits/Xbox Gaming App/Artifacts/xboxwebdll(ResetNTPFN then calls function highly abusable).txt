@@ -1,0 +1,50 @@
+00007FF92BA654E0 | 40:57                         | push rdi                                |
+00007FF92BA654E2 | 48:83EC 20                    | sub rsp,20                              |
+00007FF92BA654E6 | 803D 231D0C00 00              | cmp byte ptr ds:[7FF92BB27210],0        |
+00007FF92BA654ED | 75 07                         | jne ntdll.7FF92BA654F6                  |
+00007FF92BA654EF | B8 0D0000C0                   | mov eax,C000000D                        |
+00007FF92BA654F4 | EB 54                         | jmp ntdll.7FF92BA6554A                  |
+00007FF92BA654F6 | E8 E514FCFF                   | call <ntdll.RtlDllShutdownInProgress>   |
+00007FF92BA654FB | 84C0                          | test al,al                              |
+00007FF92BA654FD | 75 49                         | jne ntdll.7FF92BA65548                  |
+00007FF92BA654FF | 33C9                          | xor ecx,ecx                             |
+00007FF92BA65501 | E8 8AA7F1FF                   | call ntdll.7FF92B97FC90                 |
+00007FF92BA65506 | 48:8D05 83FEFFFF              | lea rax,qword ptr ds:[7FF92BA65390]     |
+00007FF92BA6550D | C605 FC1C0C00 00              | mov byte ptr ds:[7FF92BB27210],0        |
+00007FF92BA65514 | BA 18000000                   | mov edx,18                              |
+00007FF92BA65519 | 48:8D3D 601C0C00              | lea rdi,qword ptr ds:[7FF92BB27180]     |
+00007FF92BA65520 | B9 12000000                   | mov ecx,12                              |
+00007FF92BA65525 | F348:AB                       | rep stosq                               |
+00007FF92BA65528 | 8BCA                          | mov ecx,edx                             |
+00007FF92BA6552A | 48:8D3D CF1A0C00              | lea rdi,qword ptr ds:[7FF92BB27000]     |
+00007FF92BA65531 | F348:AB                       | rep stosq                               |
+00007FF92BA65534 | 8BCA                          | mov ecx,edx                             |
+00007FF92BA65536 | 48:8D3D 831B0C00              | lea rdi,qword ptr ds:[7FF92BB270C0]     |
+00007FF92BA6553D | F348:AB                       | rep stosq                               |
+00007FF92BA65540 | 8D4A E9                       | lea ecx,qword ptr ds:[rdx-17]           |
+00007FF92BA65543 | E8 48A7F1FF                   | call ntdll.7FF92B97FC90                 |
+00007FF92BA65548 | 33C0                          | xor eax,eax                             |
+00007FF92BA6554A | 48:83C4 20                    | add rsp,20                              |
+00007FF92BA6554E | 5F                            | pop rdi                                 |
+00007FF92BA6554F | C3                            | ret                                     |
+00007FF92BA65550 | CC                            | int3                                    |
+00007FF92BA65551 | CC                            | int3                                    |
+00007FF92BA65552 | CC                            | int3                                    |
+00007FF92BA65553 | CC                            | int3                                    |
+00007FF92BA65554 | CC                            | int3                                    |
+00007FF92BA65555 | CC                            | int3                                    |
+00007FF92BA65556 | CC                            | int3                                    |
+00007FF92BA65557 | CC                            | int3                                    |
+00007FF92BA65558 | CC                            | int3                                    |
+00007FF92BA65559 | CC                            | int3                                    |
+00007FF92BA6555A | CC                            | int3                                    |
+00007FF92BA6555B | CC                            | int3                                    |
+00007FF92BA6555C | CC                            | int3                                    |
+00007FF92BA6555D | CC                            | int3                                    |
+00007FF92BA6555E | CC                            | int3                                    |
+00007FF92BA6555F | CC                            | int3                                    |
+00007FF92BA65560 | 803D A91C0C00 00              | cmp byte ptr ds:[7FF92BB27210],0        |
+00007FF92BA65567 | 75 06                         | jne ntdll.7FF92BA6556F                  |
+00007FF92BA65569 | B8 0D0000C0                   | mov eax,C000000D                        |
+00007FF92BA6556E | C3                            | ret                                     |
+00007FF92BA6556F | 48:8D05 7AFC0400              | lea rax,qword ptr ds:[7FF92BAB51F0]     |

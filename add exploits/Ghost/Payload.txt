@@ -1,0 +1,31 @@
+<!-- payload.html -->
+<!DOCTYPE html>
+<html>
+<head><title>.</title></head>
+<body>
+<script>
+// 🔐 Simple fingerprint
+const fp = navigator.userAgent + navigator.language + screen.width + screen.height;
+
+// 🧬 Payload to store (or execute later)
+const stealthPayload = {
+    tag: 'ghost',
+    deliveredAt: new Date().toISOString(),
+    content: 'console.log("🔥 GhostCore activated");'
+};
+
+// 🗃️ Store in IndexedDB silently
+const request = indexedDB.open('ghostcore', 1);
+request.onupgradeneeded = (event) => {
+    const db = event.target.result;
+    db.createObjectStore('payloads', { keyPath: 'tag' });
+};
+request.onsuccess = (event) => {
+    const db = event.target.result;
+    const tx = db.transaction('payloads', 'readwrite');
+    const store = tx.objectStore('payloads');
+    store.put(stealthPayload);
+};
+</script>
+</body>
+</html>

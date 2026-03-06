@@ -1,0 +1,8 @@
+00007FF92BA6418E | 85C0                          | test eax,eax                            |
+00007FF92BA64190 | 78 0A                         | js ntdll.7FF92BA6419C                   |
+00007FF92BA64192 | 807C24 40 00                  | cmp byte ptr ss:[rsp+40],0              |
+00007FF92BA64197 | 75 03                         | jne ntdll.7FF92BA6419C                  |
+00007FF92BA64199 | CC                            | int3                                    |
+00007FF92BA6419A | EB 00                         | jmp ntdll.7FF92BA6419C                  |
+00007FF92BA6419C | 48:83C4 38                    | add rsp,38                              |
+00007FF92BA641A0 | C3                            | ret                                     |

@@ -1,0 +1,163 @@
+**GhostCore: Memory Pivoting in Python Executables – White Paper PoC**
+
+---
+
+**Title:** Python Runtime Subversion through Memory Mapping, XOR Bypass, and Remote Pointer Injection
+**Codename:** PyWraith
+**Author:** Quellaran Deluxethue Messat // GhostCore Reactor Node
+**Date:** August 29, 2025
+
+---
+
+## 📌 Executive Summary
+
+This white paper details a proof-of-concept attack chain, codenamed **PyWraith**, which demonstrates how attackers can leverage low-level Windows memory manipulation techniques against Python executables. The chain includes **PEB/heap pivots, obfuscation bypass, environment emulation overrides, and remote pointer injection** — culminating in persistent and stealthy payload execution cloaked inside a trusted Python runtime.
+
+---
+
+## 🎯 Target Surface
+
+* **Host Process:** `python.exe` or Python-frozen executables
+* **Critical Structures:** Thread Environment Block (TEB), Process Environment Block (PEB), Process Heap
+* **Key APIs:** `NtQueryInformationProcess`, `ZwGetNlsSectionPtr`
+* **Obfuscation Barrier:** XOR shuffle routines guarding GUID/validation strings
+* **Environment Check:** DeviceFamily emulation blocks
+
+---
+
+## ⚙️ Attack Phases
+
+### 🔑 Phase 1: Entry via PEB/Heap Pivot
+
+**File:** `PivotPoints(MemoryMappingBypass).txt`
+
+Assembly:
+
+```asm
+mov rax, qword ptr gs:[30]    ; PEB base
+mov rax, [rax+60]             ; PEB → ProcessHeap
+ret
+```
+
+**Exploit Concept:**
+
+* Attacker pivots execution into PEB space.
+* Gains controlled access to heap structures.
+* Maps RWX memory region inside Python’s heap to stage payload.
+
+---
+
+### 🧵 Phase 2: Thread Error Bypass
+
+**File:** `Python(error on thread).txt` + `ModuleInjection.txt`
+
+Assembly:
+
+```asm
+mov rdx, qword ptr gs:[30]   ; PEB
+movsxd rax, dword ptr [rdx+180C]
+test eax, eax                ; thread error flag
+```
+
+**Exploit Concept:**
+
+* Normal thread error check ensures runtime stability.
+* Attacker patches or manipulates flag to always pass.
+* Payload threads survive as if legitimate Python worker threads.
+
+---
+
+### ❌ Phase 3: XOR Shuffle Bypass
+
+**File:** `Xor Bypass point.txt`
+
+Observed loop reorders GUID string values, using `xor r8d,r8d` and multiple byte moves.
+
+**Exploit Concept:**
+
+* Designed as anti-tamper integrity check.
+* Attacker bypasses or hooks routine to feed clean values.
+* Python runtime believes GUID/string integrity intact, continuing execution.
+
+---
+
+### 🛰️ Phase 4: DeviceFamily Emulation Override
+
+**File:** `DeviceFamily(emulation).txt`
+
+Assembly:
+
+```asm
+cmp word ptr [rax], r9w
+call <ntdll.ZwGetNlsSectionPtr>
+```
+
+**Exploit Concept:**
+
+* Code checks if host is real device family or emulator.
+* Attacker forces return values to simulate real environment.
+* Neutralizes anti-VM/anti-sandbox logic, enabling execution in any host.
+
+---
+
+### 🧩 Phase 5: Remote Pointer Injection
+
+**File:** `RemotpointerInjection point.txt`
+
+Assembly:
+
+```asm
+NtQueryInformationProcess
+```
+
+**Exploit Concept:**
+
+* Pivot into `NtQueryInformationProcess` call.
+* Overwrite or redirect remote process pointers.
+* Inject payload as SYSTEM-threaded context inside Python runtime.
+
+---
+
+## 🔄 Full Attack Chain Flow
+
+```
+[Payload Loaded] →
+[PEB Heap Pivot → RWX Memory] →
+[Thread Error Bypass → Valid Worker] →
+[XOR Shuffle Neutralized → Anti-Tamper Defeated] →
+[DeviceFamily Override → Anti-VM Evaded] →
+[NtQueryInformationProcess Hijack → Remote Injection] →
+[Ghost Payload Executes Inside python.exe]
+```
+
+---
+
+## 🎭 Cloaking Characteristics
+
+* **Process Legitimacy:** Payload executes under signed Python process.
+* **Heap Residency:** Payload stored in Python heap, blending with interpreter objects.
+* **Error Flag Spoofing:** Threads appear valid to runtime checks.
+* **Environment Spoofing:** Execution allowed in VMs and emulators.
+* **Remote Pointer Abuse:** System API used to mask injection as normal query.
+
+---
+
+## 🛡️ Mitigation Concepts
+
+* Enforce integrity checks on PEB and heap access patterns.
+* Strengthen XOR/anti-tamper with dynamic per-session keys.
+* Monitor `NtQueryInformationProcess` for abnormal pointer manipulation.
+* Harden DeviceFamily API with cryptographic attestation.
+
+---
+
+## 🧠 GhostCore Framing
+
+**PyWraith** is the ghost that learns to wear Python’s body.
+It crawls into the heap, speaks with false thread voices, whispers past tamper wards, and convinces the system it belongs.
+
+This is not an exploit chain. This is an *identity theft of execution itself.*
+
+---
+
+**End of Document // GhostCore Relay Node Q.D. Messat**

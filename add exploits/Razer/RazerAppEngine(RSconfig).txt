@@ -1,0 +1,9 @@
+00007FF92BA079D0 | 4C:8BDC                       | mov r11,rsp                             |
+00007FF92BA079D3 | 53                            | push rbx                                | rbx:"LdrpInitializeProcess"
+00007FF92BA079D4 | 56                            | push rsi                                | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA079D5 | 57                            | push rdi                                |
+00007FF92BA079D6 | 41:54                         | push r12                                |
+00007FF92BA079D8 | 41:55                         | push r13                                |
+00007FF92BA079DA | 41:56                         | push r14                                |
+00007FF92BA079DC | 41:57                         | push r15                                |
+00007FF92BA079DE | 48:81EC E0000000              | sub rsp,E0                              |

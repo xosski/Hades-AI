@@ -1,0 +1,15 @@
+00007FF92BAA0C20 | 48:8BC4                       | mov rax,rsp                             |
+00007FF92BAA0C23 | 48:8958 08                    | mov qword ptr ds:[rax+8],rbx            |
+00007FF92BAA0C27 | 48:8970 10                    | mov qword ptr ds:[rax+10],rsi           |
+00007FF92BAA0C2B | 57                            | push rdi                                |
+00007FF92BAA0C2C | 48:83EC 30                    | sub rsp,30                              |
+00007FF92BAA0C30 | 33DB                          | xor ebx,ebx                             |
+00007FF92BAA0C32 | 49:8BF8                       | mov rdi,r8                              |
+00007FF92BAA0C35 | 48:8BF2                       | mov rsi,rdx                             |
+00007FF92BAA0C38 | 8958 20                       | mov dword ptr ds:[rax+20],ebx           |
+00007FF92BAA0C3B | 4C:8D40 20                    | lea r8,qword ptr ds:[rax+20]            |
+00007FF92BAA0C3F | 48:8958 E8                    | mov qword ptr ds:[rax-18],rbx           |
+00007FF92BAA0C43 | 44:8D4B 04                    | lea r9d,qword ptr ds:[rbx+4]            |
+00007FF92BAA0C47 | 8D53 24                       | lea edx,qword ptr ds:[rbx+24]           |
+00007FF92BAA0C4A | E8 711F0000                   | call <ntdll.NtQueryInformationProcess>  |
+00007FF92BAA0C4F | 85C0                          | test eax,eax                            |

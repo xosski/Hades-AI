@@ -1,0 +1,91 @@
+from os import listdir
+from tkinter import *
+from tkinter.scrolledtext import ScrolledText
+
+current_file = "test.txt"
+files = listdir()
+
+def on_select(event):
+    """Handles the file selection from the listbox."""
+    selected_index = files_list.curselection()  # Get the index of selected item
+    if selected_index:
+        selected_item = files_list.get(selected_index)
+        file_entry.delete(0, END)
+        file_entry.insert(1, selected_item[:-4])  # Remove '.txt' extension for display
+
+def save_file():
+    """Saves the content of the text field into the current file."""
+    with open(current_file, "w+", encoding="utf-8") as f:
+        f.write(text_field.get(1.0, END))
+
+def reset_file():
+    """Clears the text field."""
+    text_field.delete(1.0, END)
+
+def get_file():
+    """Loads the content of the current file into the text field."""
+    try:
+        with open(current_file, "r+", encoding="utf-8") as f:
+            text_field.insert(1.0, f.read())
+    except FileNotFoundError:
+        print(f"File {current_file} not found.")
+        reset_file()
+
+def open_file():
+    """Opens the file entered by the user in the entry field."""
+    global current_file
+    new_file = file_entry.get().strip()
+
+    if not new_file:
+        print("No file name provided.")
+        return
+    
+    current_file = new_file + ".txt"  # Open file with .txt extension
+    
+    try:
+        with open(current_file, "r+", encoding="utf-8") as f:
+            reset_file()
+            text_field.insert(1.0, f.read())
+        print(f"Текущий файл: {current_file}")
+    except FileNotFoundError:
+        print(f"File {current_file} not found.")
+        reset_file()
+
+root = Tk()  # Create main window
+
+# Configure window parameters
+root['bg'] = "#fff9ed"
+root.geometry('800x600')
+root.title("Окно Tkinter")
+
+# Text field with scroll functionality
+text_field = ScrolledText(root, wrap=WORD)
+text_field.place(relx=0.5, rely=0.33, anchor=CENTER)
+
+# List of files in the current directory
+files_list = Listbox(root)
+for file in files:
+    if file.endswith(".txt"):  # Only include .txt files
+        files_list.insert(END, file)
+
+# Bind event to handle file selection
+files_list.bind('<<ListboxSelect>>', on_select)
+
+# Buttons for actions
+save_button = Button(root, text="Сохранить", command=save_file)
+reset_button = Button(root, text="Сброс", command=reset_file)
+open_button = Button(root, text="Открыть файл", command=open_file)
+file_entry = Entry(root)
+
+# Place buttons and entry field
+save_button.place(relx=0.15, rely=0.7)
+reset_button.place(relx=0.25, rely=0.7)
+open_button.place(relx=0.45, rely=0.7)
+file_entry.place(relx=0.60, rely=0.7)
+files_list.place(relx=0.60, rely=0.75)
+
+# Initialize file reading (default file loading)
+get_file()
+
+# Start the Tkinter main loop
+root.mainloop()

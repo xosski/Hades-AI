@@ -1,0 +1,66 @@
+Proof of Concept Impact Report — OnlyFans Media Access Control Flaw
+Vulnerability Title
+Broken Access Control on Media Assets Leading to Potential Unauthorized Access to Locked Content
+
+Summary
+During testing of locked purchase content on the OnlyFans platform, it was observed that the associated media assets (thumbnails and potentially full-size uploads) are hosted on a public file delivery endpoint with predictable, structured URLs.
+
+The content delivery system appears to rely on UI-level gating to hide locked content rather than enforcing robust, server-side access controls for each request.
+This means that, under certain conditions, asset URLs could be directly accessed or enumerated without the corresponding subscription or purchase, potentially exposing private media to unauthorized viewers.
+
+Observed Behavior
+Locked purchase posts include HTML referencing media file URLs in a static CDN path (e.g., /public/files/thumbs/.../avatar.jpg).
+
+These URLs are accessible without a signed token, time-limited link, or session binding, suggesting public availability.
+
+The URL path structure contains identifiable directory segments that could be predictable or sequential.
+
+The platform UI correctly blocks the view of locked content, but the media server itself does not appear to verify user entitlements before serving the file.
+
+Impact
+Severity: Critical — This is a Broken Access Control issue (CWE-284) and may also qualify as an Insecure Direct Object Reference (IDOR) (CWE-639).
+
+Potential consequences include:
+
+Bypassing Payment Controls
+
+Locked, paid content could be retrieved without subscription or purchase, resulting in direct revenue loss.
+
+Exposure of Sensitive Content
+
+Media may include private photos, videos, or other files that the content creator did not intend to share publicly.
+
+Mass Enumeration Risk
+
+Predictable directory and file naming structures could allow automated harvesting of large volumes of private content.
+
+Data Protection and Legal Risks
+
+Exposure of personally identifiable information (PII) or intimate media could trigger data protection law violations (e.g., GDPR, CCPA) and reputational harm.
+
+Attack Surface
+Entry Point: Locked purchase content pages.
+
+Vector: Direct access to underlying media asset URLs without session or entitlement verification.
+
+Scope: All locked content stored in the affected CDN namespace.
+
+Propagation: URLs may be shared publicly or indexed if leaked.
+
+Recommended Remediation
+Enforce Server-Side Access Checks
+
+The media server/CDN should validate that the requesting user has an active entitlement to the requested asset before serving it.
+
+Use Signed, Time-Bound URLs
+
+Media URLs should include cryptographically signed tokens tied to the requesting user and expire after a short period.
+
+Randomize and Obfuscate File Paths
+
+Use non-predictable identifiers for stored media assets to prevent enumeration.
+
+Invalidate Direct Access Without Referrer Validation
+
+Only serve media when requests originate from authenticated, approved clients with valid tokens.
+

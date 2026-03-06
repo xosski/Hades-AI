@@ -1,0 +1,83 @@
+Proof of Concept (PoC) Paper
+DLL ↔ SYS Parsing Overlap Exploit Vector
+
+Author: GhostCore Research Collective
+Date: 8/17/2025(Allegedly)
+
+Abstract
+
+This paper introduces a theoretical attack surface arising from a misinterpretation of Windows driver and library file parsing boundaries. By presenting a .sys driver file mislabeled as a .dll, or vice versa, it may be possible to confuse the loader and exploit an overlap in parsing logic. This creates a potential "crack in the veil" where payloads can be disguised within otherwise benign-looking file types (such as .jpg or .mp4) and lead to arbitrary code execution at kernel privilege levels.
+
+Introduction
+
+Traditional side-loading requires the placement of a malicious .dll in place of or alongside a legitimate one. However, this approach relies on the userland process being tricked into calling the fake .dll.
+
+The PoC idea expands this surface: instead of direct side-loading, leverage parsing ambiguity between .sys (kernel drivers) and .dll (userland libraries). When the operating system attempts to interpret the file incorrectly, it may allow attacker-controlled instructions to bleed across privilege boundaries.
+
+Threat Model
+
+Input Vector: A malicious file masquerading as a .dll or .sys, potentially polyglot (valid header portions of multiple formats, e.g., JPG/PE).
+
+Trigger Condition: A process, parser, or tool attempts to load the misnamed file.
+
+Exploit Behavior:
+
+PE parser fails gracefully but leaves a pathway for code to be mapped.
+
+Kernel driver context accepts attacker-controlled sections.
+
+Impact:
+
+Thread hijacking.
+
+Arbitrary code execution in kernel mode.
+
+Potential persistence without conventional side-loading indicators.
+
+Proof-of-Concept Description
+
+A benign-looking file (e.g., holiday.jpg) contains hidden PE sections (Portable Executable).
+
+The file is renamed driver.sys.
+
+A process attempts to analyze or load it under DLL explorer or related parsing tools.
+
+Instead of rejecting outright, the parsing logic partially succeeds.
+
+Attacker code is mapped into a driver-level thread context.
+
+Key Observation: The system may attempt to "open" the file even when mislabeled, confirming parsing ambiguity exists.
+
+Threat Map (Conceptual)
+ Userland (DLL space) ──▶ Loader Veil ──▶ Kernel (SYS space)
+   [benign DLLs]           [parsing crack]   [legit drivers]
+   [polyglot payload] ────────▲──────────────[exploit path]
+                              │
+                      Arbitrary code injection
+                      Elevated kernel privileges
+
+Potential Impacts
+
+Kernel-level malware with little forensic trace.
+
+Covert persistence mechanisms that hide as non-executable media.
+
+Escalation of privilege bypassing traditional sideload defenses.
+
+Threat to secure boot and driver trust chains.
+
+Mitigations
+
+Strict Parsing Enforcement – Ensure .sys and .dll file format checks are mutually exclusive.
+
+Polyglot File Detection – Scan for multiple valid headers (e.g., PE + JPG).
+
+Code Signing Enforcement – Refuse unsigned drivers regardless of file extension.
+
+Sandboxed Parsing – Ensure exploratory tools do not load ambiguous binaries in privileged contexts.
+
+Conclusion
+
+This PoC demonstrates that trust boundaries between file formats (.dll vs .sys) represent a fragile veil. While this is not a working exploit, the concept highlights potentially dangerous parsing cracks. By addressing them proactively, defenders can strengthen trust in binary execution and reduce avenues for privilege escalation.
+
+⚠️ Disclaimer: This paper is provided for educational and defensive security purposes only. No exploit code is included.

@@ -1,0 +1,36 @@
+version: "3.9"
+services:
+  reposilite:
+    image: dzikoysk/reposilite:3.2.0
+    ports:
+      - "8080:8080"
+    environment:
+      - JAVA_OPTS=-Xmx256m
+      - REPOSILITE_OPTS=--port 8080
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=reposilite
+      - POSTGRES_USER=reposilite_user
+      - POSTGRES_PASSWORD=kalki123
+    volumes:
+      - /home/johan/RepoStorage:/app/data   # Local file-based storage for artifacts
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  postgres:
+    image: postgres:15
+    container_name: postgres_container
+    environment:
+      - POSTGRES_USER=reposilite_user
+      - POSTGRES_PASSWORD=kalki123
+      - POSTGRES_DB=reposilite
+    volumes:
+      - postgres-data:/var/lib/postgresql/data  # Persistent volume for PostgreSQL data
+    ports:
+      - "5433:5432"  # Expose PostgreSQL on host port 5433
+    restart: unless-stopped
+
+volumes:
+  reposilite-data: {}
+  postgres-data: {}  # Volume for PostgreSQL data

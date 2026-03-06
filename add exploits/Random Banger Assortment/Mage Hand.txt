@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Remote script URL
+URL="https://pastebin.com/raw/L1Q7uktU"
+
+# Temporary file to store downloaded commands
+TMP_FILE=$(mktemp /tmp/remote_commands.XXXXXX.sh)
+
+# Function to clean up temp file on exit
+cleanup() {
+    [ -f "$TMP_FILE" ] && rm -f "$TMP_FILE"
+}
+trap cleanup EXIT
+
+# Download commands
+echo "[*] Fetching commands from: $URL"
+if ! curl -fsSL "$URL" -o "$TMP_FILE"; then
+    echo "[!] Failed to download commands from the URL."
+    exit 1
+fi
+
+# Display the downloaded commands
+echo
+echo "The following commands were downloaded:"
+echo "----------------------------------------"
+cat "$TMP_FILE"
+echo "----------------------------------------"
+echo
+
+# Ask for confirmation
+read -rp "Do you want to execute these commands? (yes/no): " CONFIRM
+
+# Normalize input
+CONFIRM=$(echo "$CONFIRM" | tr '[:upper:]' '[:lower:]' | xargs)
+
+if [[ "$CONFIRM" != "yes" ]]; then
+    echo "[*] Execution cancelled by the user."
+    echo "[*] The commands are saved at: $TMP_FILE (will be deleted after script ends)"
+    exit 0
+fi
+
+# Make sure it's executable
+chmod +x "$TMP_FILE"
+
+# Execute the commands
+echo "[*] Executing downloaded commands..."
+bash "$TMP_FILE"
+
+# Check result
+if [ $? -eq 0 ]; then
+    echo "[✓] Commands executed successfully."
+else
+    echo "[!] An error occurred while executing the commands."
+    exit 1
+fi

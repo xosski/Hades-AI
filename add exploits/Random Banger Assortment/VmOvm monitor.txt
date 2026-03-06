@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# Help function
+function usage {
+    echo "Usage: $0 <OVM_MANAGER> <COMPUTE_NODE>"
+    echo ""
+    echo "  <OVM_MANAGER>   IP address or hostname of the OVM Manager"
+    echo "  <COMPUTE_NODE>  IP addresses or hostnames of Compute Nodes (dom0), comma-separated"
+    echo ""
+    echo "Example:"
+    echo "  $0 IP_OVMM IP_dom0"
+    echo "  $0 IP_OVMM IP1_dom0,IP2_dom0"
+    exit 1
+}
+
+# Check if required parameters are provided
+if [ $# -ne 2 ]; then
+    echo "Error: You must specify both the OVM Manager and at least one Compute Node."
+    usage
+fi
+
+mgrhost="$1"
+CN_LIST="$2"
+SSH_USER="root"
+SSH_PORT=22
+OVM_ADMIN="admin"
+OVM_PORT=10000
+
+# Verify that required commands are available
+for cmd in ssh awk printf parallel; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "Error: Command '$cmd' is not installed. Please install it."
+        exit 1
+    fi
+done
+
+# Logging function for better traceability
+LOGFILE="ovm_vm_info.log"
+function log_msg {
+    echo "$(date "+%Y-%m-%d %H:%M:%S") - $1" | tee -a "$LOGFILE"
+}
+
+log_msg "Script started."
+
+# Function to process a single Compute Node
+function process_compute_node {
+    local CN="$1"
+
+    log_msg "Processing Compute Node: $CN"
+
+    # Verify SSH connection
+    if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$CN" "exit" &>/dev/null; then
+        log_msg "Error: Unable to connect to Compute Node ($CN). Skipping..."
+        return
+    fi
+
+    # Retrieve the list of VMs using a single SSH connection
+    vm_list=$(ssh "$SSH_USER@$CN" "xm list" | awk 'NR>1 && !/Domain-0/ {print $1}')
+
+    # Exit if no VMs are found
+    if [ -z "$vm_list" ]; then
+        log_msg "No virtual machines found on $CN."
+        return
+    fi
+
+    # Initialize variables for total counts
+    total_vcpus=0
+    total_memory=0
+
+    # Function to get VM details
+    function get_vm_details {
+        local vm_id="$1"
+
+        # Retrieve VM details with a single SSH call
+        vm_data=$(ssh -p "$OVM_PORT" "$OVM_ADMIN@$mgrhost" "show vm id=$vm_id; getVmCfgFileContent vm id=$vm_id")
+
+        # Extract relevant information
+        vmname=$(echo "$vm_data" | grep "OVM_simple_name" | cut -d "=" -f2 | tr -d '[:space:]')
+        vcpus=$(echo "$vm_data" | grep "  vcpus" | cut -d "=" -f2 | tr -d '[:space:]')
+        maxvcpu=$(echo "$vm_data" | grep "maxvcpus" | cut -d "=" -f2 | tr -d '[:space:]')
+        memory=$(echo "$vm_data" | grep "memory" | cut -d "=" -f2 | tr -d '[:space:]')
+        maxmem=$(echo "$vm_data" | grep "maxmem" | cut -d "=" -f2 | tr -d '[:space:]')
+        [ -z "$maxmem" ] && maxmem="$memory"
+        status=$(echo "$vm_data" | grep "Status =" | cut -d "=" -f2 | tr -d '[:space:]')
+        os_type=$(echo "$vm_data" | grep "OVM_os_type" | cut -d "=" -f2 | tr -d '[:space:]')
+
+        # If OS TYPE is empty, set to Unknown
+        [ -z "$os_type" ] && os_type="Unknown"
+
+        # Accumulate vCPU and memory totals
+        total_vcpus=$((total_vcpus + vcpus))
+        total_memory=$((total_memory + memory))
+
+        # Format output using printf for better alignment
+        printf "%-10s | %-20s | %-5s | %-10s | %-10s | %-10s | %-10s | %-20s\n" "$CN" "$vmname" "$vcpus" "$maxvcpu" "${memory}MB" "${maxmem}MB" "$status" "$os_type"
+    }
+
+    # Display VM details with a header
+    echo "--------------------------------------------------------------------------------------------------------------"
+    printf "%-10s | %-20s | %-5s | %-10s | %-10s | %-10s | %-10s | %-20s\n" "CN" "VM Name" "vCPU" "Max vCPU" "Memory" "Max Memory" "Status" "OS Type"
+    echo "--------------------------------------------------------------------------------------------------------------"
+
+    # Loop through the VMs
+    IFS=$'\n'  # Set IFS to newline to iterate correctly over lines
+    for vm_id in $vm_list; do
+        get_vm_details "$vm_id"
+    done
+    unset IFS  # Restore original IFS value
+
+    # Final row with total vCPUs and Memory
+    echo "--------------------------------------------------------------------------------------------------------------"
+    printf "%-10s | %-20s | %-5s | %-10s | %-10s | %-10s | %-10s | %-20s\n" "TOTAL" "$nvm" "$total_vcpus" "-" "${total_memory}MB" "-" "-" "-"
+    echo "#########################################################################################"
+}
+
+# Iterate over all provided Compute Nodes (in parallel)
+IFS=','  # Set separator to comma for processing multiple IPs
+parallel process_compute_node ::: $CN_LIST
+unset IFS  # Restore original IFS value
+
+log_msg "Script finished."

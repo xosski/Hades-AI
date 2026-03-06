@@ -1,0 +1,204 @@
+00007FFFD7FADD7A | 0F84 B5010000                 | je gdi32full.7FFFD7FADF35               |
+00007FFFD7FADD80 | 41:F686 98000000 10           | test byte ptr ds:[r14+98],10            |
+00007FFFD7FADD88 | 0F85 1B020000                 | jne gdi32full.7FFFD7FADFA9              |
+00007FFFD7FADD8E | 41:8B46 04                    | mov eax,dword ptr ds:[r14+4]            |
+00007FFFD7FADD92 | 0FB7E8                        | movzx ebp,ax                            |
+00007FFFD7FADD95 | 392D C1180C00                 | cmp dword ptr ds:[7FFFD806F65C],ebp     |
+00007FFFD7FADD9B | 0F84 A9010000                 | je gdi32full.7FFFD7FADF4A               |
+00007FFFD7FADDA1 | 85ED                          | test ebp,ebp                            |
+00007FFFD7FADDA3 | 74 0C                         | je gdi32full.7FFFD7FADDB1               |
+00007FFFD7FADDA5 | 3B2D AD180C00                 | cmp ebp,dword ptr ds:[7FFFD806F658]     |
+00007FFFD7FADDAB | 0F85 E7010000                 | jne gdi32full.7FFFD7FADF98              |
+00007FFFD7FADDB1 | 391D 09E00B00                 | cmp dword ptr ds:[7FFFD806BDC0],ebx     |
+00007FFFD7FADDB7 | 74 21                         | je gdi32full.7FFFD7FADDDA               |
+00007FFFD7FADDB9 | 45:8B8E 14010000              | mov r9d,dword ptr ds:[r14+114]          |
+00007FFFD7FADDC0 | 44:8BC6                       | mov r8d,esi                             |
+00007FFFD7FADDC3 | 49:8BD5                       | mov rdx,r13                             | r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADDC6 | 895C24 20                     | mov dword ptr ss:[rsp+20],ebx           |
+00007FFFD7FADDCA | 49:8BCF                       | mov rcx,r15                             |
+00007FFFD7FADDCD | E8 FE020000                   | call <gdi32full.LpkUseGDIWidthCache>    |
+00007FFFD7FADDD2 | 85C0                          | test eax,eax                            |
+00007FFFD7FADDD4 | 0F84 AA000000                 | je gdi32full.7FFFD7FADE84               |
+00007FFFD7FADDDA | 48:8D0D 6FE20B00              | lea rcx,qword ptr ds:[7FFFD806C050]     |
+00007FFFD7FADDE1 | 48:FF15 C06C0700              | call qword ptr ds:[<RtlEnterCriticalSec |
+00007FFFD7FADDE8 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADDED | 897C24 30                     | mov dword ptr ss:[rsp+30],edi           |
+00007FFFD7FADDF1 | 48:8D4C24 78                  | lea rcx,qword ptr ss:[rsp+78]           |
+00007FFFD7FADDF6 | 897424 28                     | mov dword ptr ss:[rsp+28],esi           |
+00007FFFD7FADDFA | 45:33C9                       | xor r9d,r9d                             |
+00007FFFD7FADDFD | 4D:8BC6                       | mov r8,r14                              |
+00007FFFD7FADE00 | 4C:896C24 20                  | mov qword ptr ss:[rsp+20],r13           | [rsp+20]:_free_locale+17D9, r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADE05 | 49:8BD7                       | mov rdx,r15                             |
+00007FFFD7FADE08 | E8 33FAFEFF                   | call gdi32full.7FFFD7F9D840             |
+00007FFFD7FADE0D | 4C:8B38                       | mov r15,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADE10 | 4D:85FF                       | test r15,r15                            |
+00007FFFD7FADE13 | 74 57                         | je gdi32full.7FFFD7FADE6C               |
+00007FFFD7FADE15 | 3B2D 41180C00                 | cmp ebp,dword ptr ds:[7FFFD806F65C]     |
+00007FFFD7FADE1B | 0F84 C2010000                 | je gdi32full.7FFFD7FADFE3               |
+00007FFFD7FADE21 | 8B8424 10020000               | mov eax,dword ptr ss:[rsp+210]          |
+00007FFFD7FADE28 | 44:8BCE                       | mov r9d,esi                             |
+00007FFFD7FADE2B | 897C24 30                     | mov dword ptr ss:[rsp+30],edi           |
+00007FFFD7FADE2F | 4D:8BC5                       | mov r8,r13                              | r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADE32 | 4C:896424 28                  | mov qword ptr ss:[rsp+28],r12           | r12:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADE37 | 49:8BD7                       | mov rdx,r15                             |
+00007FFFD7FADE3A | 49:8BCE                       | mov rcx,r14                             |
+00007FFFD7FADE3D | 894424 20                     | mov dword ptr ss:[rsp+20],eax           |
+00007FFFD7FADE41 | E8 9AD0FEFF                   | call gdi32full.7FFFD7F9AEE0             |
+00007FFFD7FADE46 | 44:8BF0                       | mov r14d,eax                            |
+00007FFFD7FADE49 | 41:FF4F 18                    | dec dword ptr ds:[r15+18]               |
+00007FFFD7FADE4D | 85FF                          | test edi,edi                            |
+00007FFFD7FADE4F | 74 1B                         | je gdi32full.7FFFD7FADE6C               |
+00007FFFD7FADE51 | 48:8D0D F8E10B00              | lea rcx,qword ptr ds:[7FFFD806C050]     |
+00007FFFD7FADE58 | 48:FF15 516C0700              | call qword ptr ds:[<RtlLeaveCriticalSec |
+00007FFFD7FADE5F | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADE64 | 41:8BC6                       | mov eax,r14d                            |
+00007FFFD7FADE67 | E9 A4000000                   | jmp gdi32full.7FFFD7FADF10              |
+00007FFFD7FADE6C | 48:8D0D DDE10B00              | lea rcx,qword ptr ds:[7FFFD806C050]     |
+00007FFFD7FADE73 | 48:FF15 366C0700              | call qword ptr ds:[<RtlLeaveCriticalSec |
+00007FFFD7FADE7A | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADE7F | 4C:8B7C24 70                  | mov r15,qword ptr ss:[rsp+70]           |
+00007FFFD7FADE84 | 81FE 82000000                 | cmp esi,82                              |
+00007FFFD7FADE8A | 0F8F BA010000                 | jg gdi32full.7FFFD7FAE04A               |
+00007FFFD7FADE90 | 48:8DBC24 80000000            | lea rdi,qword ptr ss:[rsp+80]           |
+00007FFFD7FADE98 | 897424 28                     | mov dword ptr ss:[rsp+28],esi           |
+00007FFFD7FADE9C | 44:8BCE                       | mov r9d,esi                             |
+00007FFFD7FADE9F | 4D:8BC5                       | mov r8,r13                              | r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADEA2 | 48:897C24 20                  | mov qword ptr ss:[rsp+20],rdi           | [rsp+20]:_free_locale+17D9
+00007FFFD7FADEA7 | 33D2                          | xor edx,edx                             |
+00007FFFD7FADEA9 | 8BCD                          | mov ecx,ebp                             |
+00007FFFD7FADEAB | 48:FF15 DE670700              | call qword ptr ds:[<MultiByteToWideChar |
+00007FFFD7FADEB2 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADEB7 | 85C0                          | test eax,eax                            |
+00007FFFD7FADEB9 | 0F84 C3000000                 | je gdi32full.7FFFD7FADF82               |
+00007FFFD7FADEBF | 391D FBDE0B00                 | cmp dword ptr ds:[7FFFD806BDC0],ebx     |
+00007FFFD7FADEC5 | 44:8BC0                       | mov r8d,eax                             |
+00007FFFD7FADEC8 | 8B8C24 10020000               | mov ecx,dword ptr ss:[rsp+210]          |
+00007FFFD7FADECF | 48:8BD7                       | mov rdx,rdi                             |
+00007FFFD7FADED2 | 0F84 B3010000                 | je gdi32full.7FFFD7FAE08B               |
+00007FFFD7FADED8 | 895C24 40                     | mov dword ptr ss:[rsp+40],ebx           |
+00007FFFD7FADEDC | 41:83C9 FF                    | or r9d,FFFFFFFF                         |
+00007FFFD7FADEE0 | 894C24 38                     | mov dword ptr ss:[rsp+38],ecx           |
+00007FFFD7FADEE4 | 49:8BCF                       | mov rcx,r15                             |
+00007FFFD7FADEE7 | 4C:896424 30                  | mov qword ptr ss:[rsp+30],r12           | [rsp+30]:RtlEncodeRemotePointer+CE, r12:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADEEC | 48:895C24 28                  | mov qword ptr ss:[rsp+28],rbx           |
+00007FFFD7FADEF1 | 48:895C24 20                  | mov qword ptr ss:[rsp+20],rbx           | [rsp+20]:_free_locale+17D9
+00007FFFD7FADEF6 | E8 450DFFFF                   | call <gdi32full.LpkGetTextExtentExPoint |
+00007FFFD7FADEFB | 8BD8                          | mov ebx,eax                             |
+00007FFFD7FADEFD | 48:8D8424 80000000            | lea rax,qword ptr ss:[rsp+80]           | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADF05 | 48:3BF8                       | cmp rdi,rax                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADF08 | 0F85 98010000                 | jne gdi32full.7FFFD7FAE0A6              |
+00007FFFD7FADF0E | 8BC3                          | mov eax,ebx                             |
+00007FFFD7FADF10 | 48:8B8C24 90010000            | mov rcx,qword ptr ss:[rsp+190]          |
+00007FFFD7FADF18 | 48:33CC                       | xor rcx,rsp                             |
+00007FFFD7FADF1B | E8 308D0300                   | call gdi32full.7FFFD7FE6C50             |
+00007FFFD7FADF20 | 48:81C4 A8010000              | add rsp,1A8                             |
+00007FFFD7FADF27 | 41:5F                         | pop r15                                 |
+00007FFFD7FADF29 | 41:5E                         | pop r14                                 |
+00007FFFD7FADF2B | 41:5D                         | pop r13                                 | r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADF2D | 41:5C                         | pop r12                                 | r12:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADF2F | 5F                            | pop rdi                                 |
+00007FFFD7FADF30 | 5E                            | pop rsi                                 | rsi:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADF31 | 5D                            | pop rbp                                 |
+00007FFFD7FADF32 | 5B                            | pop rbx                                 |
+00007FFFD7FADF33 | C3                            | ret                                     |
+00007FFFD7FADF34 | CC                            | int3                                    |
+00007FFFD7FADF35 | B9 57000000                   | mov ecx,57                              | 57:'W'
+00007FFFD7FADF3A | 48:FF15 27620700              | call qword ptr ds:[<GdiSetLastError>]   |
+00007FFFD7FADF41 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADF46 | 33C0                          | xor eax,eax                             |
+00007FFFD7FADF48 | EB C6                         | jmp gdi32full.7FFFD7FADF10              |
+00007FFFD7FADF4A | E8 1185FDFF                   | call <gdi32full.QueryFontAssocStatus>   |
+00007FFFD7FADF4F | 85C0                          | test eax,eax                            |
+00007FFFD7FADF51 | 0F84 4AFEFFFF                 | je gdi32full.7FFFD7FADDA1               |
+00007FFFD7FADF57 | 3BF7                          | cmp esi,edi                             |
+00007FFFD7FADF59 | 74 1D                         | je gdi32full.7FFFD7FADF78               |
+00007FFFD7FADF5B | 83FE 02                       | cmp esi,2                               |
+00007FFFD7FADF5E | 0F85 3DFEFFFF                 | jne gdi32full.7FFFD7FADDA1              |
+00007FFFD7FADF64 | 41:385D 00                    | cmp byte ptr ds:[r13],bl                | r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADF68 | 0F84 33FEFFFF                 | je gdi32full.7FFFD7FADDA1               |
+00007FFFD7FADF6E | 41:385D 01                    | cmp byte ptr ds:[r13+1],bl              | r13+01:RtlTimeToSecondsSince1970+321
+00007FFFD7FADF72 | 0F85 29FEFFFF                 | jne gdi32full.7FFFD7FADDA1              |
+00007FFFD7FADF78 | BD E4040000                   | mov ebp,4E4                             |
+00007FFFD7FADF7D | E9 23FEFFFF                   | jmp gdi32full.7FFFD7FADDA5              |
+00007FFFD7FADF82 | B9 57000000                   | mov ecx,57                              | 57:'W'
+00007FFFD7FADF87 | 48:FF15 DA610700              | call qword ptr ds:[<GdiSetLastError>]   |
+00007FFFD7FADF8E | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADF93 | E9 65FFFFFF                   | jmp gdi32full.7FFFD7FADEFD              |
+00007FFFD7FADF98 | 3B2D BE160C00                 | cmp ebp,dword ptr ds:[7FFFD806F65C]     |
+00007FFFD7FADF9E | 0F84 0DFEFFFF                 | je gdi32full.7FFFD7FADDB1               |
+00007FFFD7FADFA4 | E9 DBFEFFFF                   | jmp gdi32full.7FFFD7FADE84              |
+00007FFFD7FADFA9 | 49:8BCF                       | mov rcx,r15                             |
+00007FFFD7FADFAC | 48:FF15 9D6E0700              | call qword ptr ds:[<NtGdiGetCharSet>]   |
+00007FFFD7FADFB3 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADFB8 | E9 D5FDFFFF                   | jmp gdi32full.7FFFD7FADD92              |
+00007FFFD7FADFBD | 75 0A                         | jne gdi32full.7FFFD7FADFC9              |
+00007FFFD7FADFBF | 49:8919                       | mov qword ptr ds:[r9],rbx               | r9:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADFC2 | BF 01000000                   | mov edi,1                               |
+00007FFFD7FADFC7 | EB 13                         | jmp gdi32full.7FFFD7FADFDC              |
+00007FFFD7FADFC9 | B9 57000000                   | mov ecx,57                              | 57:'W'
+00007FFFD7FADFCE | 48:FF15 93610700              | call qword ptr ds:[<GdiSetLastError>]   |
+00007FFFD7FADFD5 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FADFDA | 8BFB                          | mov edi,ebx                             |
+00007FFFD7FADFDC | 8BC7                          | mov eax,edi                             |
+00007FFFD7FADFDE | E9 2DFFFFFF                   | jmp gdi32full.7FFFD7FADF10              |
+00007FFFD7FADFE3 | 6641:395F 4C                  | cmp word ptr ds:[r15+4C],bx             |
+00007FFFD7FADFE8 | 74 26                         | je gdi32full.7FFFD7FAE010               |
+00007FFFD7FADFEA | 8B8424 10020000               | mov eax,dword ptr ss:[rsp+210]          |
+00007FFFD7FADFF1 | 44:8BCE                       | mov r9d,esi                             |
+00007FFFD7FADFF4 | 4C:896424 28                  | mov qword ptr ss:[rsp+28],r12           | r12:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FADFF9 | 4D:8BC5                       | mov r8,r13                              | r13:RtlTimeToSecondsSince1970+320
+00007FFFD7FADFFC | 49:8BD7                       | mov rdx,r15                             |
+00007FFFD7FADFFF | 894424 20                     | mov dword ptr ss:[rsp+20],eax           |
+00007FFFD7FAE003 | 49:8BCE                       | mov rcx,r14                             |
+00007FFFD7FAE006 | E8 01F20300                   | call gdi32full.7FFFD7FED20C             |
+00007FFFD7FAE00B | E9 36FEFFFF                   | jmp gdi32full.7FFFD7FADE46              |
+00007FFFD7FAE010 | 4C:8B05 E9DD0B00              | mov r8,qword ptr ds:[7FFFD806BE00]      |
+00007FFFD7FAE017 | 48:8BD6                       | mov rdx,rsi                             | rsi:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FAE01A | 48:2BD7                       | sub rdx,rdi                             |
+00007FFFD7FAE01D | 48:8BCB                       | mov rcx,rbx                             |
+00007FFFD7FAE020 | 48:3BCA                       | cmp rcx,rdx                             |
+00007FFFD7FAE023 | 0F8D F8FDFFFF                 | jge gdi32full.7FFFD7FADE21              |
+00007FFFD7FAE029 | 42:0FB60429                   | movzx eax,byte ptr ds:[rcx+r13]         |
+00007FFFD7FAE02E | 41:B9 FFFF0000                | mov r9d,FFFF                            |
+00007FFFD7FAE034 | 6645:390C40                   | cmp word ptr ds:[r8+rax*2],r9w          |
+00007FFFD7FAE039 | 74 05                         | je gdi32full.7FFFD7FAE040               |
+00007FFFD7FAE03B | 48:03CF                       | add rcx,rdi                             |
+00007FFFD7FAE03E | EB E0                         | jmp gdi32full.7FFFD7FAE020              |
+00007FFFD7FAE040 | 8BFB                          | mov edi,ebx                             |
+00007FFFD7FAE042 | 44:8BF3                       | mov r14d,ebx                            |
+00007FFFD7FAE045 | E9 FFFDFFFF                   | jmp gdi32full.7FFFD7FADE49              |
+00007FFFD7FAE04A | 6548:8B0C25 60000000          | mov rcx,qword ptr gs:[60]               |
+00007FFFD7FAE053 | 4C:8BC6                       | mov r8,rsi                              | rsi:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FAE056 | 4D:03C0                       | add r8,r8                               |
+00007FFFD7FAE059 | 33D2                          | xor edx,edx                             |
+00007FFFD7FAE05B | 48:8B49 30                    | mov rcx,qword ptr ds:[rcx+30]           |
+00007FFFD7FAE05F | 48:FF15 1A6B0700              | call qword ptr ds:[<RtlAllocateHeap>]   |
+00007FFFD7FAE066 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FAE06B | 48:8BF8                       | mov rdi,rax                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FAE06E | 48:85C0                       | test rax,rax                            | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FAE071 | 0F85 21FEFFFF                 | jne gdi32full.7FFFD7FADE98              |
+00007FFFD7FAE077 | 8D48 08                       | lea ecx,qword ptr ds:[rax+8]            | rax+08:NtGdiXLATEOBJ_iXlate+18
+00007FFFD7FAE07A | 48:FF15 E7600700              | call qword ptr ds:[<GdiSetLastError>]   |
+00007FFFD7FAE081 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FAE086 | E9 83FEFFFF                   | jmp gdi32full.7FFFD7FADF0E              |
+00007FFFD7FAE08B | 894C24 20                     | mov dword ptr ss:[rsp+20],ecx           |
+00007FFFD7FAE08F | 4D:8BCC                       | mov r9,r12                              | r9:NtGdiXLATEOBJ_iXlate+10, r12:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FAE092 | 49:8BCF                       | mov rcx,r15                             |
+00007FFFD7FAE095 | 48:FF15 7C6F0700              | call qword ptr ds:[<NtGdiGetTextExtent> |
+00007FFFD7FAE09C | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FAE0A1 | E9 55FEFFFF                   | jmp gdi32full.7FFFD7FADEFB              |
+00007FFFD7FAE0A6 | 6548:8B0C25 60000000          | mov rcx,qword ptr gs:[60]               |
+00007FFFD7FAE0AF | 4C:8BC7                       | mov r8,rdi                              |
+00007FFFD7FAE0B2 | 33D2                          | xor edx,edx                             |
+00007FFFD7FAE0B4 | 48:8B49 30                    | mov rcx,qword ptr ds:[rcx+30]           |
+00007FFFD7FAE0B8 | 48:FF15 69690700              | call qword ptr ds:[<RtlFreeHeap>]       |
+00007FFFD7FAE0BF | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FAE0C4 | E9 45FEFFFF                   | jmp gdi32full.7FFFD7FADF0E              |
+00007FFFD7FAE0C9 | CC                            | int3                                    |
+00007FFFD7FAE0CA | CC                            | int3                                    |
+00007FFFD7FAE0CB | CC                            | int3                                    |
+00007FFFD7FAE0CC | CC                            | int3                                    |
+00007FFFD7FAE0CD | CC                            | int3                                    |
+00007FFFD7FAE0CE | CC                            | int3                                    |
+00007FFFD7FAE0CF | CC                            | int3                                    |
+00007FFFD7FAE0D0 | 48:895C24 08                  | mov qword ptr ss:[rsp+8],rbx            |

@@ -1,0 +1,505 @@
+# First: All imports
+from tkinter import *
+from tkinter import ttk
+import tkinter.scrolledtext as scrolledtext
+import pygame
+import numpy as np
+from threading import Thread
+import logging
+import os
+import time
+
+# Web and API
+from flask import Flask, request, jsonify, send_from_directory, render_template
+import requests
+import re
+# Data structures
+from dataclasses import dataclass
+from enum import Enum
+# Initialize Flask app
+app = Flask(__name__)
+
+# Configure directories
+GENERATED_FILES_DIR = "generated_files"
+os.makedirs(GENERATED_FILES_DIR, exist_ok=True)
+# Constants at top of file
+MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
+MISTRAL_API_KEY = "JCASwm1qYdbfSCd7ilpEgUU0oRv7LcbG"  # Using the key from copilot.py
+
+# Available models
+MISTRAL_MODELS = [
+    "mistral-small",
+    "mistral-medium",
+    "mistral-large"
+]
+OLLAMA_MODELS = []
+
+# Conversation tracking
+conversation_history = []
+contextual_memory = []
+
+
+# Routes
+@app.route('/')
+def serve_index():
+    return render_template("index.html")
+
+@app.route('/ask', methods=['POST'])
+def ask_ai():
+    user_message = request.json.get("message", "")
+    selected_model = request.json.get("model", "mistral-small")
+    response = ai_companion.process_user_input(user_message, selected_model)
+    return jsonify({"response": response})
+
+logging.basicConfig(level=logging.DEBUG)
+
+def get_ai_response(self, message):
+    headers = {
+        "Authorization": f"Bearer {MISTRAL_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": "mistral-small",  # Using the correct model name
+        "messages": [{
+            "role": "user",
+            "content": message
+        }]
+    }
+# Third: Define the CombinedInterface class
+class CombinedInterface:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("✨ Lexi - Magical AI Companion ✨")
+        self.root.geometry("1200x800")
+    
+        # Initialize core components
+        self.running = True
+        self.current_animation = "idle"
+        self.animation_frame = 0
+        self.sprite_size = (64, 64)
+    
+        # Create main container
+        self.main_container = ttk.Frame(root)
+        self.main_container.pack(fill=BOTH, expand=True)
+    
+        # Create sprite frame
+        self.sprite_frame = Frame(self.main_container, width=400, height=600, bg='black')
+        self.sprite_frame.pack(side=LEFT, fill=BOTH, padx=5, pady=5)
+        self.sprite_frame.pack_propagate(False)
+    
+        # Create chat frame
+        self.setup_chat_interface()
+    
+        # Initialize pygame
+        self.root.update()
+        os.environ['SDL_WINDOWID'] = str(self.sprite_frame.winfo_id())
+        pygame.init()
+        self.screen = pygame.display.set_mode((400, 600))
+        self.clock = pygame.time.Clock()
+    
+        # Generate sprites
+        self.sprites = self.generate_sprites()
+    
+        # Start animation thread
+        self.animation_thread = Thread(target=self.run_animation, daemon=True)
+        self.animation_thread.start()
+    
+    def setup_chat_interface(self):
+        # Chat interface setup
+        self.chat_frame = ttk.Frame(self.main_container)
+        self.chat_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=5, pady=5)
+    
+        # Model selection
+        self.model_var = StringVar(value="mistral-small-latest")
+        model_frame = ttk.Frame(self.chat_frame)
+        model_frame.pack(fill=X, pady=(0, 10))
+    
+        ttk.Label(model_frame, text="Select AI Model:").pack(side=LEFT)
+        model_menu = ttk.Combobox(model_frame, textvariable=self.model_var)
+        model_menu['values'] = MISTRAL_MODELS + OLLAMA_MODELS
+        model_menu.pack(side=LEFT, padx=5)
+    
+        # Chat display
+        self.chat_display = scrolledtext.ScrolledText(
+            self.chat_frame,
+            wrap=WORD,
+            height=25,
+            font=('Helvetica', 11),
+            bg='#f5f5f5'
+        )
+        self.chat_display.pack(fill=BOTH, expand=True, pady=(0, 10))
+    
+        # Input area
+        input_frame = ttk.Frame(self.chat_frame)
+        input_frame.pack(fill=X)
+    
+        self.message_input = ttk.Entry(input_frame, font=('Helvetica', 11))
+        self.message_input.pack(side=LEFT, fill=X, expand=True)
+    
+        send_button = ttk.Button(input_frame, text="Send", command=self.send_message)
+        send_button.pack(side=LEFT, padx=(5, 0))
+    
+        # Bind Enter key
+        self.message_input.bind("<Return>", lambda e: self.send_message())
+    
+    def generate_sprites(self):
+        # Initialize sprite dictionary
+        sprites = {
+            "idle": [],
+            "talking": [],
+            "thinking": []
+        }
+        
+        # Generate frames for each animation state
+        for i in range(4):
+            # Create idle animation frames
+            sprite = np.zeros((self.sprite_size[1], self.sprite_size[0], 4), dtype=np.uint8)
+            self.draw_character(sprite, animation_step=int(np.sin(i * np.pi/2) * 2))
+            sprites["idle"].append(sprite.copy())
+            
+            # Create talking animation frames
+            sprite_talk = np.zeros((self.sprite_size[1], self.sprite_size[0], 4), dtype=np.uint8)
+            self.draw_character(sprite_talk, animation_step=i, talking=True)
+            sprites["talking"].append(sprite_talk.copy())
+            
+            # Create thinking animation frames
+            sprite_think = np.zeros((self.sprite_size[1], self.sprite_size[0], 4), dtype=np.uint8)
+            self.draw_character(sprite_think, animation_step=i, thinking=True)
+            sprites["thinking"].append(sprite_think.copy())
+        
+        return sprites
+    
+    def draw_character(self, sprite, animation_step=0, talking=False, thinking=False):
+         # Draw with magical colors
+        ROBE_COLOR = (75, 0, 130, 255)      # Royal purple
+        SKIN_COLOR = (255, 223, 196, 255)    # Warm tone
+        HAT_COLOR = (45, 0, 90, 255)         # Deep purple
+        STAR_COLOR = (255, 215, 0, 255)      # Bright gold           
+        # Magical color palette
+        HAIR_COLOR = (200, 60, 20, 255)      # Vibrant auburn red
+        HAIR_HIGHLIGHT = (240, 80, 35, 255)  # Lighter red highlights
+        ROBE_COLOR = (75, 0, 130, 255)       # Royal purple
+        ROBE_ACCENT = (147, 112, 219, 255)   # Lighter purple for details
+        SKIN_COLOR = (255, 223, 196, 255)    # Warm peachy tone
+        HAT_COLOR = (45, 0, 90, 255)         # Deep purple
+        STAR_COLOR = (255, 215, 0, 255)      # Bright gold
+        EYE_COLOR = (30, 144, 255, 255)      # Bright blue eyes
+        EYE_HIGHLIGHT = (135, 206, 250, 255) # Light blue sparkle
+        EYE_SHADOW = (25, 25, 112, 255)      # Dark blue depth
+        STAFF_WOOD = (139, 69, 19, 255)      # Rich wooden staff
+        STAFF_GOLD = (218, 165, 32, 255)     # Gold accents
+        GEM_COLOR = (0, 191, 255, 255)       # Magical blue gems
+        LIP_COLOR = (220, 20, 60, 255)  # Crimson red lips
+        LIP_HIGHLIGHT = (255, 69, 0, 255)  # Coral highlight
+        # Initialize position variables
+        hat_height = 15
+        for y in range(hat_height):
+            width = max(4, int(12 - y * 0.8))  # Hat narrows toward top
+            for x in range(32-width, 32+width):
+                if 0 <= y < 64 and 0 <= x < 64:
+                    sprite[y, x] = HAT_COLOR
+        
+        # Face and neck area - moved up
+        face_start = hat_height
+        face_end = face_start + 10
+        for y in range(face_start, face_end):
+            for x in range(24, 40):
+                if (x-32)**2 + (y-face_start-5)**2 < 64:
+                    sprite[y, x] = SKIN_COLOR
+        # Draw elegant flowing hair with proper layering
+        for y in range(5, face_end + 15):  # Hair ends at upper robe area
+            # Create gentle waves with smaller amplitude
+            width = int(12 + np.sin(y * 0.2 + animation_step * 0.1) * 2)
+            
+            # Add subtle tapering effect for natural flow
+            taper = max(0, (y - 15) * 0.2)  # Start tapering earlier
+            adjusted_width = max(4, width - int(taper))
+            
+            for x in range(32-adjusted_width, 32+adjusted_width):
+                if 0 <= y < 64 and 0 <= x < 64:
+                    # Create natural highlight pattern
+                    if (x + y) % 5 == 0 and abs(x-32) > adjusted_width/2:
+                        sprite[y, x] = HAIR_HIGHLIGHT
+                    else:
+                        sprite[y, x] = HAIR_COLOR
+        # Robe (flowing downward with elegant slim fit)
+        robe_start = face_end
+        for y in range(robe_start, 60):
+            # Create ultra-slim silhouette
+            width = int(6 + (y - robe_start) * 0.2)  # Reduced from 8 to 6, and 0.3 to 0.2
+            
+            # Add subtle curves for feminine shape
+            curve_adjust = int(np.sin((y - robe_start) * 0.2) * 2)
+            adjusted_width = width + curve_adjust
+            
+            for x in range(32-adjusted_width, 32+adjusted_width):
+                if 0 <= x < 64:
+                    if (x + y) % 4 == 0:
+                        sprite[y, x] = ROBE_ACCENT
+                    else:
+                        sprite[y, x] = ROBE_COLOR
+            # Add magical sparkles more sparsely
+            if (x + y) % 9 == 0:  # Changed from 7 to 9 for more delicate effect
+                sprite[y, x] = STAR_COLOR                
+        # Draw ornate wizard hat with gems
+        for y in range(hat_height):
+            width = max(4, int(10 - y * 0.8))
+            for x in range(32-width, 32+width):
+                if 0 <= y < 64 and 0 <= x < 64:
+                    sprite[y, x] = HAT_COLOR
+                    if y % 3 == 0 and abs(x-32) == width-2:
+                        sprite[y, x] = GEM_COLOR
+        
+        # Draw detailed face
+        for y in range(face_start, face_end):
+            for x in range(24, 40):
+                if (x-32)**2 + (y-face_start-5)**2 < 64:
+                    sprite[y, x] = SKIN_COLOR
+                    if (x-32)**2 + (y-face_start-5)**2 > 58:
+                        sprite[y, x] = (255, 200, 180, 255)
+        
+        # Draw eyes
+        eye_y = face_start + 5
+        # Left eye
+        for x in range(27, 30):
+            for y in range(eye_y-1, eye_y+2):
+                sprite[y, x] = EYE_COLOR
+                if x == 28 and y == eye_y-1:
+                    sprite[y, x] = EYE_HIGHLIGHT
+                if y == eye_y+1:
+                    sprite[y, x] = EYE_SHADOW
+        
+        # Right eye
+        for x in range(34, 37):
+            for y in range(eye_y-1, eye_y+2):
+                sprite[y, x] = EYE_COLOR
+                if x == 35 and y == eye_y-1:
+                    sprite[y, x] = EYE_HIGHLIGHT
+                if y == eye_y+1:
+                    sprite[y, x] = EYE_SHADOW       
+        # Draw magical staff and robed arms
+        staff_x = 40  # Moved staff closer to body center (32)
+
+        # Draw left arm holding staff
+        for y in range(25, 40):
+            # Create sleeve that extends from robe to staff
+            for x in range(35, staff_x):
+                if (x-32)**2 + (y-30)**2 < 64:  # Curved sleeve shape
+                    sprite[y, x] = ROBE_COLOR
+                    if (x + y) % 4 == 0:
+                        sprite[y, x] = ROBE_ACCENT
+
+        # Draw staff with hands
+        for y in range(20, 55):
+            # Draw the wooden staff
+            sprite[y, staff_x] = STAFF_WOOD
+            sprite[y, staff_x+1] = STAFF_WOOD
+            
+            # Add gold bands
+            if y % 8 == 0:
+                sprite[y, staff_x-1:staff_x+3] = STAFF_GOLD
+            
+            # Add hands at grip points
+            if 30 <= y <= 35:
+                for x in range(staff_x-2, staff_x+3):
+                    sprite[y, x] = SKIN_COLOR
+                # Draw ornate staff top
+                staff_top_y = 15
+                orb_radius = 4
+
+        # Create glowing orb
+        for y in range(staff_top_y - orb_radius, staff_top_y + orb_radius):
+            for x in range(staff_x - orb_radius, staff_x + orb_radius + 2):
+                if (x-staff_x)**2 + (y-staff_top_y)**2 < orb_radius**2:
+                    # Create glowing effect with color gradients
+                    distance = ((x-staff_x)**2 + (y-staff_top_y)**2) ** 0.5
+                    glow_intensity = 1 - (distance / orb_radius)
+                    sprite[y, x] = (
+                        int(GEM_COLOR[0] * glow_intensity),
+                        int(GEM_COLOR[1] * glow_intensity),
+                        int(GEM_COLOR[2] * glow_intensity),
+                        255
+                    )
+
+        # Add golden filigree around orb
+        for angle in range(0, 360, 45):
+            rad_angle = np.radians(angle)
+            x = int(staff_x + (orb_radius + 1) * np.cos(rad_angle))
+            y = int(staff_top_y + (orb_radius + 1) * np.sin(rad_angle))
+            if 0 <= x < 64 and 0 <= y < 64:
+                sprite[y, x] = STAFF_GOLD
+
+        # Draw the wooden staff
+        for y in range(staff_top_y + orb_radius, 55):
+            sprite[y, staff_x] = STAFF_WOOD
+            sprite[y, staff_x+1] = STAFF_WOOD
+            if y % 8 == 0:
+                sprite[y, staff_x-1:staff_x+3] = STAFF_GOLD
+                    # Add gold bands
+            if y % 8 == 0:
+                sprite[y, staff_x-1:staff_x+3] = STAFF_GOLD
+            
+            # Add hands at grip points
+            if 30 <= y <= 35:
+                for x in range(staff_x-2, staff_x+3):
+                    sprite[y, x] = SKIN_COLOR      
+        # Draw lips
+        if talking:
+            # Animated talking lips
+            mouth_y = face_start + 7 + (animation_step % 2)
+            for x in range(30, 34):
+                sprite[mouth_y, x] = LIP_COLOR
+                sprite[mouth_y-1, x] = LIP_HIGHLIGHT
+        else:
+            # Gentle smile
+            mouth_y = face_start + 7
+            for x in range(30, 34):
+                sprite[mouth_y, x] = LIP_COLOR
+                sprite[mouth_y-1, x] = LIP_HIGHLIGHT
+                # Add magical effects when thinking
+                if thinking:
+                    for i in range(4):
+                        angle = animation_step * 0.2 + i * np.pi/2
+                        radius = 8 + np.sin(animation_step * 0.1) * 3
+                        spell_x = int(staff_x + np.cos(angle) * radius)
+                        spell_y = int(17 + np.sin(angle) * radius)
+                        if 0 <= spell_x < 64 and 0 <= spell_y < 64:
+                            sprite[spell_y, spell_x] = STAR_COLOR    
+    def run_animation(self):
+        logging.debug("Animation loop starting...")
+        while self.running:
+            try:
+                # Clear screen
+                self.screen.fill((30, 30, 60))
+                
+                # Get current frame
+                current_frame = self.animation_frame % len(self.sprites[self.current_animation])
+                sprite_array = self.sprites[self.current_animation][current_frame]
+                
+                # Create surface
+                sprite_surface = pygame.Surface(self.sprite_size, pygame.SRCALPHA)
+                pygame.surfarray.pixels3d(sprite_surface)[:] = sprite_array[:, :, :3]
+                pygame.surfarray.pixels_alpha(sprite_surface)[:] = sprite_array[:, :, 3]
+                
+                # Scale sprite
+                scaled_sprite = pygame.transform.scale(sprite_surface, (300, 300))
+                
+                # Rotate sprite 90 degrees clockwise
+                rotated_sprite = pygame.transform.rotate(scaled_sprite, -90)
+                
+                # Center rotated sprite
+                sprite_rect = rotated_sprite.get_rect(center=(200, 300))
+                
+                # Draw rotated sprite
+                self.screen.blit(rotated_sprite, sprite_rect)
+                
+                # Update display
+                pygame.display.flip()
+                
+                # Increment frame
+                self.animation_frame += 1
+                
+                # Control frame rate
+                self.clock.tick(30)
+                
+            except Exception as e:
+                logging.error(f"Animation error: {e}")  
+    def send_message(self):
+        message = self.message_input.get()
+        if message:
+            # Display user message
+            self.chat_display.insert(END, f"\n😊 You: {message}\n", 'user')
+            self.chat_display.tag_configure('user', foreground='#2196F3')
+            
+            # Clear input field
+            self.message_input.delete(0, END)
+            
+            # Set thinking animation
+            self.current_animation = "thinking"
+            
+            # Get and display AI response with female wizard emoji
+            response = self.get_ai_response(message)
+            self.chat_display.insert(END, f"\n🧙‍♀️ Lexi: {response}\n", 'ai')
+            self.chat_display.tag_configure('ai', foreground='#9C27B0')
+            # Return to idle animation
+            self.current_animation = "idle"
+            # Ensure latest messages are visible
+            self.chat_display.see(END)
+    def get_ai_response(self, message):
+        selected_model = self.model_var.get()   
+        try:
+            # Get response from API
+            response, _ = self.query_mistral(selected_model, message)
+        
+            # Process response for code blocks
+            code_blocks = re.findall(r"(\w+)?\n(.*?)", response, re.DOTALL)
+        
+            # Create files if code blocks exist
+            if code_blocks:
+                for language, code in code_blocks:
+                    filename = f"magical_code_{time.strftime('%Y%m%d_%H%M%S')}.{language or 'txt'}"
+                    with open(filename, 'w') as f:
+                        f.write(code.strip())
+        
+            return response        
+        except Exception as e:
+            return f"✨ The magical realms whisper: {str(e)}"      
+    def query_mistral(self, model, message):
+        headers = {
+            "Authorization": f"Bearer {MISTRAL_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [{
+                "role": "user", 
+                "content": message
+            }],
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+
+        logging.debug(f"Sending request to Mistral API with model: {model}")
+        response = requests.post(MISTRAL_API_URL, json=payload, headers=headers)
+        
+        if response.status_code == 200:
+            json_response = response.json()
+            ai_response = json_response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            logging.debug("Successfully received response from Mistral API")
+            return ai_response, None
+            
+        logging.error(f"Mistral API returned status code: {response.status_code}")
+        return f"✨ The magical connection requires attention (Status: {response.status_code})", None
+
+    def query_ollama(self, model, message):
+        full_context = self.contextual_memory + self.conversation_history
+        payload = {
+            "model": model,
+            "messages": full_context + [{"role": "user", "content": message}],
+            "system_prompt": "You are Lexi, a magical AI companion specialized in programming."
+        }
+        
+        response = requests.post(self.OLLAMA_API_URL, json=payload, stream=True)
+        if response.status_code == 200:
+            full_response = ""
+            memory_update = None
+            
+            for line in response.iter_lines():
+                if line:
+                    json_part = json.loads(line.decode('utf-8'))
+                    if "memory_update" in json_part:
+                        memory_update = json_part["memory_update"]
+                    full_response += json_part.get("message", {}).get("content", "")           
+            return full_response, memory_update
+        return f"✨ Magical connection needs attention: {response.status_code}", None
+# Fourth: Define main function
+def main():
+    root = Tk()
+    app = CombinedInterface(root)
+    root.mainloop()
+
+# Fifth: Run the program
+if __name__ == "__main__":
+    main()

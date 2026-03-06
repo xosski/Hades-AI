@@ -1,0 +1,35 @@
+00007FF92B9E7DCD | 75 79                         | jne ntdll.7FF92B9E7E48                  |
+00007FF92B9E7DCF | F746 70 00000400              | test dword ptr ds:[rsi+70],40000        | rsi+70:"odule"
+00007FF92B9E7DD6 | 48:895D 80                    | mov qword ptr ss:[rbp-80],rbx           |
+00007FF92B9E7DDA | 48:8B43 20                    | mov rax,qword ptr ds:[rbx+20]           | rbx+20:" the process heap failed\n"
+00007FF92B9E7DDE | 48:8945 88                    | mov qword ptr ss:[rbp-78],rax           |
+00007FF92B9E7DE2 | B8 40000000                   | mov eax,40                              | 40:'@'
+00007FF92B9E7DE7 | C745 90 01000000              | mov dword ptr ss:[rbp-70],1             |
+00007FF92B9E7DEE | 0F44C1                        | cmove eax,ecx                           |
+00007FF92B9E7DF1 | 49:8BD5                       | mov rdx,r13                             |
+00007FF92B9E7DF4 | 8945 94                       | mov dword ptr ss:[rbp-6C],eax           |
+00007FF92B9E7DF7 | 48:8D4C24 70                  | lea rcx,qword ptr ss:[rsp+70]           | rcx:ZwQueryInformationThread+14, [rsp+70]:L"ÜÞ"
+00007FF92B9E7DFC | 48:8B4424 38                  | mov rax,qword ptr ss:[rsp+38]           | [rsp+38]:EtwEventWriteNoRegistration+25E9
+00007FF92B9E7E01 | E8 1AB20C00                   | call ntdll.7FF92BAB3020                 |
+00007FF92B9E7E06 | 85C0                          | test eax,eax                            |
+00007FF92B9E7E08 | 0F88 E4F7FFFF                 | js ntdll.7FF92B9E75F2                   |
+00007FF92B9E7E0E | 0FB75C24 52                   | movzx ebx,word ptr ss:[rsp+52]          |
+00007FF92B9E7E13 | 48:8B7C24 40                  | mov rdi,qword ptr ss:[rsp+40]           | [rsp+40]:"p\n"
+00007FF92B9E7E18 | E9 5EFAFFFF                   | jmp ntdll.7FF92B9E787B                  |
+00007FF92B9E7E1D | 48:8B4424 40                  | mov rax,qword ptr ss:[rsp+40]           | [rsp+40]:"p\n"
+00007FF92B9E7E22 | 8B4C24 58                     | mov ecx,dword ptr ss:[rsp+58]           |
+00007FF92B9E7E26 | 48:03C8                       | add rcx,rax                             | rcx:ZwQueryInformationThread+14
+00007FF92B9E7E29 | 48:894424 20                  | mov qword ptr ss:[rsp+20],rax           |
+00007FF92B9E7E2E | 48:8B45 20                    | mov rax,qword ptr ss:[rbp+20]           |
+00007FF92B9E7E32 | F740 14 00000040              | test dword ptr ds:[rax+14],40000000     |
+00007FF92B9E7E39 | E9 0DFEFFFF                   | jmp ntdll.7FF92B9E7C4B                  |
+00007FF92B9E7E3E | 0FB64C24 50                   | movzx ecx,byte ptr ss:[rsp+50]          |
+00007FF92B9E7E43 | E9 1EFBFFFF                   | jmp ntdll.7FF92B9E7966                  |
+00007FF92B9E7E48 | 48:8B4424 40                  | mov rax,qword ptr ss:[rsp+40]           | [rsp+40]:"p\n"
+00007FF92B9E7E4D | 48:8945 80                    | mov qword ptr ss:[rbp-80],rax           |
+00007FF92B9E7E51 | 48:8B47 20                    | mov rax,qword ptr ds:[rdi+20]           |
+00007FF92B9E7E55 | 48:25 00F0FFFF                | and rax,FFFFFFFFFFFFF000                |
+00007FF92B9E7E5B | 48:8945 88                    | mov qword ptr ss:[rbp-78],rax           |
+00007FF92B9E7E5F | 48:8B45 20                    | mov rax,qword ptr ss:[rbp+20]           |
+00007FF92B9E7E63 | F740 14 00000040              | test dword ptr ds:[rax+14],40000000     |
+00007FF92B9E7E6A | E9 73FFFFFF                   | jmp ntdll.7FF92B9E7DE2                  |

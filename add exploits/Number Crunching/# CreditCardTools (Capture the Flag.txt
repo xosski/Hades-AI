@@ -1,0 +1,29 @@
+# CreditCardTools (Capture the Flag Edition)
+
+This is a lightweight Python utility designed for **Capture the Flag (CTF)** scenarios or **educational purposes**, offering basic credit card number generation, merchant category code (MCC) lookup, and card type recognition.
+
+> ⚠️ **Important Disclaimer**  
+> This tool does **not** interact with real financial systems. All card numbers generated are **randomized and invalid** for actual transactions. This project is strictly intended for:
+>
+> - Security training
+> - CTF puzzles
+> - Educational demonstrations of Luhn validation, MCC categorization, and card structure
+>
+> Any use of this software for fraudulent, malicious, or unlawful activity is strictly prohibited.
+
+---
+
+## 🔍 Features
+
+- Generate synthetic credit card numbers (Visa, MasterCard, Amex, Discover)
+- Validate Luhn algorithm compliance
+- Identify merchant category codes (MCC)
+- Reverse lookup MCC descriptions
+- Lightweight CLI-friendly design
+
+---
+
+## 📦 Usage
+
+```bash
+python creditcards.py

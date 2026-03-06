@@ -1,0 +1,11 @@
+new exports.quickInviteModal({
+  'currentProfileID': "c53fd394caa983bd",
+  'profiles': [{
+      "first_name": "Erick",
+      "last_name": "King",
+      "postal_code": "89011",
+      "birth_year": 1989,
+      "services": [...],
+      ...
+  }]
+});

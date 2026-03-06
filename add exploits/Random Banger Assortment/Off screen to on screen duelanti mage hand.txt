@@ -1,0 +1,62 @@
+Trigger intersection observers
+// Patch IntersectionObserver to trigger all observed elements
+IntersectionObserver.prototype.observe = function(target) {
+  // Force callback immediately
+  const callback = this.callback || (() => {});
+  callback([{ isIntersecting: true, target }]);
+};
+
+// Optional: fake callback for existing observers
+document.querySelectorAll('*').forEach(el => {
+  try {
+    el.scrollIntoView({ behavior: 'auto', block: 'center' });
+  } catch {}
+});
+
+Force reveal hidden lazy dom loaders
+// Remove hidden styles
+[...document.querySelectorAll('*')].forEach(el => {
+  el.style.display = 'block';
+  el.style.visibility = 'visible';
+  el.style.opacity = '1';
+  el.style.transform = 'none';
+});
+Trigger lazy loaders
+// Hijack setTimeout to run immediately
+const _setTimeout = window.setTimeout;
+window.setTimeout = function(fn, delay, ...args) {
+  return _setTimeout(fn, 0, ...args);
+};
+
+// Run requestIdleCallbacks immediately
+window.requestIdleCallback = function(fn) {
+  return fn({ didTimeout: false, timeRemaining: () => 50 });
+};
+Stub or override lazy load libraries
+window.lozad = () => ({
+  observe: () => console.log('lozad hijacked')
+});
+
+window.lazySizes = {
+  init: () => console.log('lazySizes hijacked')
+};
+Trigger events that load stuff
+// Simulate scroll to bottom
+window.scrollTo(0, document.body.scrollHeight);
+
+// Dispatch fake user interaction
+['click', 'mousemove', 'keydown'].forEach(evt =>
+  document.dispatchEvent(new Event(evt))
+);
+
+Crawl every link and load images
+// Preload all images
+document.querySelectorAll('img[data-src], img[data-lazy-src], img[loading="lazy"]').forEach(img => {
+  img.src = img.dataset.src || img.dataset.lazySrc;
+  img.loading = 'eager';
+});
+
+// Preload links
+document.querySelectorAll('a[href]').forEach(link => {
+  fetch(link.href).catch(() => {}); // we're just being loud
+});

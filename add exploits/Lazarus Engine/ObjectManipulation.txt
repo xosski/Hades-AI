@@ -1,0 +1,157 @@
+00007FFFD7F61102 | 48:894C24 30                  | mov qword ptr ss:[rsp+30],rcx           | [rsp+30]:RtlEncodeRemotePointer+CE
+00007FFFD7F61107 | 48:8B4C24 78                  | mov rcx,qword ptr ss:[rsp+78]           |
+00007FFFD7F6110C | 48:894C24 28                  | mov qword ptr ss:[rsp+28],rcx           |
+00007FFFD7F61111 | 49:8BCB                       | mov rcx,r11                             |
+00007FFFD7F61114 | 4C:895424 20                  | mov qword ptr ss:[rsp+20],r10           | [rsp+20]:_free_locale+17D9
+00007FFFD7F61119 | E8 F23E0B00                   | call gdi32full.7FFFD8015010             |
+00007FFFD7F6111E | 48:83C4 48                    | add rsp,48                              |
+00007FFFD7F61122 | C3                            | ret                                     |
+00007FFFD7F61123 | CC                            | int3                                    |
+00007FFFD7F61124 | CC                            | int3                                    |
+00007FFFD7F61125 | CC                            | int3                                    |
+00007FFFD7F61126 | CC                            | int3                                    |
+00007FFFD7F61127 | CC                            | int3                                    |
+00007FFFD7F61128 | CC                            | int3                                    |
+00007FFFD7F61129 | CC                            | int3                                    |
+00007FFFD7F6112A | CC                            | int3                                    |
+00007FFFD7F6112B | CC                            | int3                                    |
+00007FFFD7F6112C | CC                            | int3                                    |
+00007FFFD7F6112D | CC                            | int3                                    |
+00007FFFD7F6112E | CC                            | int3                                    |
+00007FFFD7F6112F | CC                            | int3                                    |
+00007FFFD7F61130 | 40:55                         | push rbp                                |
+00007FFFD7F61132 | 48:8DAC24 60FFFFFF            | lea rbp,qword ptr ss:[rsp-A0]           |
+00007FFFD7F6113A | 48:81EC A0010000              | sub rsp,1A0                             |
+00007FFFD7F61141 | 48:8B05 B8A21000              | mov rax,qword ptr ds:[7FFFD806B400]     | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61148 | 48:33C4                       | xor rax,rsp                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6114B | 48:8985 90000000              | mov qword ptr ss:[rbp+90],rax           | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61152 | 48:8B85 58010000              | mov rax,qword ptr ss:[rbp+158]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61159 | 45:33DB                       | xor r11d,r11d                           |
+00007FFFD7F6115C | 48:8985 80000000              | mov qword ptr ss:[rbp+80],rax           | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61163 | 4C:8BD1                       | mov r10,rcx                             |
+00007FFFD7F61166 | 48:8B85 50010000              | mov rax,qword ptr ss:[rbp+150]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6116D | 4C:8BCA                       | mov r9,rdx                              | r9:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61170 | 48:C785 88000000 04000000     | mov qword ptr ss:[rbp+88],4             |
+00007FFFD7F6117B | 49:8D4B FF                    | lea rcx,qword ptr ds:[r11-1]            |
+00007FFFD7F6117F | 4C:8B00                       | mov r8,qword ptr ds:[rax]               | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61182 | 4D:85C0                       | test r8,r8                              |
+00007FFFD7F61185 | 74 16                         | je gdi32full.7FFFD7F6119D               |
+00007FFFD7F61187 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6118A | 66:0F1F4400 00                | nop word ptr ds:[rax+rax],ax            |
+00007FFFD7F61190 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61193 | 45:381C00                     | cmp byte ptr ds:[r8+rax],r11b           | r8+rax*1:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61197 | 75 F7                         | jne gdi32full.7FFFD7F61190              |
+00007FFFD7F61199 | FFC0                          | inc eax                                 |
+00007FFFD7F6119B | EB 0C                         | jmp gdi32full.7FFFD7F611A9              |
+00007FFFD7F6119D | 4C:8D05 74E80C00              | lea r8,qword ptr ds:[7FFFD802FA18]      |
+00007FFFD7F611A4 | B8 01000000                   | mov eax,1                               |
+00007FFFD7F611A9 | 8945 78                       | mov dword ptr ss:[rbp+78],eax           |
+00007FFFD7F611AC | 48:8B85 48010000              | mov rax,qword ptr ss:[rbp+148]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F611B3 | 48:8945 60                    | mov qword ptr ss:[rbp+60],rax           | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F611B7 | 48:8B85 40010000              | mov rax,qword ptr ss:[rbp+140]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F611BE | 4C:8945 70                    | mov qword ptr ss:[rbp+70],r8            |
+00007FFFD7F611C2 | 44:895D 7C                    | mov dword ptr ss:[rbp+7C],r11d          |
+00007FFFD7F611C6 | 48:C745 68 04000000           | mov qword ptr ss:[rbp+68],4             |
+00007FFFD7F611CE | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F611D1 | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F611D4 | 74 17                         | je gdi32full.7FFFD7F611ED               |
+00007FFFD7F611D6 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F611D9 | 0F1F80 00000000               | nop dword ptr ds:[rax],eax              |
+00007FFFD7F611E0 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F611E3 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12
+00007FFFD7F611E7 | 75 F7                         | jne gdi32full.7FFFD7F611E0              |
+00007FFFD7F611E9 | FFC0                          | inc eax                                 |
+00007FFFD7F611EB | EB 0C                         | jmp gdi32full.7FFFD7F611F9              |
+00007FFFD7F611ED | 48:8D15 24E80C00              | lea rdx,qword ptr ds:[7FFFD802FA18]     |
+00007FFFD7F611F4 | B8 01000000                   | mov eax,1                               |
+00007FFFD7F611F9 | 8945 58                       | mov dword ptr ss:[rbp+58],eax           |
+00007FFFD7F611FC | 48:8B85 38010000              | mov rax,qword ptr ss:[rbp+138]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61203 | 48:8955 50                    | mov qword ptr ss:[rbp+50],rdx           |
+00007FFFD7F61207 | 44:895D 5C                    | mov dword ptr ss:[rbp+5C],r11d          |
+00007FFFD7F6120B | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6120E | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F61211 | 74 10                         | je gdi32full.7FFFD7F61223               |
+00007FFFD7F61213 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61216 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61219 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12
+00007FFFD7F6121D | 75 F7                         | jne gdi32full.7FFFD7F61216              |
+00007FFFD7F6121F | FFC0                          | inc eax                                 |
+00007FFFD7F61221 | EB 0C                         | jmp gdi32full.7FFFD7F6122F              |
+00007FFFD7F61223 | 48:8D15 EEE70C00              | lea rdx,qword ptr ds:[7FFFD802FA18]     |
+00007FFFD7F6122A | B8 01000000                   | mov eax,1                               |
+00007FFFD7F6122F | 8945 48                       | mov dword ptr ss:[rbp+48],eax           |
+00007FFFD7F61232 | 48:8B85 30010000              | mov rax,qword ptr ss:[rbp+130]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61239 | 48:8955 40                    | mov qword ptr ss:[rbp+40],rdx           |
+00007FFFD7F6123D | 44:895D 4C                    | mov dword ptr ss:[rbp+4C],r11d          |
+00007FFFD7F61241 | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61244 | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F61247 | 74 14                         | je gdi32full.7FFFD7F6125D               |
+00007FFFD7F61249 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6124C | 0F1F40 00                     | nop dword ptr ds:[rax],eax              |
+00007FFFD7F61250 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61253 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12
+00007FFFD7F61257 | 75 F7                         | jne gdi32full.7FFFD7F61250              |
+00007FFFD7F61259 | FFC0                          | inc eax                                 |
+00007FFFD7F6125B | EB 0C                         | jmp gdi32full.7FFFD7F61269              |
+00007FFFD7F6125D | 48:8D15 B4E70C00              | lea rdx,qword ptr ds:[7FFFD802FA18]     |
+00007FFFD7F61264 | B8 01000000                   | mov eax,1                               |
+00007FFFD7F61269 | 8945 38                       | mov dword ptr ss:[rbp+38],eax           |
+00007FFFD7F6126C | 48:8B85 28010000              | mov rax,qword ptr ss:[rbp+128]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61273 | 48:8955 30                    | mov qword ptr ss:[rbp+30],rdx           |
+00007FFFD7F61277 | 44:895D 3C                    | mov dword ptr ss:[rbp+3C],r11d          |
+00007FFFD7F6127B | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6127E | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F61281 | 74 10                         | je gdi32full.7FFFD7F61293               |
+00007FFFD7F61283 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61286 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61289 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12
+00007FFFD7F6128D | 75 F7                         | jne gdi32full.7FFFD7F61286              |
+00007FFFD7F6128F | FFC0                          | inc eax                                 |
+00007FFFD7F61291 | EB 0C                         | jmp gdi32full.7FFFD7F6129F              |
+00007FFFD7F61293 | 48:8D15 7EE70C00              | lea rdx,qword ptr ds:[7FFFD802FA18]     |
+00007FFFD7F6129A | B8 01000000                   | mov eax,1                               |
+00007FFFD7F6129F | 8945 28                       | mov dword ptr ss:[rbp+28],eax           |
+00007FFFD7F612A2 | 48:8B85 20010000              | mov rax,qword ptr ss:[rbp+120]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612A9 | 48:8945 10                    | mov qword ptr ss:[rbp+10],rax           | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612AD | 48:8B85 18010000              | mov rax,qword ptr ss:[rbp+118]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612B4 | 48:8955 20                    | mov qword ptr ss:[rbp+20],rdx           |
+00007FFFD7F612B8 | 44:895D 2C                    | mov dword ptr ss:[rbp+2C],r11d          |
+00007FFFD7F612BC | 48:C745 18 02000000           | mov qword ptr ss:[rbp+18],2             |
+00007FFFD7F612C4 | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612C7 | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F612CA | 74 11                         | je gdi32full.7FFFD7F612DD               |
+00007FFFD7F612CC | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612CF | 90                            | nop                                     |
+00007FFFD7F612D0 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612D3 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12
+00007FFFD7F612D7 | 75 F7                         | jne gdi32full.7FFFD7F612D0              |
+00007FFFD7F612D9 | FFC0                          | inc eax                                 |
+00007FFFD7F612DB | EB 0C                         | jmp gdi32full.7FFFD7F612E9              |
+00007FFFD7F612DD | 48:8D15 34E70C00              | lea rdx,qword ptr ds:[7FFFD802FA18]     |
+00007FFFD7F612E4 | B8 01000000                   | mov eax,1                               |
+00007FFFD7F612E9 | 8945 08                       | mov dword ptr ss:[rbp+8],eax            |
+00007FFFD7F612EC | 48:8B85 10010000              | mov rax,qword ptr ss:[rbp+110]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612F3 | 48:8955 00                    | mov qword ptr ss:[rbp],rdx              |
+00007FFFD7F612F7 | 44:895D 0C                    | mov dword ptr ss:[rbp+C],r11d           |
+00007FFFD7F612FB | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F612FE | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F61301 | 74 10                         | je gdi32full.7FFFD7F61313               |
+00007FFFD7F61303 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61306 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61309 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12
+00007FFFD7F6130D | 75 F7                         | jne gdi32full.7FFFD7F61306              |
+00007FFFD7F6130F | FFC0                          | inc eax                                 |
+00007FFFD7F61311 | EB 0C                         | jmp gdi32full.7FFFD7F6131F              |
+00007FFFD7F61313 | 48:8D15 FEE60C00              | lea rdx,qword ptr ds:[7FFFD802FA18]     |
+00007FFFD7F6131A | B8 01000000                   | mov eax,1                               |
+00007FFFD7F6131F | 8945 F8                       | mov dword ptr ss:[rbp-8],eax            |
+00007FFFD7F61322 | 48:8B85 08010000              | mov rax,qword ptr ss:[rbp+108]          | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61329 | 48:8955 F0                    | mov qword ptr ss:[rbp-10],rdx           |
+00007FFFD7F6132D | 44:895D FC                    | mov dword ptr ss:[rbp-4],r11d           |
+00007FFFD7F61331 | 48:8B10                       | mov rdx,qword ptr ds:[rax]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61334 | 48:85D2                       | test rdx,rdx                            |
+00007FFFD7F61337 | 74 14                         | je gdi32full.7FFFD7F6134D               |
+00007FFFD7F61339 | 48:8BC1                       | mov rax,rcx                             | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F6133C | 0F1F40 00                     | nop dword ptr ds:[rax],eax              |
+00007FFFD7F61340 | 48:FFC0                       | inc rax                                 | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7F61343 | 44:381C02                     | cmp byte ptr ds:[rdx+rax],r11b          | rdx+rax*1:NtGdiXLATEOBJ_iXlate+12

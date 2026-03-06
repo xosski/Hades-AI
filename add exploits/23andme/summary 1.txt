@@ -1,0 +1,39 @@
+23andMe's frontend JavaScript exposes detailed user profile metadata, including personal identifiers, subscription status, research participation, and S3-hosted profile image URLs with embedded AWSAccessKeyId and Signature. Additionally, profile URLs use static UUIDs (/p/{profileID}/) that can be manipulated, leading to potential Insecure Direct Object Reference (IDOR) attacks and mass data scraping.
+Steps To Reproduce:
+Visit any authenticated page (e.g., /family/relatives/) while logged into a valid 23andMe account.
+Open Developer Tools → Network or Sources Tab.
+Locate a JS payload or inline script containing quickInviteModal or profiles.
+Observe a full JSON object containing user profile data including:
+first_name, last_name
+birth_year, postal_code
+profile_image array with S3 URLs and signatures
+health_status, research_opt_in, subscription_eligibility, etc.
+Modify the profile UUID (e.g., in /p/c53fd394caa983bd/quick-invite/) to another value — if access is granted without auth validation, this confirms IDOR.
+Optional: Use a script to automate UUID iteration and check for valid responses.
+Supporting Material/References:
+Exposed S3 URL (with token):
+https://ttam-live-human-images-us-west-2.s3.amazonaws.com/c074da2c090446f7883e383217b2174a.jpg?AWSAccessKeyId=AKIAJ4ZS4YATHQJZVJ5A&Signature=6YCDSnhJfMgmF0ghxDgdxstFrTw%3D&Expires=1765765797
+23andme.md (F5085483)The exposed quickInviteModal client-side configuration includes sensitive PII/PHI such as full name, birth year, postal code, consent flags, genetic services used, and genotype status. Since profile IDs are enumerable and no effective authorization is enforced, an attacker could harvest thousands of real user records with health-specific metadata, violating user privacy and regulatory obligations.
+{
+"first_name": "Erick",
+"last_name": "King",
+"birth_year": 1989,
+"sex": "M",
+"current_postal_code": {
+"country": "US",
+"postal_code": "89011"
+},
+"services": [
+"Ancestry",
+"Health Predisposition & Carrier Status",
+"Traits & Wellness"
+],
+"genotype_status": "loaded",
+"can_access_health": true,
+"profile_image_large": "https://ttam-live-human-images-us-west-2.s3.amazonaws.com/[...].jpg?[signed]",
+"has_signed_consent": true,
+"is_consented_for_research": true,
+"sample_shipping_country": "US",
+"platform_labels": ["v5"],
+"analytics_user_type": "ha"
+}

@@ -1,0 +1,15 @@
+Stage 0: discord unpack.txt
+  ↳ Sets up stack, preps jump to internal loader
+
+Stage 1: sideloadpivot.txt
+  ↳ Reflective loader using Discord.exe path
+  ↳ Modifies PE header, unmaps memory, creates false execution context
+
+Stage 2: nesting pivot.txt
+  ↳ Heap crafting, faking Windows loader memory layout
+
+Stage 3: external pivot.txt
+  ↳ Injects into remote process, steals execution
+
+Hijack Point: update hijack.txt
+  ↳ Scans threads to make sure nothing "suspicious" is attached

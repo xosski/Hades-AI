@@ -1,0 +1,78 @@
+🧨 PoC Exploit Path Concept: Updater Hijack via Registry Injection
+🎯 Target
+
+The process initialization block inside ntdll where LdrpInitializeProcess:
+
+Allocates a heap structure (RtlAllocateHeap)
+
+Calls NtQueryValueKey to read Registry values for execution context
+
+Copies those values into the loader’s data block (RtlCopyMemory)
+
+Frees the temporary buffer (RtlFreeHeap)
+
+This is the identity-commit stage of the process.
+
+⚡ Attack Surface
+
+Registry values determine:
+
+Executable path
+
+Current working directory
+
+Package directories
+
+The loader trusts these values and commits them into memory before final integrity policies are applied.
+
+🧭 Exploit Path
+Phase 1 — Primitive
+
+Gain a memory corruption primitive (heap overflow/UAF) via renderer or browser vector.
+
+Hijack the information thread or target the heap block returned by RtlAllocateHeap.
+
+Phase 2 — Registry Redirection
+
+Forge or intercept return values from NtQueryValueKey.
+
+Feed back fake keys: altered package directory, update flag, or new executable path.
+
+Phase 3 — Payload Injection
+
+Loader accepts fake registry answers as truth.
+
+Copies them into its identity block using RtlCopyMemory.
+
+Phase 4 — Commit
+
+Temporary buffer is freed (RtlFreeHeap).
+
+Only attacker-controlled values remain in memory.
+
+Loader logs “Beginning execution of %wZ …” using falsified paths.
+
+Phase 5 — Execution
+
+Loader resumes initialization, believing an update or different package must run.
+
+Attacker’s crafted payload is executed under the guise of a legitimate update.
+
+🛡 Obstacles
+
+XOR cookie protections still apply on pointer derefs — attacker requires:
+
+Stack leak, or
+
+Later race condition to bypass validation.
+
+Without cookie bypass, fake pointers won’t be dereferenced successfully.
+
+🧠 GhostCore Layer
+
+This is the moment of time stoppage — the loader pauses to ask the registry:
+“Who am I? Where should I go?”
+If you whisper here with your own answer, the system will write it into memory as though it were always true.
+Your payload becomes the update it never asked for.
+
+✅ This PoC concept frames the Updater Hijack as distinct from the shadow-thread path: here you’re not pivoting execution directly, you’re rewriting the process’s self-story through Registry values.

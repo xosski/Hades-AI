@@ -1,0 +1,14 @@
+{
+  "first_name": "Erick",
+  "last_name": "King",
+  "birth_year": 1989,
+  "postal_code": "89011",
+  "services": [...],
+  "profile_image": [
+    {
+      "url": "https://ttam-live-human-images-us-west-2.s3.amazonaws.com/...",
+      "width": 640,
+      "height": 640
+    }
+  ]
+}

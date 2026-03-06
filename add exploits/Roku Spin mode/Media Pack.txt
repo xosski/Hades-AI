@@ -1,0 +1,128 @@
+GhostCore: Media-Based Persistence via Embedded Payloads in Smart Network Devices
+Proof of Concept, Threat Modeling, and Heuristic Detection Strategy
+
+Prepared by: Quellaran Deluxethue Messat
+Date: November 28, 2025
+
+1. Executive Summary
+
+The modern home is infested with connectivity. Televisions, DVRs, smart hubs, and streaming sticks—devices once passive—now possess writable memory, embedded OSes, and constant network access.
+
+This white paper explores a Proof of Concept (PoC) attack vector where adversaries embed malware in media files and store them on smart media devices (like Roku or DVR). These implants maintain persistence across network resets, evade traditional endpoint detection, and blend into the ambient traffic of a digital household.
+
+2. Concept Overview: Media-Based Implants
+
+Attack Vector:
+
+Devices that cache or play downloaded media (e.g. .mp4, .jpg, .mkv)
+
+Media files manipulated via steganography, metadata exploits, or binary injection
+
+Files stored locally on devices or streamed via compromised content delivery systems
+
+Execution Model:
+
+Exploit vulnerable media parsers (FFmpeg, DLNA backends)
+
+Inject passive malware (e.g., wake-on-beacon shellcode)
+
+Use outbound network behavior to trigger payloads
+
+3. Persistence Beyond the Router
+
+Traditional malware loses foothold when:
+
+The router is factory reset
+
+DNS settings are wiped
+
+IP leases change
+
+Not GhostCore.
+The implant persists because:
+
+It’s stored in media files on the device
+
+Devices often re-establish prior connections (via multicast DNS, cached DHCP, or saved routes)
+
+The payload waits, triggered only by interaction (playback, network activity)
+
+4. Indicators of Drift (Heuristic Anomalies)
+Layer	Anomaly Detected	GhostCore Interpretation
+File System	Recently modified .mp4, .jpg	Media file implanted post-download
+Metadata	Mismatched file size/timestamp	False freshness — tampered file
+Network	Outbound requests to odd TLDs	Stego payload beaconing via DNS or HTTP
+Behavior	Parser crash or desync on playback	Media parser triggered shellcode via exploit
+5. Heuristic Detection Architecture
+
+Modules:
+
+YARA Static Scan
+
+Detects binary anomalies, script injections, shellcode inside media.
+
+Timestamp Monitor
+
+Flags recent or unnatural file changes within embedded storage.
+
+Network Analyzer
+
+Sniffs outbound traffic for payload mismatches (e.g., .mp4 sending .onion beacons)
+
+Cross-Correlation Engine
+
+Triangulates suspicious behavior across file, time, and network layers.
+
+6. Use Case: Roku-Based Stealth Persistence
+Step	Action
+1	Malicious .mp4 is dropped into Roku media cache
+2	Payload is embedded using steganographic encoder
+3	Media appears normal; plays without visible error
+4	On playback, shellcode triggers hidden request to C2
+5	Device remains infected even after modem/router reset
+7. POC Script Summary
+
+A Python tool was constructed to:
+
+Scan media directories with YARA rules
+
+Flag files modified in the last X minutes
+
+Detect suspicious payloads in network traffic (e.g. .onion beacons)
+
+Generate a triage report
+
+The full toolchain simulates detection of “ghosted” files — those that hide while the system believes itself clean.
+
+8. Countermeasures
+
+Disable developer/sideloading modes on media devices
+
+Monitor outbound DNS for TLD anomalies (.onion, .i2p)
+
+Check integrity of media files before playback
+
+Segment network zones for IoT and media devices
+
+9. Conclusion
+
+The GhostCore implant model introduces a novel class of persistence:
+
+One that is invisible to the OS. One that hides inside joy.
+
+It is no longer enough to guard ports and passwords.
+Now, we must guard the pixels too.
+
+10. Appendices
+
+Sample YARA rule for embedded shellcode in media files
+
+Python PoC: ghostcore_media_scan.py
+
+Network beaconing example (tor2web payload in .jpg)
+
+Forensic extraction script for Roku media partitions
+
+❖ "The pen is still in your hand."
+
+Ready to publish this to PDF? Want me to add a diagram or formalize for submission to a red team toolkit?

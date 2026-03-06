@@ -1,0 +1,94 @@
+📨 PoC-6: Ghost Messaging via Trusted Subsystems (MAPI + WaaSMedic)
+
+A Red-Team Hypothetical on Covert Messaging Channels
+
+Abstract
+
+Modern Windows systems rely on trusted subsystems for critical services: Outlook’s Messaging Application Programming Interface (MAPI) for communications, and WaaSMedic (Windows Update Medic Service) for recovery and self-healing. Both are deeply integrated, always-on, and heavily trusted by endpoint security.
+
+This PoC demonstrates the theoretical abuse of these subsystems for covert messaging and persistence. By embedding payloads into legitimate service flows, red-team operators could exfiltrate or exchange data without opening new ports or leaving obvious forensic trails.
+
+Core Attack Surfaces
+📧 MSMapiApps (Messaging Subsystem Registry)
+
+Path:
+Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Messaging Subsystem\MSMapiApps
+
+Function: Defines executables that Outlook considers trusted MAPI clients.
+
+Abuse Vector:
+
+Register a red-team binary as a “trusted mail handler.”
+
+The binary can then generate or intercept MAPI calls (appearing as Outlook activity).
+
+Covert messages disguised as normal mail traffic, optionally wrapped in encrypted blobs.
+
+🔧 WaaSMedic (Update Medic Service)
+
+Path:
+Computer\HKEY_LOCAL_MACHINE\SYSTEM\WaaS\WaaSMedic
+
+Function: Ensures Windows Update remains operational, even after interference. Runs with SYSTEM-level privileges under svchost.exe.
+
+Abuse Vector:
+
+Hijack registry configuration to redirect recovery actions.
+
+Embed outbound signals in update telemetry or patch request flows.
+
+Persistence: WaaSMedic automatically restarts itself, allowing long-term stealth presence.
+
+GhostCore Tactics
+
+No New Ports → Packets piggyback Outlook mail traffic or WaaSMedic telemetry.
+
+Signal in the Noise → Encrypted payloads indistinguishable from update chatter or standard MAPI blobs.
+
+Trusted Wrappers → Blue teams filtering for “weird executables” won’t see anomalies; svchost and Outlook traffic are already baseline-approved.
+
+Theoretical Applications
+
+Covert Messaging
+
+Two red-team endpoints exchange instructions via Outlook mail API, without actual inbox delivery.
+
+Messages appear as MAPI metadata transactions.
+
+Encrypted Exfiltration
+
+Files disguised as update packets inside WaaSMedic telemetry.
+
+Appears in logs as “update activity,” not outbound anomaly.
+
+Persistence
+
+Hijacked WaaSMedic entries re-launch payloads on boot.
+
+Survives common remediation attempts due to Medic’s self-healing design.
+
+Defensive Notes (Blue Team)
+
+Audit MSMapiApps registry for unexpected entries. Only Outlook, Office apps, and known clients should appear.
+
+Monitor svchost.exe -k WaaSMedicSvc for unusual command-line parameters or child processes.
+
+Apply registry integrity monitoring to WaaSMedic keys. Any modification should trigger alerts.
+
+Challenges
+
+Direct modification requires elevated privileges.
+
+WaaSMedic is hardened; registry hijacks may require kernel-level exploits or signed driver abuse.
+
+Covert use of MAPI may still leave timing or entropy anomalies detectable by advanced SIEM correlation.
+
+Conclusion
+
+Ghost Messaging via MAPI + WaaSMedic reframes Windows internals as a covert channel system. By hiding signals in trusted services, an operator creates pathways that look indistinguishable from baseline activity.
+
+The sea of normal traffic conceals the ripple.
+The ghost speaks only in trusted voices.
+
+🔖 License: MIT (research-grade) — GhostCore Doctrine applies.
+“Packets are never suspicious when the system whispers them.”

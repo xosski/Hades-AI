@@ -1,0 +1,47 @@
+00007FF92B97FCB8 | 4D:85C0                       | test r8,r8                              |
+00007FF92B97FCBB | 74 1A                         | je ntdll.7FF92B97FCD7                   |
+00007FF92B97FCBD | 33D2                          | xor edx,edx                             |
+00007FF92B97FCBF | 83FA 08                       | cmp edx,8                               |
+00007FF92B97FCC2 | 73 13                         | jae ntdll.7FF92B97FCD7                  |
+00007FF92B97FCC4 | 49:833CD0 00                  | cmp qword ptr ds:[r8+rdx*8],0           | [r8+rdx*8]:RtlGetReturnAddressHijackTarget+73E
+00007FF92B97FCC9 | 49:8D04D0                     | lea rax,qword ptr ds:[r8+rdx*8]         | [r8+rdx*8]:RtlGetReturnAddressHijackTarget+73E
+00007FF92B97FCCD | 75 4A                         | jne ntdll.7FF92B97FD19                  |
+00007FF92B97FCCF | 48:85C0                       | test rax,rax                            |
+00007FF92B97FCD2 | 74 03                         | je ntdll.7FF92B97FCD7                   |
+00007FF92B97FCD4 | 48:8930                       | mov qword ptr ds:[rax],rsi              | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92B97FCD7 | F048:0FBA2E 00                | lock bts qword ptr ds:[rsi],0           | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92B97FCDD | 72 56                         | jb ntdll.7FF92B97FD35                   |
+00007FF92B97FCDF | 8B1D 53761A00                 | mov ebx,dword ptr ds:[7FF92BB27338]     |
+00007FF92B97FCE5 | 85FF                          | test edi,edi                            |
+00007FF92B97FCE7 | 74 34                         | je ntdll.7FF92B97FD1D                   |
+00007FF92B97FCE9 | 85DB                          | test ebx,ebx                            |
+00007FF92B97FCEB | 74 39                         | je ntdll.7FF92B97FD26                   |
+00007FF92B97FCED | 83C3 FF                       | add ebx,FFFFFFFF                        |
+00007FF92B97FCF0 | 891D 42761A00                 | mov dword ptr ds:[7FF92BB27338],ebx     |
+00007FF92B97FCF6 | 75 0A                         | jne ntdll.7FF92B97FD02                  |
+00007FF92B97FCF8 | B9 02000000                   | mov ecx,2                               |
+00007FF92B97FCFD | E8 5E000000                   | call ntdll.7FF92B97FD60                 |
+00007FF92B97FD02 | 48:8BCE                       | mov rcx,rsi                             | rcx:ZwQueryInformationThread+14, rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92B97FD05 | 48:8B5C24 30                  | mov rbx,qword ptr ss:[rsp+30]           |
+00007FF92B97FD0A | 48:8B7424 38                  | mov rsi,qword ptr ss:[rsp+38]           | [rsp+38]:EtwEventWriteNoRegistration+25E9
+00007FF92B97FD0F | 48:83C4 20                    | add rsp,20                              |
+00007FF92B97FD13 | 5F                            | pop rdi                                 |
+00007FF92B97FD14 | E9 A7340100                   | jmp <ntdll.RtlReleaseSRWLockExclusive>  |
+00007FF92B97FD19 | FFC2                          | inc edx                                 |
+00007FF92B97FD1B | EB A2                         | jmp ntdll.7FF92B97FCBF                  |
+00007FF92B97FD1D | 85DB                          | test ebx,ebx                            |
+00007FF92B97FD1F | 74 1E                         | je ntdll.7FF92B97FD3F                   |
+00007FF92B97FD21 | 83FB FF                       | cmp ebx,FFFFFFFF                        |
+00007FF92B97FD24 | 75 23                         | jne ntdll.7FF92B97FD49                  |
+00007FF92B97FD26 | 48:8BCE                       | mov rcx,rsi                             | rcx:ZwQueryInformationThread+14, rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92B97FD29 | E8 92340100                   | call <ntdll.RtlReleaseSRWLockExclusive> |
+00007FF92B97FD2E | B9 0E000000                   | mov ecx,E                               |
+00007FF92B97FD33 | CD 29                         | int 29                                  |
+00007FF92B97FD35 | 48:8BCE                       | mov rcx,rsi                             | rcx:ZwQueryInformationThread+14, rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92B97FD38 | E8 03A50600                   | call ntdll.7FF92B9EA240                 |
+00007FF92B97FD3D | EB A0                         | jmp ntdll.7FF92B97FCDF                  |
+00007FF92B97FD3F | B9 04000000                   | mov ecx,4                               |
+00007FF92B97FD44 | E8 17000000                   | call ntdll.7FF92B97FD60                 |
+00007FF92B97FD49 | FFC3                          | inc ebx                                 |
+00007FF92B97FD4B | 891D E7751A00                 | mov dword ptr ds:[7FF92BB27338],ebx     |
+00007FF92B97FD51 | EB AF                         | jmp ntdll.7FF92B97FD02                  |

@@ -1,0 +1,26 @@
+00007FFFDAD2F680 | 48:83EC 28                    | sub rsp,28                              |
+00007FFFDAD2F684 | 48:85C9                       | test rcx,rcx                            | rcx:ZwQueryInformationThread+14
+00007FFFDAD2F687 | 74 4D                         | je ntdll.7FFFDAD2F6D6                   |
+00007FFFDAD2F689 | 80B9 61010000 00              | cmp byte ptr ds:[rcx+161],0             | rcx+161:ZwOpenProcessTokenEx+15
+00007FFFDAD2F690 | 75 44                         | jne ntdll.7FFFDAD2F6D6                  |
+00007FFFDAD2F692 | 8B81 A8000000                 | mov eax,dword ptr ds:[rcx+A8]           | rcx+A8:NtUnmapViewOfSection+1C
+00007FFFDAD2F698 | 0FBAE0 10                     | bt eax,10                               |
+00007FFFDAD2F69C | 72 38                         | jb ntdll.7FFFDAD2F6D6                   |
+00007FFFDAD2F69E | 0FBAE0 11                     | bt eax,11                               |
+00007FFFDAD2F6A2 | 72 32                         | jb ntdll.7FFFDAD2F6D6                   |
+00007FFFDAD2F6A4 | 48:8D05 D5451000              | lea rax,qword ptr ds:[7FFFDAE33C80]     |
+00007FFFDAD2F6AB | 48:3941 08                    | cmp qword ptr ds:[rcx+8],rax            | rcx+08:ZwQueryInformationThread+1C
+00007FFFDAD2F6AF | 75 25                         | jne ntdll.7FFFDAD2F6D6                  |
+00007FFFDAD2F6B1 | 6548:8B0425 60000000          | mov rax,qword ptr gs:[60]               |
+00007FFFDAD2F6BA | 48:8B50 18                    | mov rdx,qword ptr ds:[rax+18]           |
+00007FFFDAD2F6BE | 807A 48 00                    | cmp byte ptr ds:[rdx+48],0              |
+00007FFFDAD2F6C2 | 75 12                         | jne ntdll.7FFFDAD2F6D6                  |
+00007FFFDAD2F6C4 | 33C0                          | xor eax,eax                             |
+00007FFFDAD2F6C6 | 48:3981 48010000              | cmp qword ptr ds:[rcx+148],rax          | rcx+148:ZwOpenThreadTokenEx+1C
+00007FFFDAD2F6CD | 0F95C0                        | setne al                                |
+00007FFFDAD2F6D0 | 48:83C4 28                    | add rsp,28                              |
+00007FFFDAD2F6D4 | C3                            | ret                                     |
+00007FFFDAD2F6D5 | CC                            | int3                                    |
+00007FFFDAD2F6D6 | E8 E9000000                   | call ntdll.7FFFDAD2F7C4                 |
+00007FFFDAD2F6DB | 33C0                          | xor eax,eax                             |
+00007FFFDAD2F6DD | EB F1                         | jmp ntdll.7FFFDAD2F6D0                  |

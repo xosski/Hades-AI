@@ -1,0 +1,31 @@
+00007FF92BA23CED | 4C:8D05 0CB10900              | lea r8,qword ptr ds:[7FF92BABEE00]      | 00007FF92BABEE00:L"{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}"
+00007FF92BA23CF4 | D1EA                          | shr edx,1                               |
+00007FF92BA23CF6 | 0F114424 70                   | movups xmmword ptr ss:[rsp+70],xmm0     |
+00007FF92BA23CFB | E8 90000000                   | call ntdll.7FF92BA23D90                 |
+00007FF92BA23D00 | 83F8 FF                       | cmp eax,FFFFFFFF                        |
+00007FF92BA23D03 | 74 71                         | je ntdll.7FF92BA23D76                   |
+00007FF92BA23D05 | 45:33C0                       | xor r8d,r8d                             |
+00007FF92BA23D08 | 48:8D53 09                    | lea rdx,qword ptr ds:[rbx+9]            |
+00007FF92BA23D0C | 48:8D4424 72                  | lea rax,qword ptr ss:[rsp+72]           |
+00007FF92BA23D11 | 0FB648 FE                     | movzx ecx,byte ptr ds:[rax-2]           |
+00007FF92BA23D15 | 41:83C0 08                    | add r8d,8                               |
+00007FF92BA23D19 | 884A FF                       | mov byte ptr ds:[rdx-1],cl              |
+00007FF92BA23D1C | 48:8D52 08                    | lea rdx,qword ptr ds:[rdx+8]            |
+00007FF92BA23D20 | 0FB608                        | movzx ecx,byte ptr ds:[rax]             |
+00007FF92BA23D23 | 48:8D40 10                    | lea rax,qword ptr ds:[rax+10]           |
+00007FF92BA23D27 | 884A F8                       | mov byte ptr ds:[rdx-8],cl              |
+00007FF92BA23D2A | 0FB648 F2                     | movzx ecx,byte ptr ds:[rax-E]           |
+00007FF92BA23D2E | 884A F9                       | mov byte ptr ds:[rdx-7],cl              |
+00007FF92BA23D31 | 0FB648 F4                     | movzx ecx,byte ptr ds:[rax-C]           |
+00007FF92BA23D35 | 884A FA                       | mov byte ptr ds:[rdx-6],cl              |
+00007FF92BA23D38 | 0FB648 F6                     | movzx ecx,byte ptr ds:[rax-A]           |
+00007FF92BA23D3C | 884A FB                       | mov byte ptr ds:[rdx-5],cl              |
+00007FF92BA23D3F | 0FB648 F8                     | movzx ecx,byte ptr ds:[rax-8]           |
+00007FF92BA23D43 | 884A FC                       | mov byte ptr ds:[rdx-4],cl              |
+00007FF92BA23D46 | 0FB648 FA                     | movzx ecx,byte ptr ds:[rax-6]           |
+00007FF92BA23D4A | 884A FD                       | mov byte ptr ds:[rdx-3],cl              |
+00007FF92BA23D4D | 0FB648 FC                     | movzx ecx,byte ptr ds:[rax-4]           |
+00007FF92BA23D51 | 884A FE                       | mov byte ptr ds:[rdx-2],cl              |
+00007FF92BA23D54 | 41:83F8 08                    | cmp r8d,8                               |
+00007FF92BA23D58 | 72 B7                         | jb ntdll.7FF92BA23D11                   |
+00007FF92BA23D5A | 33C0                          | xor eax,eax                             |

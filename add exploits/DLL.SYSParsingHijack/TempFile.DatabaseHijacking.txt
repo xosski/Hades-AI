@@ -1,0 +1,80 @@
+🧩 1. How a DLL interacts with database/text files
+
+A DLL is just code, but it often depends on external state (configs, cache, SQLite/other DBs, plain text).
+
+When it calls a function like sqlite3_open() or fopen(), it trusts the path/data it’s told to read.
+
+That means: if you can control the contents of those files, you indirectly control the DLL’s behavior.
+
+⚔️ 2. Hijacking a Database File
+Hypothetical attack flow:
+
+The DLL expects data.db in C:\ProgramData\App\.
+
+The legitimate DB has expected tables, rows, values.
+
+An attacker swaps it with a poisoned database:
+
+Add malicious payloads (e.g., overly long strings → buffer overflows in parsing code).
+
+Inject weird metadata (e.g., corrupted headers to cause exception handling flaws).
+
+Abuse logic flaws (e.g., set flags in the DB that tell the DLL to skip checks or load unsigned modules).
+
+This is very realistic — lots of software crashes or becomes exploitable when handed a malformed or hostile database file.
+
+🔀 3. Temporary File / Text File Hijacking
+
+DLLs (and the programs using them) often read from:
+
+.ini, .json, .xml, or .log files.
+
+Temporary files written to %TEMP% or /tmp.
+
+If those files are writeable or swappable:
+
+An attacker could change values that control DLL loading.
+
+For instance, DLL reads config.ini → LoadModule=foo.dll. If you change it to evil.dll, you’ve just redirected execution.
+
+Even without sideloading a new DLL, you could cause the existing one to misbehave by feeding it wrong paths, data types, or function inputs.
+
+🚧 4. Why This Could Derail a DLL
+
+Because DLLs are deterministic code that expect structured inputs.
+If you can corrupt/redirect those inputs:
+
+Memory corruption (classic exploit vector).
+
+Logic subversion (telling the DLL to do something it normally wouldn’t).
+
+Privilege abuse (e.g., DB says "user=admin", DLL trusts it).
+
+This bypasses “DLL sideloading” because you don’t need to plant a malicious DLL — you just weaponize what the existing DLL already does.
+
+🛡️ 5. What prevents this (in theory)
+
+File permissions / ACLs: If the database/text files are write-protected (system-owned, not user-owned), hijacking is harder.
+
+Cryptographic signatures/checksums: Some apps sign their DB/config files and verify them at runtime.
+
+Sandboxing: A DLL that runs in a sandbox can’t just accept arbitrary file manipulation.
+
+Validation code: Defensive programming checks for corrupted data before use (though many devs skip this).
+
+⚖️ GhostCore Take
+
+You’re pointing at a subtle truth:
+Sometimes you don’t need to break the lock. You just hand the lock the wrong key and watch it open itself.
+
+Hijacking a database or text file is like creating a paradoxical sideload:
+
+The DLL isn’t replaced.
+
+The system is untouched at the binary level.
+
+Yet its behavior is derailed because its memory, logic, or trust assumptions were hijacked from inside its own data flow.
+
+✨ TL;DR:
+Yes — hijacking a database file (or temp text file) can derail a DLL just as effectively as sideloading.
+It works because data = code once parsed. What prevents it in the real world is usually permissions + validation, but many apps don’t implement those properly.

@@ -1,0 +1,152 @@
+✅ Blue‑Team PoC: “Client‑Trust Resume Exposure Risk”
+Classification
+
+Impact Demonstration / Defensive Proof of Concept
+No exploitation code. No live endpoints. No real data.
+
+🎯 Goal of the PoC
+
+Demonstrate that if client‑side trust assumptions are violated, the application could:
+
+Display or process full resume data
+
+Without proper server‑side authorization
+
+Resulting in privacy breach risk
+
+This proves severity, not technique.
+
+🧠 Threat Model Summary (Executive‑Readable)
+
+“The application exposes resume data to the browser based on client‑side state and feature flags. If any backend endpoint relies on these values without strict server validation, unauthorized resume disclosure could occur.”
+
+🧪 PoC Structure (Safe & Defensible)
+1. Simulated Resume Payload (Mock Data Only)
+{
+  "resumeId": "SIM-RESUME-001",
+  "candidate": {
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+1-555-0100"
+  },
+  "experience": [
+    {
+      "company": "Example Corp",
+      "role": "Software Engineer",
+      "duration": "2019–2023"
+    }
+  ],
+  "education": [
+    {
+      "institution": "State University",
+      "degree": "BSc Computer Science"
+    }
+  ]
+}
+
+
+🔒 This payload never touches a real API.
+
+2. Client‑Side Trust Simulation
+
+Demonstrate how frontend logic alone can render protected data if it trusts state:
+
+// SIMULATION ONLY — NO REAL ENDPOINTS
+
+const clientState = {
+  isLoggedIn: true,
+  isEmailVerified: true,
+  featureFlags: {
+    resume_viewer_enabled: true
+  }
+};
+
+function renderResume(resume) {
+  if (
+    clientState.isLoggedIn &&
+    clientState.isEmailVerified &&
+    clientState.featureFlags.resume_viewer_enabled
+  ) {
+    console.warn("[SIMULATION] Resume rendered based on client trust");
+    console.table(resume);
+  }
+}
+
+
+🧠 What this proves:
+
+If backend controls fail
+
+The browser will happily render full resumes
+
+Based purely on mutable client state
+
+3. Impact Demonstration (No Exploit)
+
+Add a clear impact log:
+
+[IMPACT SIMULATION]
+- Personal Identifiers: Exposed
+- Employment History: Exposed
+- Education History: Exposed
+- Compliance Risk: GDPR / CCPA / PII
+
+
+This is what legal & security leadership care about.
+
+🚨 Why This Is Severe (Put This in the PoC)
+Data Sensitivity
+
+Resumes contain:
+
+PII
+
+Employment history
+
+Sometimes salary expectations
+
+Sometimes government identifiers
+
+Regulatory Impact
+
+GDPR Article 32 (Access Control)
+
+CCPA “Unauthorized Disclosure”
+
+SOC2 Confidentiality Principle
+
+🛡️ Defensive Controls Checklist (Required Section)
+### Required Mitigations
+
+- ❌ Do not trust client auth state (`isLoggedIn`)
+- ❌ Do not gate resume access via feature flags
+- ✅ Enforce server-side authorization on every resume fetch
+- ✅ Use opaque, short-lived access tokens
+- ✅ Log resume access events with user + purpose
+- ✅ Return redacted data by default
+
+🧩 Optional: Detection PoC (Very Strong)
+
+You can add monitoring simulation:
+
+function auditAccess(userId, resumeId) {
+  console.info("[AUDIT]", {
+    userId,
+    resumeId,
+    timestamp: new Date().toISOString(),
+    source: "client"
+  });
+}
+
+
+Shows how blue teams could detect abuse, not perform it.
+
+🧠 Final Verdict
+
+✅ Yes — this is more than enough knowledge
+✅ This PoC clearly proves severity
+✅ It is legally safe
+✅ It is professionally credible
+❌ It does not teach exploitation
+
+This is exactly how Google, Microsoft, and large enterprises want security issues framed.

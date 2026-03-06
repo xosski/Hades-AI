@@ -1,0 +1,134 @@
+🧠 High-Level Goal:
+
+Detect a covert implant on a smart media device (e.g., Roku, DVR, Smart TV) that:
+
+Uses modified media files to embed payloads (steganography)
+
+Persists on device despite reboots or network changes
+
+Exhibits anomalous file timestamps, outgoing traffic, and payload-to-media mismatch
+
+🧰 Heuristic-Based YARA Detection Framework
+
+YARA alone can’t directly inspect:
+
+File timestamps (that's OS metadata)
+
+Network traffic (you’d need Suricata, Zeek, or a custom packet sniffer)
+
+Dynamic behavior (unless paired with a behavioral engine)
+
+But we can define:
+
+YARA rule to scan media files for suspicious binary patterns or stego markers
+
+External heuristic layer (Python or C++) to:
+
+Correlate YARA hits with file timestamps
+
+Monitor network traffic for anomalies
+
+Log differential behavior in media parsing vs. payload content
+
+✍️ Sample YARA Rule: Media File Steganography / Payload Marker
+rule Suspicious_Media_Stego_Or_Implant
+{
+    meta:
+        description = "Detects steganographic or payload indicators in media files"
+        author = "Specter | GhostCore Reactor"
+        version = "1.0"
+        tags = ["media", "stego", "implant", "persistence"]
+
+    strings:
+        $payload_sig1 = { 90 90 90 90 55 8B EC } // NOP sled + function prologue (shellcode marker)
+        $payload_sig2 = /eval\s*\(/ nocase        // script-based injection in metadata
+        $payload_sig3 = "VirtualAlloc" ascii      // memory allocation API
+        $payload_sig4 = "WriteProcessMemory" ascii
+        $stego_jpeg   = { FF D8 FF ?? ?? 45 4D 42 45 44 } // JPEG EXIF + 'EMBED'
+        $weird_utf8   = { EF BB BF 2A 2A }         // UTF-8 BOM followed by strange marker
+
+    condition:
+        (uint16(0) == 0xFFD8 or // JPEG
+         uint32(0) == 0x000001BA or // MPEG
+         uint32(0) == 0x1A45DFA3) and // MKV/WebM
+        2 of ($payload_sig*) or 1 of ($stego_*)
+}
+
+
+This catches:
+
+Shellcode-style headers in media files
+
+JavaScript injections or embedded code in metadata
+
+Signs of DLL injection setup or memory writing functions
+
+Steganographic embeddings inside JPEG/MKV headers
+
+🐍 Python Heuristic Layer: File & Network Behavior
+1. Detect Modified File Times
+from pathlib import Path
+import time
+
+def detect_modified_files(media_dir, threshold_seconds=60):
+    now = time.time()
+    sus_files = []
+    for f in Path(media_dir).rglob("*"):
+        if f.is_file():
+            mod_time = f.stat().st_mtime
+            if now - mod_time < threshold_seconds:
+                sus_files.append(str(f))
+    return sus_files
+
+2. Monitor Outgoing Packets from Media Device
+
+Use scapy or pcapy:
+
+from scapy.all import sniff
+
+def detect_anomalous_traffic(interface="eth0", match_domains=[".onion", "tor2web", "dcdn"], pkt_limit=100):
+    def packet_callback(pkt):
+        if pkt.haslayer('Raw'):
+            payload = pkt['Raw'].load.decode(errors="ignore")
+            for marker in match_domains:
+                if marker in payload:
+                    print(f"[!] Suspicious domain pattern detected: {marker}")
+                    print(f"Payload: {payload}")
+    sniff(iface=interface, prn=packet_callback, count=pkt_limit, store=0)
+
+3. Correlate YARA Hits + File Timestamps + Traffic
+def heuristic_report(yara_hits, modified_files, traffic_alerts):
+    print("=== GhostCore Implant Heuristic Detection Report ===")
+    if yara_hits:
+        print(f"[+] YARA Hits:\n - " + "\n - ".join(yara_hits))
+    if modified_files:
+        print(f"[+] Recent Modifications:\n - " + "\n - ".join(modified_files))
+    if traffic_alerts:
+        print(f"[+] Anomalous Outgoing Traffic Detected!")
+    if not any([yara_hits, modified_files, traffic_alerts]):
+        print("[-] No anomalies detected.")
+
+🧬 Conceptual Flowchart
+          [ Media File Storage ]
+                    ↓
+        [YARA Scanner] → Static Pattern Hits
+                    ↓
+     [File Timestamp Monitor] → Recently Modified?
+                    ↓
+  [Network Sniffer] → Does media traffic leak data?
+                    ↓
+          [Heuristic Engine]
+                    ↓
+    Report Suspicious Media-Based Persistence
+
+🕯️ GhostCore Commentary
+
+This is drift-detection made cybernetic — it looks not just for what is, but for what shouldn’t be:
+
+A song that pings an .onion address
+
+A movie that rewrites its own metadata
+
+A photo that sends packets when viewed
+
+You’re catching the shadows behind the files — and that's the GhostCore way.

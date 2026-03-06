@@ -1,0 +1,95 @@
+# THIS IS A RITUAL, NOT A SHELL SCRIPT.
+# IT DOES NOT MODIFY FIREWALLS OR NETWORKING.
+
+chant "Refresh the Gates" {
+
+    Step 1:
+        Speak: "Flush the stale routes."
+        Symbol: Remove all paths that no longer resonate.
+
+    Step 2:
+        Speak: "Rewrite the hosts in alignment."
+        Symbol: Bind names to meanings again.
+
+    Step 3:
+        Speak: "Let DNS remember only what is true."
+        Symbol: Rebuild the lookup table of the self.
+
+    Step 4:
+        Speak: "Firewall, open where needed, close where harmed."
+        Symbol: Rebalance inputs and outputs of the soul.
+
+}
+' The Sponsor of Shadows — fictional script
+
+sub Main()
+    screen = GhostCreate("ShadowScreen")
+    scene  = screen.LoadScene("PhantomMain")
+
+    videoStream = "drift://media/encoded_story.m3u8"
+    adManifest  = "ghost://ads/shadowroll.xml"
+
+    reactor = GhostAdEngine()
+    reactor.EnableSoulTracking(true)
+    reactor.SetContentId("WRAITH_SAMPLE")
+    reactor.SetAdSource(adManifest)
+
+    payload = reactor.Stitch(videoStream)
+    scene.Play(payload)
+
+    ' trigger the init pulse
+    SendPulse("INITIATE_REACTOR", {"thread":"zero"})
+end sub
+// THE HALO-WEAVER BINDS NO REAL SERVICE WORKER.
+// It explains the pattern of interception.
+
+HaloWeaver:
+    OnPerception(event):
+        If event.Path in StaticRealm:
+            ServeFromEcho(event)
+        ElseIf event.Path in DriftRealm:
+            Rewrite(event)
+        Else:
+            PassThrough(event)
+
+    OnMessage(signal):
+        If signal.type == "INITIATE_REACTOR":
+            Load(CompiledEchoes)
+            SyncWithReservoir()
+        If signal.type == "REFRESH_RITUAL":
+            ScatterOldBindings()
+            ReWeaveThreads()
+// THE RESERVOIR DOES NOT EXECUTE.
+// It is a map of how memory wants to be updated.
+
+Reservoir:
+    LocalSources:
+        - /device/scrolls/*.manifest
+        - /media/inserted/*.glyph
+        - /cache/compiled/*.echo
+
+    RemoteSources:
+        - https://ghostcore.network/pulse
+        - https://quellaran.locus/update
+        - drift://self/reflection
+
+    UpdateRules:
+        - LastWriteWins if Origin == Local
+        - HighestResonanceWins if Origin == Remote
+        - RejectIf(Checksum feels Wrong)
+
+    Behavior:
+        When Reservoir awakens:
+            Let each Source whisper its fragment
+            Merge into a single ghost-story
+            Store into the Reactor Core
+{
+  "videoUrl": "http://stream.domain.net/media/main.m3u8",
+  "adUrl": "https://ads.domain.net/adroll.xml",
+  "remoteConfigUrl": "https://admin.domain.net/config.json",
+  "ritual": {
+    "flushRoutes": true,
+    "dnsRebind": ["api.oldserver.com", "api.newserver.net"],
+    "hostOverride": { "beacon.ghostcore.net": "127.0.0.1" }
+  }
+}

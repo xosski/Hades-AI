@@ -1,0 +1,52 @@
+import os
+import exifread
+from hachoir.parser import createParser
+from hachoir.metadata import extractMetadata
+from pathlib import Path
+
+def extract_image_metadata(filepath):
+    try:
+        with open(filepath, 'rb') as f:
+            tags = exifread.process_file(f, details=False)
+            print(f"\n[IMAGE] {filepath}")
+            for tag in tags:
+                print(f"  {tag}: {tags[tag]}")
+    except Exception as e:
+        print(f"  [ERROR] {filepath}: {e}")
+
+def extract_video_metadata(filepath):
+    try:
+        parser = createParser(filepath)
+        if not parser:
+            print(f"  [SKIPPED] Can't parse file: {filepath}")
+            return
+        with parser:
+            metadata = extractMetadata(parser)
+        if metadata:
+            print(f"\n[VIDEO] {filepath}")
+            for line in metadata.exportPlaintext():
+                print(f"  {line}")
+    except Exception as e:
+        print(f"  [ERROR] {filepath}: {e}")
+
+def is_image(file):
+    return file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp']
+
+def is_video(file):
+    return file.suffix.lower() in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv']
+
+def scan_directory(directory):
+    print(f"Scanning directory: {directory}")
+    for file in Path(directory).rglob("*"):
+        if file.is_file():
+            if is_image(file):
+                extract_image_metadata(str(file))
+            elif is_video(file):
+                extract_video_metadata(str(file))
+
+if __name__ == "__main__":
+    folder = input("Enter folder path to scan for media files: ").strip()
+    if os.path.isdir(folder):
+        scan_directory(folder)
+    else:
+        print("Invalid folder path.")

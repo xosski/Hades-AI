@@ -1,0 +1,159 @@
+High‑level assessment
+
+You’re not wrong to be uneasy. This config shows three systemic classes of risk common in very large frontend-heavy platforms:
+
+Over‑trusted client state
+
+Over‑broad allowlists / exclusions
+
+Excessive feature‑flag surface area
+
+None of these automatically mean “exploitable,” but they expand the attack surface and increase the chance of logic flaws.
+
+1. excludedActivityUrls — allowlist risk
+Why this is risky (architecturally)
+
+This list is effectively saying:
+
+“Requests to these domains are excluded from monitoring / interception / activity tracking.”
+
+Problems with this pattern:
+
+Trust is URL‑based, not origin‑verified
+
+Several entries are third‑party CDNs
+
+Some entries are wildcard‑like in behavior (CloudFront, Qualtrics, Salesforce subdomains)
+
+This creates risk of:
+
+Side‑loading if any allowed domain:
+
+Hosts user‑controlled content
+
+Supports redirects
+
+Supports path-based dynamic content
+
+Visibility gaps where security tooling is blind
+
+Defensive red flags
+
+No hash pinning
+
+No strict CSP enforcement shown here
+
+No per‑resource integrity validation in this config
+
+What mature mitigation looks like
+
+Subresource Integrity (SRI) on all remote JS
+
+CSP with script-src hashes, not domain allowlists
+
+Server‑side validation of all sensitive actions (never trust exclusions)
+
+2. Injection susceptibility (logic, not payload)
+
+When you say “highly susceptible to injection”, the real concern isn’t classic XSS, it’s:
+
+State injection
+
+Feature flag manipulation
+
+Client‑side assumption injection
+
+Example pattern seen here:
+
+Feature flags (proctorGroups) are fully enumerated client‑side
+
+Many flags affect authorization‑adjacent behavior
+
+Flags include payloads that alter logic timing, flows, and UI affordances
+
+If any backend endpoint trusts a client‑supplied flag value, you have a logic injection vector, not a code injection one.
+
+This is how modern auth bugs actually happen.
+
+3. passportUser — trust boundary smell (important)
+"passportUser": {
+  "isLoggedIn": true,
+  "isMasquerading": false,
+  "userAccountEmail": "...",
+  "isEmailVerified": true
+}
+
+Key point (very important):
+
+If this object is purely informational, it’s fine.
+
+If any backend behavior is gated by:
+
+isLoggedIn
+
+isMasquerading
+
+isEmailVerified
+
+based on client‑supplied state, that’s a critical auth flaw.
+
+Defensive rule (gold standard)
+
+Client auth state is display‑only
+
+Backend auth state comes only from server‑validated session tokens
+
+Frontend must never be able to assert identity or verification
+
+The fact you noticed this is good instinct — it’s exactly where bugs hide.
+
+4. Feature flag sprawl = attack surface multiplier
+
+You pasted hundreds of flags with:
+
+Mixed USER, ACCOUNT, ADVERTISER, RANDOM
+
+Inconsistent logging
+
+Silent rollouts
+
+Payload‑bearing flags
+
+Why this matters
+
+Every flag is a branch in the codebase.
+Every branch is a potential logic flaw.
+
+At this scale:
+
+QA coverage drops
+
+Combinatorial interactions explode
+
+“Impossible states” become reachable
+
+This is not an exploit by itself — it’s systemic fragility.
+
+What this does not prove
+
+To be clear and responsible:
+
+This does not prove an exploit
+
+This does not imply user impersonation is possible
+
+This does not mean injection is currently achievable
+
+It means:
+
+“The design relies heavily on client trust and complexity, which historically correlates with auth and logic bugs.”
+
+That’s a risk assessment, not an accusation.
+
+How I’d frame this professionally (if you’re documenting)
+
+If you’re writing this up, I’d phrase it as:
+
+“Client-side configuration reveals extensive trust in frontend state, broad third‑party exclusions, and a large feature-flag surface. While not inherently vulnerable, these patterns increase the likelihood of authorization logic flaws, monitoring blind spots, and state desynchronization bugs if not rigorously server‑validated.”
+
+That language is accurate, fair, and defensible.

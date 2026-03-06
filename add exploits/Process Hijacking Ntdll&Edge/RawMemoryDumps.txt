@@ -1,0 +1,156 @@
+00007FFE39E42D66 | 78 24                    | js ntdll.7FFE39E42D8C                   |
+00007FFE39E42D68 | F743 68 00800000         | test dword ptr ds:[rbx+68],8000         | rbx+68:L"lient"
+00007FFE39E42D6F | 75 0A                    | jne ntdll.7FFE39E42D7B                  |
+00007FFE39E42D71 | 4C:8B16                  | mov r10,qword ptr ds:[rsi]              | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFE39E42D74 | 4D:8B5A 30               | mov r11,qword ptr ds:[r10+30]           |
+00007FFE39E42D78 | 4D:891E                  | mov qword ptr ds:[r14],r11              |
+00007FFE39E42D7B | 4C:8B06                  | mov r8,qword ptr ds:[rsi]               | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFE39E42D7E | 4D:8BCD                  | mov r9,r13                              |
+00007FFE39E42D81 | 49:8BD4                  | mov rdx,r12                             |
+00007FFE39E42D84 | 48:8BCB                  | mov rcx,rbx                             | rcx:ZwQueryInformationThread+14, rbx:"LdrpInitializeProcess"
+00007FFE39E42D87 | E8 54000000              | call ntdll.7FFE39E42DE0                 |
+00007FFE39E42D8C | 48:8D4C24 40             | lea rcx,qword ptr ss:[rsp+40]           | rcx:ZwQueryInformationThread+14, [rsp+40]:"p\n"
+00007FFE39E42D91 | E8 1A50FCFF              | call ntdll.7FFE39E07DB0                 |
+00007FFE39E42D96 | 8BC7                     | mov eax,edi                             |
+00007FFE39E42D98 | 48:8BBC24 28010000       | mov rdi,qword ptr ss:[rsp+128]          | [rsp+128]:L"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\139.0.3405.111\\DLLLoader64_4429.exe"
+00007FFE39E42DA0 | 48:8B8C24 C0000000       | mov rcx,qword ptr ss:[rsp+C0]           | rcx:ZwQueryInformationThread+14
+00007FFE39E42DA8 | 48:33CC                  | xor rcx,rsp                             | rcx:ZwQueryInformationThread+14
+-----------------------------------------------------------------------------------------------------------------------
+00007FFE39F24260 | 48:895424 10             | mov qword ptr ss:[rsp+10],rdx           |
+00007FFE39F24265 | 48:894C24 08             | mov qword ptr ss:[rsp+8],rcx            | [rsp+08]:RtlQueryElevationFlags+241, rcx:ZwQueryInformationThread+14
+00007FFE39F2426A | 53                       | push rbx                                | rbx:"LdrpInitializeProcess"
+00007FFE39F2426B | 56                       | push rsi                                | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFE39F2426C | 57                       | push rdi                                |
+00007FFE39F2426D | 41:54                    | push r12                                |
+00007FFE39F2426F | 41:55                    | push r13                                |
+00007FFE39F24271 | 41:56                    | push r14                                |
+00007FFE39F24273 | 41:57                    | push r15                                |
+00007FFE39F24275 | 48:83EC 40               | sub rsp,40                              |
+00007FFE39F24279 | 4C:8BEA                  | mov r13,rdx                             |
+00007FFE39F2427C | 4C:8BF1                  | mov r14,rcx                             | rcx:ZwQueryInformationThread+14
+00007FFE39F2427F | 33FF                     | xor edi,edi                             |
+00007FFE39F24281 | 6548:8B0425 60000000     | mov rax,qword ptr gs:[60]               |
+00007FFE39F2428A | 4C:8B78 20               | mov r15,qword ptr ds:[rax+20]           |
+00007FFE39F2428E | 4D:85FF                  | test r15,r15                            |
+00007FFE39F24291 | 74 06                    | je ntdll.7FFE39F24299                   |
+00007FFE39F24293 | 4D:8B7F 78               | mov r15,qword ptr ds:[r15+78]           |
+00007FFE39F24297 | EB 07                    | jmp ntdll.7FFE39F242A0                  |
+00007FFE39F24299 | 4C:8D3D 88870600         | lea r15,qword ptr ds:[7FFE39F8CA28]     | 00007FFE39F8CA28:L"<unknown>"
+00007FFE39F242A0 | 4C:89BC24 98000000       | mov qword ptr ss:[rsp+98],r15           |
+00007FFE39F242A8 | E8 6B47FDFF              | call ntdll.7FFE39EF8A18                 |
+00007FFE39F242AD | 84C0                     | test al,al                              |
+00007FFE39F242AF | 0F84 3C030000            | je ntdll.7FFE39F245F1                   |
+00007FFE39F242B5 | 4C:8B21                  | mov r12,qword ptr ds:[rcx]              | rcx:ZwQueryInformationThread+14
+00007FFE39F242B8 | 41:813C24 050000C0       | cmp dword ptr ds:[r12],C0000005         |
+00007FFE39F242C0 | 0F84 3C020000            | je ntdll.7FFE39F24502                   |
+00007FFE39F242C6 | 41:813C24 060000C0       | cmp dword ptr ds:[r12],C0000006         |
+00007FFE39F242CE | 0F84 8F010000            | je ntdll.7FFE39F24463                   |
+00007FFE39F242D4 | 41:813C24 940100C0       | cmp dword ptr ds:[r12],C0000194         |
+00007FFE39F242DC | 74 74                    | je ntdll.7FFE39F24352                   |
+00007FFE39F242DE | BB 65000000              | mov ebx,65                              | 65:'e'
+00007FFE39F242E3 | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F242E5 | 41:813C24 090400C0       | cmp dword ptr ds:[r12],C0000409         |
+00007FFE39F242ED | 74 21                    | je ntdll.7FFE39F24310                   |
+00007FFE39F242EF | 48:895424 28             | mov qword ptr ss:[rsp+28],rdx           |
+00007FFE39F242F4 | 4C:897C24 20             | mov qword ptr ss:[rsp+20],r15           |
+00007FFE39F242F9 | 45:8B0C24                | mov r9d,dword ptr ds:[r12]              |
+00007FFE39F242FD | 4C:8D05 7C340700         | lea r8,qword ptr ds:[7FFE39F97780]      | 00007FFE39F97780:"\n\n *** Unhandled exception 0x%08lx, hit in %ws:%s\n\n"
+00007FFE39F24304 | 33D2                     | xor edx,edx                             |
+00007FFE39F24306 | E8 B571F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F2430B | E9 6D020000              | jmp ntdll.7FFE39F2457D                  |
+00007FFE39F24310 | 48:895424 20             | mov qword ptr ss:[rsp+20],rdx           |
+00007FFE39F24315 | 4D:8BCF                  | mov r9,r15                              |
+00007FFE39F24318 | 4C:8D05 29330700         | lea r8,qword ptr ds:[7FFE39F97648]      | 00007FFE39F97648:"\n\n *** A stack buffer overrun occurred in %ws:%s\n\n"
+00007FFE39F2431F | 33D2                     | xor edx,edx                             |
+00007FFE39F24321 | E8 9A71F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F24326 | 4C:8D05 D3330700         | lea r8,qword ptr ds:[7FFE39F97700]      | 00007FFE39F97700:"This is usually the result of a memory copy to a local buffer or structure where the size is not properly calculated/checked.\n"
+00007FFE39F2432D | 33D2                     | xor edx,edx                             |
+00007FFE39F2432F | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F24331 | E8 8A71F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F24336 | 4C:8D05 63330700         | lea r8,qword ptr ds:[7FFE39F976A0]      | 00007FFE39F976A0:"If this bug ends up in the shipping product, it could be a severe security hole.\n"
+00007FFE39F2433D | 33D2                     | xor edx,edx                             |
+00007FFE39F2433F | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F24341 | E8 7A71F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F24346 | 4C:8D05 73340700         | lea r8,qword ptr ds:[7FFE39F977C0]      | 00007FFE39F977C0:"The stack trace should show the guilty function (the function directly above __report_gsfailure).\n"
+00007FFE39F2434D | E9 22020000              | jmp ntdll.7FFE39F24574                  |
+00007FFE39F24352 | 4D:8B6424 20             | mov r12,qword ptr ds:[r12+20]           |
+00007FFE39F24357 | 4D:85E4                  | test r12,r12                            |
+00007FFE39F2435A | 0F84 F9000000            | je ntdll.7FFE39F24459                   |
+00007FFE39F24360 | 49:8B0424                | mov rax,qword ptr ds:[r12]              |
+00007FFE39F24364 | 48:894424 30             | mov qword ptr ss:[rsp+30],rax           |
+00007FFE39F24369 | BE 01000000              | mov esi,1                               |
+00007FFE39F2436E | 48:85C0                  | test rax,rax                            |
+00007FFE39F24371 | 74 69                    | je ntdll.7FFE39F243DC                   |
+00007FFE39F24373 | 66:3930                  | cmp word ptr ds:[rax],si                |
+00007FFE39F24376 | 75 64                    | jne ntdll.7FFE39F243DC                  |
+00007FFE39F24378 | 48:895424 28             | mov qword ptr ss:[rsp+28],rdx           |
+00007FFE39F2437D | 4C:897C24 20             | mov qword ptr ss:[rsp+20],r15           |
+00007FFE39F24382 | 4D:8BCC                  | mov r9,r12                              |
+00007FFE39F24385 | 4C:8D05 7C2E0700         | lea r8,qword ptr ds:[7FFE39F97208]      | 00007FFE39F97208:"\n\n *** Resource timeout (%p) in %ws:%s\n\n"
+00007FFE39F2438C | 33D2                     | xor edx,edx                             |
+00007FFE39F2438E | 8D5E 64                  | lea ebx,qword ptr ds:[rsi+64]           | rsi+64:"pphelpCheckModule"
+00007FFE39F24391 | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F24393 | E8 2871F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F24398 | 45:8B4C24 44             | mov r9d,dword ptr ds:[r12+44]           |
+00007FFE39F2439D | 44:898C24 90000000       | mov dword ptr ss:[rsp+90],r9d           |
+00007FFE39F243A5 | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F243A7 | 45:85C9                  | test r9d,r9d                            |
+00007FFE39F243AA | 79 15                    | jns ntdll.7FFE39F243C1                  |
+00007FFE39F243AC | 4D:8B4C24 48             | mov r9,qword ptr ds:[r12+48]            |
+00007FFE39F243B1 | 4C:8D05 B02E0700         | lea r8,qword ptr ds:[7FFE39F97268]      | 00007FFE39F97268:"The resource is owned exclusively by thread %p\n"
+00007FFE39F243B8 | 33D2                     | xor edx,edx                             |
+00007FFE39F243BA | E8 0171F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F243BF | EB 6E                    | jmp ntdll.7FFE39F2442F                  |
+00007FFE39F243C1 | 7E 10                    | jle ntdll.7FFE39F243D3                  |
+00007FFE39F243C3 | 4C:8D05 6E2E0700         | lea r8,qword ptr ds:[7FFE39F97238]      | 00007FFE39F97238:"The resource is owned shared by %d threads\n"
+00007FFE39F243CA | 33D2                     | xor edx,edx                             |
+00007FFE39F243CC | E8 EF70F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F243D1 | EB 5C                    | jmp ntdll.7FFE39F2442F                  |
+00007FFE39F243D3 | 4C:8D05 F62E0700         | lea r8,qword ptr ds:[7FFE39F972D0]      | 00007FFE39F972D0:"The resource is unowned.  This usually implies a slow-moving machine due to memory pressure\n\n"
+00007FFE39F243DA | EB 4C                    | jmp ntdll.7FFE39F24428                  |
+00007FFE39F243DC | 48:895424 28             | mov qword ptr ss:[rsp+28],rdx           |
+00007FFE39F243E1 | 4C:897C24 20             | mov qword ptr ss:[rsp+20],r15           |
+00007FFE39F243E6 | 4D:8BCC                  | mov r9,r12                              |
+00007FFE39F243E9 | 4C:8D05 A82E0700         | lea r8,qword ptr ds:[7FFE39F97298]      | 00007FFE39F97298:"\n\n *** Critical Section Timeout (%p) in %ws:%s\n\n"
+00007FFE39F243F0 | 33D2                     | xor edx,edx                             |
+00007FFE39F243F2 | 8D5A 65                  | lea ebx,qword ptr ds:[rdx+65]           |
+00007FFE39F243F5 | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F243F7 | E8 C470F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F243FC | 4D:8B4C24 10             | mov r9,qword ptr ds:[r12+10]            |
+00007FFE39F24401 | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F24403 | 4D:85C9                  | test r9,r9                              |
+00007FFE39F24406 | 74 19                    | je ntdll.7FFE39F24421                   |
+00007FFE39F24408 | 4C:8D05 692F0700         | lea r8,qword ptr ds:[7FFE39F97378]      | 00007FFE39F97378:"The critical section is owned by thread %p.\n"
+00007FFE39F2440F | 33D2                     | xor edx,edx                             |
+00007FFE39F24411 | E8 AA70F3FF              | call <ntdll.DbgPrintEx>                 |
+00007FFE39F24416 | 4C:8D05 132F0700         | lea r8,qword ptr ds:[7FFE39F97330]      | 00007FFE39F97330:"Go determine why that thread has not released the critical section.\n\n"
+00007FFE39F2441D | 8BCB                     | mov ecx,ebx                             |
+00007FFE39F2441F | EB 07                    | jmp ntdll.7FFE39F24428                  |
+00007FFE39F24421 | 4C:8D05 A82F0700         | lea r8,qword ptr ds:[7FFE39F973D0]      | 00007FFE39F973D0:"The critical section is unowned.  This usually implies a slow-moving machine due to memory pressure\n\n"
+00007FFE39F24428 | 33D2                     | xor edx,edx                             |
+00007FFE39F2442A | E8 9170F3FF              | call <ntdll.DbgPrintEx>                 |
+-----------------------------------------------------------------------------------
+00007FFE39E43DF2 | 75 1E                    | jne ntdll.7FFE39E43E12
+00007FFE39E43DF4 | B8 17010000              | mov eax,117
+00007FFE39E43DF9 | 48:8B4C24 58             | mov rcx,qword ptr ss:[rsp+58]    ; rcx = return addr/arg
+00007FFE39E43DFE | 48:33CC                  | xor rcx,rsp                      ; rcx scrambled with stack ptr
+00007FFE39E43E01 | E8 CA271200              | call ntdll.7FFE39F665D0
+00007FFE39E43E06 | 48:8B5C24 78             | mov rbx,qword ptr ss:[rsp+78]
+00007FFE39E43E0B | 48:83C4 60               | add rsp,60
+00007FFE39E43E0F | 5F                       | pop rdi
+00007FFE39E43E10 | C3                       | ret
+00007FFE39E43E11 | CC                       | int3
+00007FFE39E42D66 | 78 24        | js ntdll.7FFE39E42D8C
+00007FFE39E42D68 | F743 68 0080 | test dword ptr [rbx+68],8000    ; flags
+00007FFE39E42D6F | 75 0A        | jne ntdll.7FFE39E42D7B
+00007FFE39E42D71 | 4C:8B16      | mov r10,qword ptr [rsi]         ; rsi -> "minkernel\\ldr\\ldrinit.c"
+00007FFE39E42D74 | 4D:8B5A 30   | mov r11,qword ptr [r10+30]
+00007FFE39E42D78 | 4D:891E      | mov qword ptr [r14],r11
+00007FFE39E42D7B | 4C:8B06      | mov r8,qword ptr [rsi]          ; again rsi -> "ldrinit.c"
+00007FFE39E42D81 | 49:8BD4      | mov rdx,r12
+00007FFE39E42D84 | 48:8BCB      | mov rcx,rbx                     ; rcx -> "LdrpInitializeProcess"
+00007FFE39E42D87 | E8 54000000  | call ntdll.7FFE39E42DE0         ; Ldrp init
+...
+00007FFE39E42D98 | mov rdi,[rsp+128] ; "DLLLoader64_4429.exe"
+00007FFE39E42DA0 | mov rcx,[rsp+C0]
+00007FFE39E42DA8 | xor rcx,rsp

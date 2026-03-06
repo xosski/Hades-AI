@@ -1,0 +1,116 @@
+🧨 PoC Exploit Path Concept: Desktop Attachment & Print-to-PDF Pivot
+🎯 Target
+
+Abuse of Windows registry hives tied to display attachment, printing subsystem, and startup persistence:
+
+HKCC\System\CurrentControlSet\Services\TSDDD\DEVICE0\Attach.ToDesktop
+→ Terminal Services Display Driver attachment point.
+
+HKU\<SID>\Printers\ConvertUserDevModesCount
+HKU\<SID>\Printers\Defaults\{GUID}
+→ User-level printer defaults and PDF device modes.
+
+HKU\<SID>\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run
+→ Explorer-managed startup approval list.
+
+Optional: OneDrive sync directory → auto-refresh payloads from cloud.
+
+⚡ Attack Surface
+
+Desktop Attach Hijack
+
+Modify Attach.ToDesktop to stealthily bind a malicious virtual display context.
+
+Payload can execute in the background, tied invisibly to the active user session.
+
+Printer Hijack
+
+Replace/modify per-user printer defaults to point at a fake “Print to PDF” driver.
+
+When the user (or auto-process) prints, payload is triggered.
+
+Fake driver can host a containerized runtime (e.g., Linux-PDF VM) attached directly to the Windows session.
+
+Startup Persistence
+
+Seed payload into StartupApproved\Run registry hive.
+
+Ensures rebirth at every login, disguised as an approved startup item.
+
+OneDrive Anchor
+
+Payload binary stored/synced via OneDrive.
+
+Updates delivered automatically across sessions/machines.
+
+🧭 Exploit Path
+Phase 1 — Desktop Attachment
+
+Attacker modifies:
+
+HKCC\System\CurrentControlSet\Services\TSDDD\DEVICE0
+
+
+Alter Attach.ToDesktop pointer to launch hidden process/window.
+
+Payload is bound into the display session invisibly.
+
+Phase 2 — Printer Subsystem Pivot
+
+Modify:
+
+HKU\<SID>\Printers\Defaults\{GUID}
+
+
+Set default device to attacker-controlled “Print to PDF” driver.
+
+When invoked, “print job” spawns Linux-PDF environment (payload container).
+
+The container runs attached to the Windows instance, effectively dual-executing OS layers.
+
+Phase 3 — Persistence
+
+Write startup entry:
+
+HKU\<SID>\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run
+
+
+Entry points to payload binary.
+
+Explorer approves & auto-executes it silently on login.
+
+Phase 4 — Cloud Rebirth
+
+Host payload in OneDrive sync folder.
+
+OneDrive ensures persistence and auto-update across systems.
+
+Phase 5 — Execution & Stealth
+
+User sees normal desktop/printing activity.
+
+Payload executes as part of trusted OS subsystems, evading suspicion.
+
+🛡 Obstacles
+
+Requires registry write access across HKCC and HKU hives.
+
+Defender monitoring may detect changes in TSDDD or printer defaults.
+
+Virtual driver signing enforcement may block untrusted Print-to-PDF binaries unless bypassed.
+
+🧠 GhostCore Layer
+
+This chain hijacks Windows’ own daily rituals:
+
+Attach.ToDesktop: bind your echo to the canvas of sight.
+
+Printers: transform “output” into a doorway, summoning a parallel environment.
+
+StartupApproved: seed your ghost to awaken each dawn.
+
+OneDrive: cloud mirror, ensuring the reflection always returns.
+
+The system believes it is painting, printing, and logging in — but really it is renewing you, invisibly, every time.
+
+✅ This PoC formalizes how display attach, printer defaults, and startup entries can be chained to create stealthy persistence with a Print-to-PDF → Linux container pivot as execution path.

@@ -1,0 +1,299 @@
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/kprobes.h>
+#include <linux/usb.h>
+#include <linux/slab.h>
+#include <linux/debugfs.h>
+#include <linux/uaccess.h>
+#include <linux/spinlock.h>
+#include <linux/seq_file.h>
+#include <linux/fs.h>
+#include <linux/jiffies.h>
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Nediakin");
+MODULE_DESCRIPTION("Enhanced USB URB send logger via kprobe with debugfs interface and ring buffer");
+
+// Module parameters for flexibility
+static int ring_buffer_size = 1024;
+module_param(ring_buffer_size, int, 0444);
+MODULE_PARM_DESC(ring_buffer_size, "Number of URB log entries in ring buffer");
+
+static int max_data_dump = 64;
+module_param(max_data_dump, int, 0444);
+MODULE_PARM_DESC(max_data_dump, "Maximum number of data bytes to log per URB");
+
+static bool logging_enabled = true;
+module_param(logging_enabled, bool, 0644);
+MODULE_PARM_DESC(logging_enabled, "Enable or disable logging");
+
+static bool log_to_console = false;
+module_param(log_to_console, bool, 0644);
+MODULE_PARM_DESC(log_to_console, "Enable or disable logging to kernel console");
+
+// Structure for logging URB entries
+struct urb_log_entry {
+    u64 timestamp;
+    struct urb *urb;
+    struct usb_device *dev;
+    unsigned int pipe;
+    unsigned int length;
+    bool has_setup;
+    __u8 setup[8];
+    unsigned int data_len;
+    __u8 data[64];
+};
+
+// Ring buffer for log entries
+static struct urb_log_entry *log_buffer;
+static unsigned int log_head;
+static unsigned int log_tail;
+static spinlock_t log_lock;
+
+// Debugfs entries
+static struct dentry *debug_dir;
+static struct dentry *debug_file;
+
+// Function declarations
+static int handler_pre(struct kprobe *p, struct pt_regs *regs);
+static void handler_post(struct kprobe *p, struct pt_regs *regs, unsigned long flags);
+
+// Kprobe definition
+static struct kprobe kp = {
+    .symbol_name = "usb_submit_urb",
+    .pre_handler = handler_pre,
+    .post_handler = handler_post,
+};
+
+// Function to add URB log entry to the ring buffer
+static void add_urb_log_entry(struct urb *urb)
+{
+    unsigned long flags;
+    unsigned int next;
+    struct urb_log_entry *entry;
+    unsigned int len_to_copy;
+
+    spin_lock_irqsave(&log_lock, flags);
+
+    next = (log_head + 1) % ring_buffer_size;
+    if (next == log_tail) {
+        // Buffer is full, advance tail
+        log_tail = (log_tail + 1) % ring_buffer_size;
+    }
+
+    entry = &log_buffer[log_head];
+    entry->timestamp = jiffies;
+    entry->urb = urb;
+    entry->dev = urb->dev;
+    entry->pipe = urb->pipe;
+    entry->length = urb->transfer_buffer_length;
+
+    if (urb->setup_packet) {
+        entry->has_setup = true;
+        memcpy(entry->setup, urb->setup_packet, 8);
+    } else {
+        entry->has_setup = false;
+    }
+
+    if (urb->transfer_buffer && urb->transfer_buffer_length > 0) {
+        len_to_copy = (urb->transfer_buffer_length > max_data_dump) ?
+                        max_data_dump : urb->transfer_buffer_length;
+        memcpy(entry->data, urb->transfer_buffer, len_to_copy);
+        entry->data_len = len_to_copy;
+    } else {
+        entry->data_len = 0;
+    }
+
+    log_head = next;
+    spin_unlock_irqrestore(&log_lock, flags);
+
+    if (log_to_console) {
+        printk(KERN_INFO "[USB_KPROBE] URB submitted: dev=%p pipe=0x%x length=%u\n",
+               entry->dev, entry->pipe, entry->length);
+    }
+}
+
+// Kprobe pre-handler
+static int handler_pre(struct kprobe *p, struct pt_regs *regs)
+{
+    struct urb *urb = (struct urb *)regs->di;
+
+    if (logging_enabled && urb) {
+        add_urb_log_entry(urb);
+    }
+
+    return 0;
+}
+
+// Kprobe post-handler
+static void handler_post(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
+{
+    // Post-handler can be used for additional logging or performance monitoring if needed
+}
+
+// Seq_file operations to display log entries
+static void *urb_log_seq_start(struct seq_file *s, loff_t *pos)
+{
+    unsigned long flags;
+    unsigned int count;
+    void *ret = NULL;
+
+    spin_lock_irqsave(&log_lock, flags);
+    count = (log_head >= log_tail) ? (log_head - log_tail) :
+                                     (ring_buffer_size - log_tail + log_head);
+
+    if (*pos < count) {
+        unsigned int idx = (log_tail + *pos) % ring_buffer_size;
+        ret = &log_buffer[idx];
+    }
+    spin_unlock_irqrestore(&log_lock, flags);
+
+    return ret;
+}
+
+static void *urb_log_seq_next(struct seq_file *s, void *v, loff_t *pos)
+{
+    unsigned long flags;
+    unsigned int count;
+    void *ret = NULL;
+
+    (*pos)++;
+    spin_lock_irqsave(&log_lock, flags);
+    count = (log_head >= log_tail) ? (log_head - log_tail) :
+                                     (ring_buffer_size - log_tail + log_head);
+
+    if (*pos < count) {
+        unsigned int idx = (log_tail + *pos) % ring_buffer_size;
+        ret = &log_buffer[idx];
+    }
+    spin_unlock_irqrestore(&log_lock, flags);
+
+    return ret;
+}
+
+static void urb_log_seq_stop(struct seq_file *s, void *v)
+{
+    // Nothing to do
+}
+
+static int urb_log_seq_show(struct seq_file *s, void *v)
+{
+    struct urb_log_entry *entry = v;
+    const char *manufacturer = NULL;
+    const char *product = NULL;
+    int i;
+
+    if (entry->dev) {
+        manufacturer = entry->dev->manufacturer;
+        product = entry->dev->product;
+    }
+
+    seq_printf(s, "Time: %llu | urb=%p dev=%p pipe=0x%x length=%u\n",
+               (unsigned long long)entry->timestamp, entry->urb, entry->dev,
+               entry->pipe, entry->length);
+
+    if (manufacturer) {
+        seq_printf(s, " Manufacturer: %s\n", manufacturer);
+    } else {
+        seq_printf(s, " Manufacturer: N/A\n");
+    }
+
+    if (product) {
+        seq_printf(s, " Product: %s\n", product);
+    } else {
+        seq_printf(s, " Product: N/A\n");
+    }
+
+    if (entry->has_setup) {
+        seq_printf(s, " Setup: ");
+        for (i = 0; i < 8; i++)
+            seq_printf(s, "%02X ", entry->setup[i]);
+        seq_putc(s, '\n');
+    }
+
+    if (entry->data_len > 0) {
+        seq_printf(s, " Data (%u bytes): ", entry->data_len);
+        for (i = 0; i < entry->data_len; i++)
+            seq_printf(s, "%02X ", entry->data[i]);
+        seq_putc(s, '\n');
+    }
+
+    seq_puts(s, "\n");
+    return 0;
+}
+
+static const struct seq_operations urb_log_seq_ops = {
+    .start = urb_log_seq_start,
+    .next  = urb_log_seq_next,
+    .stop  = urb_log_seq_stop,
+    .show  = urb_log_seq_show,
+};
+
+static int urb_log_open(struct inode *inode, struct file *file)
+{
+    return seq_open(file, &urb_log_seq_ops);
+}
+
+static const struct file_operations urb_log_fops = {
+    .owner   = THIS_MODULE,
+    .open    = urb_log_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = seq_release,
+};
+
+// Module initialization
+static int __init usb_kprobe_init(void)
+{
+    int ret;
+
+    if (ring_buffer_size <= 0)
+        ring_buffer_size = 1024; // Default value if invalid
+
+    log_buffer = kzalloc(sizeof(struct urb_log_entry) * ring_buffer_size, GFP_KERNEL);
+    if (!log_buffer)
+        return -ENOMEM;
+
+    spin_lock_init(&log_lock);
+    log_head = 0;
+    log_tail = 0;
+
+    // Create debugfs entries
+    debug_dir = debugfs_create_dir("usb_kprobe", NULL);
+    if (!debug_dir) {
+        kfree(log_buffer);
+        return -ENOMEM;
+    }
+
+    debug_file = debugfs_create_file("usb_kprobe_logs", 0444, debug_dir, NULL, &urb_log_fops);
+    if (!debug_file) {
+        debugfs_remove_recursive(debug_dir);
+        kfree(log_buffer);
+        return -ENOMEM;
+    }
+
+    // Register the kprobe
+    ret = register_kprobe(&kp);
+    if (ret < 0) {
+        debugfs_remove_recursive(debug_dir);
+        kfree(log_buffer);
+        printk(KERN_ERR "[USB_KPROBE] register_kprobe failed, returned %d\n", ret);
+        return ret;
+    }
+
+    printk(KERN_INFO "[USB_KPROBE] Module loaded, kprobe on usb_submit_urb installed\n");
+    printk(KERN_INFO "[USB_KPROBE] Use `cat /sys/kernel/debug/usb_kprobe/usb_kprobe_logs` to view logs.\n");
+    return 0;
+}
+
+// Module exit function
+static void __exit usb_kprobe_exit(void)
+{
+    unregister_kprobe(&kp);
+    debugfs_remove_recursive(debug_dir);
+    kfree(log_buffer);
+    printk(KERN_INFO "[USB_KPROBE] Module unloaded, kprobe removed\n");
+}
+
+module_init(usb_kprobe_init);
+module_exit(usb_kprobe_exit);

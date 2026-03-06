@@ -1,0 +1,11 @@
+00007FF92BA65560 | 803D A91C0C00 00              | cmp byte ptr ds:[7FF92BB27210],0        |
+00007FF92BA65567 | 75 06                         | jne ntdll.7FF92BA6556F                  |
+00007FF92BA65569 | B8 0D0000C0                   | mov eax,C000000D                        |
+00007FF92BA6556E | C3                            | ret                                     |
+00007FF92BA6556F | 48:8D05 7AFC0400              | lea rax,qword ptr ds:[7FF92BAB51F0]     |
+00007FF92BA65576 | 48:8901                       | mov qword ptr ds:[rcx],rax              | rcx:ZwQueryInformationThread+14
+00007FF92BA65579 | 48:8D05 30FD0400              | lea rax,qword ptr ds:[7FF92BAB52B0]     |
+00007FF92BA65580 | 48:8902                       | mov qword ptr ds:[rdx],rax              |
+00007FF92BA65583 | 48:8D05 E6FD0400              | lea rax,qword ptr ds:[7FF92BAB5370]     |
+00007FF92BA6558A | 49:8900                       | mov qword ptr ds:[r8],rax               | [r8]:RtlGetReturnAddressHijackTarget+73E
+00007FF92BA6558D | 33C0                          | xor eax,eax                             |

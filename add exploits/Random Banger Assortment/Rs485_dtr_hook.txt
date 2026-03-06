@@ -1,0 +1,194 @@
+#include <asm/io.h>
+#include <linux/kprobes.h>
+#include <linux/slab.h>
+#include <linux/tty.h>
+#include <linux/workqueue.h>
+
+#define MODULE_NAME "rs485_dtr_hook"
+#define LOG_PREFIX MODULE_NAME ": "
+
+MODULE_DESCRIPTION("This module manages the RS-485 interface on reComputer R1000 by hooking uart_write function.");
+MODULE_AUTHOR("Joshua Lee <chengxun.li@seeed.cc>");
+MODULE_LICENSE("Dual MIT/GPL");
+MODULE_VERSION("0.0.1");
+
+#define BCM2711_GPIO_BASE (0xfe000000 + 0x200000)
+
+volatile unsigned int* GPFSEL0;                  // Function selector for GPIO 0-9, for CM4_RS485_1_DTR at GPIO_6.
+volatile unsigned int* GPFSEL1;                  // Function selector for GPIO 10-19, for CM4_RS485_2_DTR at GPIO_17.
+volatile unsigned int* GPFSEL2;                  // Function selector for GPIO 20-29, for CM4_RS485_3_DTR at GPIO_24.
+volatile unsigned int* GPSET0;                   // Register to set GPIO 0-31 to high.
+volatile unsigned int* GPCLR0;                   // Register to set GPIO 0-31 to low.
+volatile unsigned int* GPIO_PUP_PDN_CNTRL_REG0;  // Register to set pull up/down control of GPIO 0-15.
+volatile unsigned int* GPIO_PUP_PDN_CNTRL_REG1;  // Register to set pull up/down control of GPIO 16-31.
+
+static void rs485_dtr_init(void) {
+    // Re-map GPIO registers, offsets are given in the datasheet
+    GPFSEL0 = ioremap(BCM2711_GPIO_BASE + 0x00, 4);
+    GPFSEL1 = ioremap(BCM2711_GPIO_BASE + 0x04, 4);
+    GPFSEL2 = ioremap(BCM2711_GPIO_BASE + 0x08, 4);
+    GPSET0  = ioremap(BCM2711_GPIO_BASE + 0x1c, 4);
+    GPCLR0  = ioremap(BCM2711_GPIO_BASE + 0x28, 4);
+    GPIO_PUP_PDN_CNTRL_REG0 = ioremap(BCM2711_GPIO_BASE + 0xe4, 4);
+    GPIO_PUP_PDN_CNTRL_REG1 = ioremap(BCM2711_GPIO_BASE + 0xe8, 4);
+
+    if (!GPFSEL0 || !GPFSEL1 || !GPFSEL2 || !GPSET0 || !GPCLR0 || 
+        !GPIO_PUP_PDN_CNTRL_REG0 || !GPIO_PUP_PDN_CNTRL_REG1) {
+        pr_err(LOG_PREFIX "Failed to remap GPIO registers\n");
+        return;
+    }
+
+    // Initialize GPIO pins for RS-485 DTR signals
+    *GPFSEL0 &= ~(7 << 18); *GPFSEL0 |= (1 << 18);  // Set GPIO_6 to output (RS485_1)
+    *GPFSEL1 &= ~(7 << 21); *GPFSEL1 |= (1 << 21);  // Set GPIO_17 to output (RS485_2)
+    *GPFSEL2 &= ~(7 << 12); *GPFSEL2 |= (1 << 12);  // Set GPIO_24 to output (RS485_3)
+    
+    *GPIO_PUP_PDN_CNTRL_REG0 &= ~(3 << 12); *GPIO_PUP_PDN_CNTRL_REG0 |= (0 << 12); // No pull-up/down for GPIO_6
+    *GPIO_PUP_PDN_CNTRL_REG1 &= ~(3 << 2);  *GPIO_PUP_PDN_CNTRL_REG1 |= (0 << 2);  // No pull-up/down for GPIO_17
+    *GPIO_PUP_PDN_CNTRL_REG1 &= ~(3 << 16); *GPIO_PUP_PDN_CNTRL_REG1 |= (0 << 16); // No pull-up/down for GPIO_24
+
+    // Initialize all DTR pins to low
+    *GPCLR0 = (1 << 6) | (1 << 17) | (1 << 24);
+}
+
+static void rs485_dtr_deinit(void) {
+    // Set all DTR pins to low
+    *GPCLR0 = (1 << 6) | (1 << 17) | (1 << 24);
+
+    // Unmap GPIO registers
+    iounmap(GPFSEL0);
+    iounmap(GPFSEL1);
+    iounmap(GPFSEL2);
+    iounmap(GPSET0);
+    iounmap(GPCLR0);
+    iounmap(GPIO_PUP_PDN_CNTRL_REG0);
+    iounmap(GPIO_PUP_PDN_CNTRL_REG1);
+}
+
+static void rs485_dtr_set(int dev_num, bool enable) {
+    // Set corresponding GPIO DTR pin for given tty device number
+    switch (dev_num) {
+        case 2:  *GPSET0 = enable ? (1 << 6) : (1 << 6); break;
+        case 3:  *GPSET0 = enable ? (1 << 17) : (1 << 17); break;
+        case 5:  *GPSET0 = enable ? (1 << 24) : (1 << 24); break;
+    }
+}
+
+static int rs485_get_dev_num(struct tty_struct* tty) {
+    if (tty->index == 2 || tty->index == 3 || tty->index == 5) {
+        return tty->index;
+    }
+    return -EINVAL;
+}
+
+static bool rs485_filter_driver(struct tty_struct* tty) {
+    return strcmp(tty->driver->name, "ttyAMA") == 0;
+}
+
+struct rs485_worker_t {
+    struct work_struct work;
+    struct tty_struct* tty;
+    int dev_num;
+};
+
+static struct workqueue_struct* rs485_worker_queues[3];  // Queues for 3 ttyAMA devices
+
+static void hook_uart_write_oncomplete(struct work_struct* work) {
+    struct rs485_worker_t* rs485_worker = container_of(work, struct rs485_worker_t, work);
+
+    // Wait until data is sent, then set DTR to low
+    while (rs485_worker->tty->ops->write_room(rs485_worker->tty) == 0) {
+        cpu_relax();
+    }
+    rs485_dtr_set(rs485_worker->dev_num, false);
+    kfree(rs485_worker);
+}
+
+static void hook_uart_write_onreturn(struct kprobe* p, struct pt_regs* regs, unsigned long flags) {
+    struct tty_struct* tty = (struct tty_struct*)regs->regs[0];
+    if (rs485_filter_driver(tty)) {
+        int dev_num = rs485_get_dev_num(tty);
+        if (dev_num != -EINVAL) {
+            struct rs485_worker_t* rs485_worker = kmalloc(sizeof(*rs485_worker), GFP_KERNEL);
+            if (rs485_worker) {
+                rs485_worker->tty = tty;
+                rs485_worker->dev_num = dev_num;
+                INIT_WORK(&rs485_worker->work, hook_uart_write_oncomplete);
+                int queue_index = (dev_num == 2) ? 0 : (dev_num == 3) ? 1 : 2;
+                queue_work(rs485_worker_queues[queue_index], &rs485_worker->work);
+            } else {
+                pr_err(LOG_PREFIX "Failed to allocate memory for RS-485 worker\n");
+            }
+        }
+    }
+}
+
+static int hook_uart_write_onstart(struct kprobe* p, struct pt_regs* regs) {
+    struct tty_struct* tty = (struct tty_struct*)regs->regs[0];
+    if (rs485_filter_driver(tty)) {
+        int dev_num = rs485_get_dev_num(tty);
+        rs485_dtr_set(dev_num, true);
+    }
+    return 0;
+}
+
+static unsigned long get_fn_addr(const char* symbol_name) {
+    struct kprobe temp_kp = {.symbol_name = symbol_name};
+    int ret = register_kprobe(&temp_kp);
+    unsigned long fn_addr = (unsigned long)temp_kp.addr;
+
+    unregister_kprobe(&temp_kp);
+    if (ret < 0) {
+        return ret;
+    }
+    return fn_addr ? fn_addr : -EFAULT;
+}
+
+struct kprobe hook_uart_write;
+
+static int module_init_fn(void) {
+    rs485_dtr_init();
+
+    rs485_worker_queues[0] = create_singlethread_workqueue(MODULE_NAME "_worker_queue_2");
+    rs485_worker_queues[1] = create_singlethread_workqueue(MODULE_NAME "_worker_queue_3");
+    rs485_worker_queues[2] = create_singlethread_workqueue(MODULE_NAME "_worker_queue_5");
+
+    if (!rs485_worker_queues[0] || !rs485_worker_queues[1] || !rs485_worker_queues[2]) {
+        pr_err(LOG_PREFIX "Failed to create workqueues\n");
+        return -ENOMEM;
+    }
+
+    unsigned long target_fn_addr = get_fn_addr("uart_write");
+    if (target_fn_addr < 0) {
+        pr_err(LOG_PREFIX "Failed to get address for uart_write, returned code: %ld\n", target_fn_addr);
+        return target_fn_addr;
+    }
+
+    hook_uart_write.addr = (kprobe_opcode_t*)target_fn_addr;
+    hook_uart_write.pre_handler = hook_uart_write_onstart;
+    hook_uart_write.post_handler = hook_uart_write_onreturn;
+
+    int ret = register_kprobe(&hook_uart_write);
+    if (ret < 0) {
+        pr_err(LOG_PREFIX "Failed to register kprobe for uart_write, returned code: %d\n", ret);
+        return ret;
+    }
+
+    pr_info(LOG_PREFIX "RS-485 interface has been hooked successfully\n");
+    return 0;
+}
+
+static void module_exit_fn(void) {
+    unregister_kprobe(&hook_uart_write);
+    for (int i = 0; i < sizeof(rs485_worker_queues) / sizeof(rs485_worker_queues[0]); i++) {
+        if (rs485_worker_queues[i]) {
+            destroy_workqueue(rs485_worker_queues[i]);
+        }
+    }
+    rs485_dtr_deinit();
+
+    pr_info(LOG_PREFIX "RS-485 interface has been unhooked successfully\n");
+}
+
+module_init(module_init_fn);
+module_exit(module_exit_fn);

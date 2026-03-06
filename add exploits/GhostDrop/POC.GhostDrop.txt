@@ -1,0 +1,95 @@
+import uuid, datetime, json, random, time
+
+# === Abstracted Cloud + Local Draft Store ===
+class DraftStore:
+    def __init__(self):
+        self.drafts = {}
+
+    def create_draft(self, account_id, subject, body):
+        draft_id = str(uuid.uuid4())
+        self.drafts[draft_id] = {
+            "account": account_id,
+            "subject": subject,
+            "body": body,
+            "last_edited": datetime.datetime.utcnow().isoformat()
+        }
+        print(f"[DraftStore] Created draft for {account_id}: {draft_id}")
+        return draft_id
+
+    def inject_payload(self, draft_id, payload):
+        if draft_id not in self.drafts:
+            print("[DraftStore] Invalid Draft ID.")
+            return
+        ztag = "\u200B<!--ghost-sync-->"
+        self.drafts[draft_id]["body"] += f"\n{ztag}{payload}"
+        self.drafts[draft_id]["last_edited"] = datetime.datetime.utcnow().isoformat()
+        print(f"[DraftStore] Payload injected into {draft_id}")
+
+    def get_draft(self, draft_id):
+        return self.drafts.get(draft_id)
+
+# === TTL-Comms Bridge Layer ===
+class TTLComms:
+    def __init__(self):
+        self.methods = {
+            "telegram": self.telegram_ping,
+            "signal": self.signal_drop,
+            "email": self.email_hint
+        }
+
+    def notify(self, method, destination, draft_id):
+        func = self.methods.get(method)
+        if func:
+            func(destination, draft_id)
+        else:
+            print(f"[TTLComms] Unknown method: {method}")
+
+    def telegram_ping(self, user_id, draft_id):
+        print(f"[Telegram] 🔐 GhostDrop available. Ref: {draft_id} → User: {user_id}")
+
+    def signal_drop(self, phone, draft_id):
+        print(f"[Signal] ⚡ Payload ref {draft_id} sent to {phone} via ephemeral drop.")
+
+    def email_hint(self, address, draft_id):
+        print(f"[Email] 📩 Draft hint sent to {address}. Draft Ref: {draft_id}")
+
+# === Draft Account Manager ===
+class DraftAccounts:
+    def __init__(self):
+        self.accounts = []
+
+    def register(self, name, platform):
+        acc_id = f"{platform}:{name}"
+        self.accounts.append(acc_id)
+        return acc_id
+
+    def get_random(self):
+        return random.choice(self.accounts) if self.accounts else None
+
+# === Controller: GhostDropManager ===
+class GhostDropManager:
+    def __init__(self):
+        self.accounts = DraftAccounts()
+        self.store = DraftStore()
+        self.ttl = TTLComms()
+
+    def deploy_ghost(self, payload, method="telegram", destination="ghost_user"):
+        acc = self.accounts.get_random()
+        if not acc:
+            print("[GhostDropManager] No accounts available.")
+            return
+
+        draft_id = self.store.create_draft(acc, "🛰️ Drift Report", "Hold for sync…")
+        self.store.inject_payload(draft_id, payload)
+        self.ttl.notify(method, destination, draft_id)
+
+# === Demo Execution ===
+ghost = GhostDropManager()
+ghost.accounts.register("alpha_node", "gmail")
+ghost.accounts.register("omega_soul", "notion")
+ghost.accounts.register("specter_cache", "drive")
+
+# Deploy ghost drops across TTL layers
+ghost.deploy_ghost("init://run.sequence.X", method="telegram", destination="@driftmonitor")
+ghost.deploy_ghost("ping://retrace.99", method="signal", destination="+1770xxxxxxx")
+ghost.deploy_ghost("sync://breach.ctrl", method="email", destination="vault@protonmail.com")

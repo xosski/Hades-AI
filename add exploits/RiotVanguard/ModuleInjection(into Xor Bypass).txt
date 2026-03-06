@@ -1,0 +1,14 @@
+00007FF92B9FE010 | 48:895C24 20                  | mov qword ptr ss:[rsp+20],rbx           |
+00007FF92B9FE015 | 55                            | push rbp                                |
+00007FF92B9FE016 | 56                            | push rsi                                | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92B9FE017 | 57                            | push rdi                                |
+00007FF92B9FE018 | 41:56                         | push r14                                |
+00007FF92B9FE01A | 41:57                         | push r15                                |
+00007FF92B9FE01C | 48:8DAC24 C0FEFFFF            | lea rbp,qword ptr ss:[rsp-140]          |
+00007FF92B9FE024 | 48:81EC 40020000              | sub rsp,240                             |
+00007FF92B9FE02B | 48:8B05 66C51200              | mov rax,qword ptr ds:[7FF92BB2A598]     |
+00007FF92B9FE032 | 48:33C4                       | xor rax,rsp                             |
+00007FF92B9FE035 | 48:8985 30010000              | mov qword ptr ss:[rbp+130],rax          |
+00007FF92B9FE03C | 4C:8BF2                       | mov r14,rdx                             |
+00007FF92B9FE03F | 4D:8BF8                       | mov r15,r8                              |
+00007FF92B9FE042 | 33D2                          | xor edx,edx                             |

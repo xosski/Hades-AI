@@ -1,0 +1,178 @@
+1. Outer Perimeter: Human Interface Trust Zone
+
+(The front door everyone forgets to lock)
+
+Assets
+
+User workstation
+
+Physical I/O ports (USB)
+
+Implicit Trust Assumption
+
+Anything enumerating as a keyboard is benign and user-intentional.
+
+Vault Wall
+
+OS-level HID drivers
+
+No authentication, no intent verification
+
+Structural Reality
+
+This layer is intentionally frictionless by design.
+
+It exists below application-level security controls.
+
+Architectural note: This is not a bug; it’s a usability tradeoff hardened into decades of OS design.
+
+2. Application Boundary: Browser & Document Generation Layer
+
+(The marble lobby—beautiful, busy, and complex)
+
+Assets
+
+Browser engine
+
+Print-to-PDF or export pipelines
+
+Document object models
+
+Trust Transition
+
+Human input → Application logic
+
+Application data → Structured document formats
+
+Vault Wall
+
+Sandboxing (browser)
+
+File-type assumptions (PDF as “data, not code”)
+
+Structural Reality
+
+Modern document formats are program-like in complexity.
+
+Rendering ≠ interpretation ≠ conversion.
+
+This is where data becomes behavior-adjacent—not executable, but influential.
+
+3. Conversion Chamber: Print & Rendering Subsystem
+
+(The pneumatic tubes behind the teller desk)
+
+Assets
+
+OS print spooler
+
+Format converters (e.g., PDF → raster → device language)
+
+Trust Transition
+
+High-level document → low-level device instructions
+
+Vault Wall
+
+Driver isolation
+
+Spooler service boundaries
+
+Structural Reality
+
+Print systems exist to support every device ever made.
+
+Legacy compatibility is prioritized over minimalism.
+
+This layer is historically large, stateful, and under-audited.
+
+4. Peripheral Interface: Printer / Device Boundary
+
+(The loading dock)
+
+Assets
+
+Printer firmware
+
+Device-side interpreters
+
+Update mechanisms
+
+Trust Assumption
+
+Jobs sent to the device are non-persistent and non-authoritative
+
+Vault Wall
+
+Vendor firmware checks
+
+Update mode gating
+
+Structural Reality
+
+Many peripherals operate as semi-autonomous computers.
+
+Firmware trust chains vary wildly by vendor and age.
+
+This is outside the OS’s jurisdiction—a different kingdom with different laws.
+
+5. Inner Vault: Firmware & Persistence Plane
+
+(The actual vault)
+
+Assets
+
+Non-volatile memory
+
+Boot routines
+
+Device identity & behavior
+
+Trust Model
+
+Firmware is assumed static unless explicitly updated.
+
+Updates are assumed intentional and authenticated.
+
+Vault Wall
+
+Cryptographic signing (sometimes)
+
+Physical access assumptions (often)
+
+Structural Reality
+
+Persistence here survives:
+
+OS reinstalls
+
+Disk wipes
+
+User changes
+
+This is why firmware is attractive in theory—and why it’s so heavily defended in practice.
+
+6. Cross-Cutting Observation: Where Vaults Crack (Conceptually)
+Layer	Structural Tension
+HID	Usability vs. authentication
+Browser	Safety vs. document expressiveness
+Printing	Compatibility vs. minimal attack surface
+Firmware	Longevity vs. updatability
+
+None of these are mistakes.
+They are engineering compromises.
+
+🧭 Mental Model Summary (The Blueprint)
+
+No single layer is “the exploit”
+
+The risk emerges only at the seams
+
+Each boundary assumes the previous one was honest
+
+Persistence lives where visibility dies
+
+Or, put differently:
+
+The vault is secure.
+The hallways between vaults are where ghosts walk.

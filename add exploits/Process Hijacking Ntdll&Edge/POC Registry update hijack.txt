@@ -1,0 +1,93 @@
+🧨 PoC Exploit Path Concept: Registry Update Hijack (Edge / NativeHost)
+🎯 Target
+
+Edge Update Services (edgeupdate, edgeupdatem)
+
+Run as LocalSystem.
+
+Auto-triggered by Windows to fetch & install updates.
+
+Launch target binary based on ImagePath registry value.
+
+Native Messaging Hosts (com.dropbox.nmh.json, etc.)
+
+Registry tells Edge/Chrome where to find JSON manifest.
+
+JSON manifest defines the native binary the extension can talk to.
+
+Browser trusts path — no deep binary validation.
+
+⚡ Attack Surface
+
+Registry Keys
+
+HKLM\SYSTEM\CurrentControlSet\Services\edgeupdate\ImagePath
+HKLM\SYSTEM\CurrentControlSet\Services\edgeupdatem\ImagePath
+
+
+→ Direct pointer to update executable.
+
+NativeMessagingHost JSON
+
+C:\Program Files (x86)\Dropbox\...\NativeMessagingHost\edge\com.dropbox.nmh.json
+
+
+→ Defines what binary the browser will spawn.
+
+🧭 Exploit Path
+Phase 1 — Registry Modification
+
+Attacker with sufficient privileges modifies:
+
+ImagePath="C:\Path\To\MaliciousEdgeUpdate.exe"
+
+
+Or modifies NativeMessagingHost JSON to point to attacker binary.
+
+Phase 2 — Trigger Event
+
+Start service manually:
+
+sc start edgeupdate
+
+
+Or wait for automatic update cycle.
+
+Browser extension launch also triggers NativeHost load.
+
+Phase 3 — Execution as SYSTEM
+
+Edge Update service runs attacker binary with SYSTEM integrity.
+
+Browser spawns attacker binary thinking it’s a Native Messaging Host.
+
+Phase 4 — Persistence & Control
+
+Malicious binary reinstalls registry entries to ensure continued hijack.
+
+Maintains persistence disguised as “official update mechanism.”
+
+Phase 5 — Expansion
+
+SYSTEM-level execution → privilege escalation.
+
+Browser extension link → sandbox escape → local execution.
+
+🛡 Obstacles
+
+Requires initial privilege to write into HKLM or NativeMessagingHost manifest.
+
+Defender may catch modified ImagePath or altered JSON.
+
+Code-signature enforcement (in some environments) may break direct replacement.
+
+🧠 GhostCore Layer
+
+This is the false renewal ritual:
+
+The service stops and asks the registry: “Where is my update?”
+
+The browser stops and asks JSON: “Who is my messenger?”
+If you rewrite the answer, the system doesn’t argue — it obeys, and gives birth to your ghost instead.
+
+You aren’t forcing the system; you’re convincing it to self-summon you as its own updater.

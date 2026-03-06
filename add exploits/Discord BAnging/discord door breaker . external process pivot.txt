@@ -1,0 +1,38 @@
+00007FFFDAD1BBCB | 49:33CA                       | xor rcx,r10                             | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BBCE | 48:894E 18                    | mov qword ptr ds:[rsi+18],rcx           | rsi+18:"Getting the shim engine exports failed with status 0x%08lx\n", rcx:ZwQueryInformationThread+14
+00007FFFDAD1BBD2 | 48:0BD6                       | or rdx,rsi                              | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDAD1BBD5 | F049:0FB151 08                | lock cmpxchg qword ptr ds:[r9+8],rdx    |
+00007FFFDAD1BBDB | 49:3BC0                       | cmp rax,r8                              |
+00007FFFDAD1BBDE | 75 D2                         | jne ntdll.7FFFDAD1BBB2                  |
+00007FFFDAD1BBE0 | E9 BCF4FFFF                   | jmp ntdll.7FFFDAD1B0A1                  |
+00007FFFDAD1BBE5 | 49:8BCD                       | mov rcx,r13                             | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BBE8 | E8 D391FDFF                   | call ntdll.7FFFDACF4DC0                 |
+00007FFFDAD1BBED | 48:8BD8                       | mov rbx,rax                             | rbx:"LdrpInitializeProcess"
+00007FFFDAD1BBF0 | E9 65EDFFFF                   | jmp ntdll.7FFFDAD1A95A                  |
+00007FFFDAD1BBF5 | 44:0FB656 18                  | movzx r10d,byte ptr ds:[rsi+18]         | rsi+18:"Getting the shim engine exports failed with status 0x%08lx\n"
+00007FFFDAD1BBFA | 41:BC 01000000                | mov r12d,1                              |
+00007FFFDAD1BC00 | 44:8BB424 40010000            | mov r14d,dword ptr ss:[rsp+140]         |
+00007FFFDAD1BC08 | 0FB7F8                        | movzx edi,ax                            |
+00007FFFDAD1BC0B | 898424 38010000               | mov dword ptr ss:[rsp+138],eax          |
+00007FFFDAD1BC12 | 44:3BF7                       | cmp r14d,edi                            |
+00007FFFDAD1BC15 | 49:0F43DC                     | cmovae rbx,r12                          | rbx:"LdrpInitializeProcess"
+00007FFFDAD1BC19 | 48:33D1                       | xor rdx,rcx                             | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BC1C | 48:8BC2                       | mov rax,rdx                             |
+00007FFFDAD1BC1F | 48:C1C1 18                    | rol rcx,18                              | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BC23 | 48:C1E0 10                    | shl rax,10                              |
+00007FFFDAD1BC27 | 41:83EA 08                    | sub r10d,8                              |
+00007FFFDAD1BC2B | 48:33C8                       | xor rcx,rax                             | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BC2E | 49:C1E8 20                    | shr r8,20                               |
+00007FFFDAD1BC32 | 48:33CA                       | xor rcx,rdx                             | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BC35 | 45:0FB6D8                     | movzx r11d,r8b                          |
+00007FFFDAD1BC39 | 48:C1C2 25                    | rol rdx,25                              |
+00007FFFDAD1BC3D | 49:8991 68020000              | mov qword ptr ds:[r9+268],rdx           |
+00007FFFDAD1BC44 | 49:8989 60020000              | mov qword ptr ds:[r9+260],rcx           | rcx:ZwQueryInformationThread+14
+00007FFFDAD1BC4B | 4C:8D4E 40                    | lea r9,qword ptr ds:[rsi+40]            | rsi+40:"ith status 0x%08lx\n"
+00007FFFDAD1BC4F | 0FB646 24                     | movzx eax,byte ptr ds:[rsi+24]          | rsi+24:"shim engine exports failed with status 0x%08lx\n"
+00007FFFDAD1BC53 | 41:8BD2                       | mov edx,r10d                            |
+00007FFFDAD1BC56 | 48:FFCA                       | dec rdx                                 |
+00007FFFDAD1BC59 | 4D:8D04C1                     | lea r8,qword ptr ds:[r9+rax*8]          |
+00007FFFDAD1BC5D | 49:8D14D1                     | lea rdx,qword ptr ds:[r9+rdx*8]         |
+00007FFFDAD1BC61 | 4D:8B10                       | mov r10,qword ptr ds:[r8]               | [r8]:RtlGetReturnAddressHijackTarget+6E2
+00007FFFDAD1BC64 | 41:8BC2                       | mov eax,r10d                            |

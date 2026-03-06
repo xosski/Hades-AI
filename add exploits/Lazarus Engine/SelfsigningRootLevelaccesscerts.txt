@@ -1,0 +1,10 @@
+00007FFFD8011968 | 48:894424 48                  | mov qword ptr ss:[rsp+48],rax           | [rsp+48]:CertCreateSelfSignCertificate+6D20, rax:NtGdiXLATEOBJ_iXlate+10
+00007FFFD801196D | 48:8D5424 48                  | lea rdx,qword ptr ss:[rsp+48]           | [rsp+48]:CertCreateSelfSignCertificate+6D20
+00007FFFD8011972 | 48:8D4C24 40                  | lea rcx,qword ptr ss:[rsp+40]           |
+00007FFFD8011977 | E8 34E9FFFF                   | call gdi32full.7FFFD80102B0             |
+00007FFFD801197C | 48:8D4C24 48                  | lea rcx,qword ptr ss:[rsp+48]           | [rsp+48]:CertCreateSelfSignCertificate+6D20
+00007FFFD8011981 | E8 3ACEFCFF                   | call gdi32full.7FFFD7FDE7C0             |
+00007FFFD8011986 | 48:8B5C24 40                  | mov rbx,qword ptr ss:[rsp+40]           |
+00007FFFD801198B | 48:8D4C24 50                  | lea rcx,qword ptr ss:[rsp+50]           |
+00007FFFD8011990 | E8 0BB3FCFF                   | call gdi32full.7FFFD7FDCCA0             |
+00007FFFD8011995 | 48:85DB                       | test rbx,rbx                            |

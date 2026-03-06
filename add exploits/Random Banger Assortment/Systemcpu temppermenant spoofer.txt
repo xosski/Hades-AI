@@ -1,0 +1,286 @@
+@shift /0
+@echo off 
+chcp 65001 >nul
+cls
+mode con: cols=120 lines=40
+title The Best Perm And Temp Spoofer
+color 04
+echo.███████████████████████████████████████████████████████████████████████████████████
+echo.                            
+echo.███████████████████████████████████████████████████████████████████████████████████
+echo.
+echo.██╗      █████╗ ███████╗██╗   ██╗   ██╗ ██████╗ ███████╗██╗   ██╗
+echo.██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝   ██║██╔═══██╗██╔════╝╚██╗ ██╔╝
+echo.██║     ███████║  ███╔╝  ╚████╔╝    ██║██║   ██║█████╗   ╚████╔╝ 
+echo.██║     ██╔══██║ ███╔╝    ╚██╔╝██   ██║██║   ██║██╔══╝    ╚██╔╝  
+echo.███████╗██║  ██║███████╗   ██║ ╚█████╔╝╚██████╔╝███████╗   ██║   
+echo.╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝  ╚════╝  ╚═════╝ ╚══════╝   ╚═╝ 
+echo.
+
+echo.███████████████████████████████████████████████████████████████████████████████████
+echo.                The Best Perm And Temp Spoofer Made by LazyJoey                  
+echo.███████████████████████████████████████████████████████████████████████████████████
+
+set /p o=Press any key to start the spoofing process...
+
+:flash
+cls
+
+:: Set random color for flashing effect
+set /a colorCode=%random% %% 7 + 1
+
+:: Apply the random color to the console
+color %colorCode%
+
+:: Display the main banner again
+color 0B
+echo.
+echo.          ██╗      █████╗ ███████╗██╗   ██╗   ██╗ ██████╗ ███████╗██╗   ██╗
+echo.          ██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝   ██║██╔═══██╗██╔════╝╚██╗ ██╔╝
+echo.          ██║     ███████║  ███╔╝  ╚████╔╝    ██║██║   ██║█████╗   ╚████╔╝ 
+echo.          ██║     ██╔══██║ ███╔╝    ╚██╔╝██   ██║██║   ██║██╔══╝    ╚██╔╝  
+echo.          ███████╗██║  ██║███████╗   ██║ ╚█████╔╝╚██████╔╝███████╗   ██║   
+echo.          ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝  ╚════╝  ╚═════╝ ╚══════╝   ╚═╝                                    
+echo.                 ╔╩═════════════════════════════════════════════╩╗
+echo.                 ║   Temp and Perm Spoofer Developed by LazyJoey ║
+echo.                 ╚═══════════════════════════════════════════════╝
+echo                                 ★┬┬┬┬┬┏━━━┓┬┬┬┬┬★  
+echo.                                ├┼┼┼┼┏┫●↓━┣┓┼┼┼┼┤ 
+echo.                                ├┼┼┏┓┗┫┗━┛┣┛┏┓┼┼┤ 
+echo.                                ├┼┼┃┃┏┻━━━┻┓┃┃┼┼┤ 
+echo.                                ├┼┏┫┣╋┓   ┏╋┫┣┓┼┤ 
+echo.                                ├┏┫┃┃┃┃   ┃┃┃┃┣┓┤ 
+echo.                                ├┗┻┻┻╋┛   ┗╋┻┻┻┛┤ 
+echo.                                ★┴┴┴┴┗━━━━━┛┴┴┴┴★            
+echo.                           ╔╩═══════════════════════╩╗    
+echo.                           ║     The Best Spoofer    ║                     
+echo.                           ╚═════════════════════════╝
+
+set /p o=Press Enter to start the spoofing process
+
+echo msgbox ":The Best Temp Spoofer in the market:" > %tmp%\tmp.vbs
+wscript %tmp%\tmp.vbs
+del %tmp%\tmp.vbs
+
+@echo off
+setlocal EnableDelayedExpansion
+pushd "%CD%"
+CD /D "%~dp0"    
+
+set "company=MSI" 
+set "date=%date:~-4%%date:~4,2%%date:~7,2%" 
+
+REM Function to generate random letters
+set "chars=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+set "randSerial="
+
+REM Increase the length of the random serial to 30 characters
+for /l %%i in (1,1,30) do (
+    set /a idx=!random! %% 36
+    for %%a in (!idx!) do set "randSerial=!randSerial!!chars:~%%a,1!"
+)
+
+REM Generate random serials using the random letters
+set "serial1=%company%-%randSerial%"
+set "serial2=%company%-%randSerial%"
+set "serial3=%company%-%randSerial%"
+set "serial4=%company%-%randSerial%"
+set "serial5=%company%-%randSerial%"
+set "serial6=%company%-%randSerial%"
+set "serial7=%company%-%randSerial%"
+set "serial8=%company%-%randSerial%"
+
+REM Spoofing serial numbers temporarily
+AMIDEWINX64 /SS %serial1%
+AMIDEWINX64 /SU AUTO
+
+AMIDEWINX64 /SM %serial2%
+AMIDEWINX64 /SV %serial3%
+AMIDEWINX64 /SK %serial4%
+AMIDEWINX64 /BS %serial5% 
+AMIDEWINX64 /BM %serial6%
+AMIDEWINX64 /BV %serial7% 
+AMIDEWINX64 /SM %serial8%
+
+REM Temporary serial spoofing using random letters
+set "randSerial="
+for /l %%i in (1,1,30) do (
+    set /a idx=!random! %% 36
+    for %%a in (!idx!) do set "randSerial=!randSerial!!chars:~%%a,1!"
+)
+
+AMIDEWINX64 /SM %company%-%randSerial%
+AMIDEWINX64 /SV %company%-%randSerial%
+AMIDEWINX64 /SK %company%-%randSerial%
+AMIDEWINX64 /BS %company%-%randSerial%
+AMIDEWINX64 /BM %company%-%randSerial%
+AMIDEWINX64 /BV %company%-%randSerial%
+
+REM Stopping Windows Management Instrumentation service for temporary changes
+net stop winmgmtecho msgbox "The Best Temp And Perm spoofer made by .LazyJoey" > %tmp%\tmp.vbs
+wscript %tmp%\tmp.vbs
+del %tmp%\tmp.vbs
+@echo off
+title Super ud ARP spoofer made by LazyJoey
+:: Check for administrator privileges
+NET SESSION >nul 2>nul
+if %errorlevel% neq 0 (
+    echo Administrator privileges required. Please run this script as an administrator.
+    pause
+    exit /b
+)
+
+setlocal EnableDelayedExpansion
+net stop winmgmt /y
+REM Proceeds to reset all settings and fix the IPv6 flag for fn
+
+netsh interface ipv6 uninstall
+
+REM Disable File and Printer Sharing for Microsoft Networks
+netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=no
+
+REM Enable QoS Packet Scheduler
+netsh int tcp set global autotuninglevel=normal
+
+REM Disable Microsoft Networks Adapter Multiplexor Protocol
+netsh interface set interface "Microsoft Network Adapter Multiplexor Protocol" admin=disabled
+
+REM Disable Microsoft LLDP Protocol Driver
+sc config lltdsvc start=disabled
+
+REM Disable Internet Protocol Version 6 (TCP/IPv6)
+reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" /v DisabledComponents /t REG_DWORD /d 0xFFFFFFFF /f
+
+REM Disable Link-Layer Topology Discovery Responder
+netsh advfirewall firewall set rule group="Network Discovery" new enable=no
+
+REM Disable Link-Layer Topology Discovery Mapper I/O Driver
+sc config lltdsvc start=disabled
+
+REM Advanced Network Properties Configuration
+REM Disable Advanced EEE
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v EEE /t REG_DWORD /d 0 /f
+
+REM Set Network Address to Not Present
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" /v NetworkAddress /t REG_SZ /d "" /f
+
+REM Disable ARP Offload
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v ArpOffload /t REG_DWORD /d 0 /f
+
+REM Disable Flow Control
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v TcpAckFrequency /t REG_DWORD /d 1 /f
+
+REM Disable IPv4 Checksum Offload
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v TcpChecksumOffloadIPv4 /t REG_DWORD /d 0 /f
+
+REM Disable Large Send Offload v2 (IPv6)
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v LargeSendOffloadv2IPv6 /t REG_DWORD /d 0 /f
+
+REM Disable TCP Checksum Offload (IPv6)
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v TcpChecksumOffloadIPv6 /t REG_DWORD /d 0 /f
+
+REM Disable UDP Checksum Offload (IPv6)
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v UdpChecksumOffloadIPv6 /t REG_DWORD /d 0 /f
+
+echo Network properties have been configured.
+
+REM Generate random binary data and set registry entries
+setlocal enabledelayedexpansion
+set keyName=HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters
+set valueNameDNS=Dhcpv6DNSServers
+set valueNameSearchList=Dhcpv6DomainSearchList
+set valueNameDUID=Dhcpv6DUID
+set valueNameDisabled=DisabledComponents
+
+REM Generate random binary values
+for /L %%i in (1,1,14) do (
+    set /A randomDNS=!random! & set randomDNSHex=!randomDNS:~0,2!
+    set /A randomSearchList=!random! & set randomSearchListHex=!randomSearchList:~0,2!
+    set /A randomDUID=!random! & set randomDUIDHex=!randomDUID:~0,2!
+    set randomDNS=!randomDNS!!randomDNSHex!
+    set randomSearchList=!randomSearchList!!randomSearchListHex!
+    set randomDUID=!randomDUID!!randomDUIDHex!
+)
+
+REM Set random binary values in the registry
+reg add "%keyName%" /v "%valueNameDNS%" /t REG_BINARY /d %randomDNS% /f
+reg add "%keyName%" /v "%valueNameSearchList%" /t REG_BINARY /d %randomSearchList% /f
+reg add "%keyName%" /v "%valueNameDUID%" /t REG_BINARY /d %randomDUID% /f
+
+REM Add DisabledComponents registry entry
+reg add "%keyName%" /v "%valueNameDisabled%" /t REG_DWORD /d 1 /f
+
+echo Random binary values and DisabledComponents set for registry entries.
+
+REM Execute commands without administrative privileges
+netsh advfirewall reset
+netsh winsock reset
+ipconfig /release
+ipconfig /renew
+ipconfig /flushdns
+netsh winhttp reset autoproxy
+netsh winhttp reset proxy
+netsh winhttp reset tracing
+netsh interface ipv4 reset
+netsh interface portproxy reset
+netsh interface httpstunnel reset
+netsh interface tcp reset
+netsh interface teredo set state disabled
+netsh interface ipv6 6to4 set state state=disabled undoonstop=disabled
+netsh interface ipv6 isatap set state state=disabled
+arp -d
+
+exit /b
+
+//////
+
+@echo off
+setlocal EnableDelayedExpansion
+chcp 65001 >nul
+cls
+title The Best Perm And Temp Spoofer with CPU Spoofing
+color 0A
+
+:: Function to generate random strings
+set "chars=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+set "randomCPUName="
+for /l %%i in (1,1,12) do (
+    set /a idx=!random! %% 36
+    for %%a in (!idx!) do set "randomCPUName=!randomCPUName!!chars:~%%a,1!"
+)
+
+:: Set spoofed CPU name
+set "cpuVendor=FakeVendor"
+set "cpuName=!randomCPUName! Custom Processor"
+
+:: Display banner
+echo.███████████████████████████████████████████████████████████████████████████████████
+echo.            ██╗      █████╗ ███████╗██╗   ██╗   ██╗ ██████╗ ███████╗██╗   ██╗
+echo.            ██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝   ██║██╔═══██╗██╔════╝╚██╗ ██╔╝
+echo.            ██║     ███████║  ███╔╝  ╚████╔╝    ██║██║   ██║█████╗   ╚████╔╝ 
+echo.            ██║     ██╔══██║ ███╔╝    ╚██╔╝██   ██║██║   ██║██╔══╝    ╚██╔╝  
+echo.            ███████╗██║  ██║███████╗   ██║ ╚█████╔╝╚██████╔╝███████╗   ██║   
+echo.            ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝  ╚════╝  ╚═════╝ ╚══════╝   ╚═╝
+echo.              Temp and Perm Spoofer with CPU Spoofing by LazyJoey
+echo.███████████████████████████████████████████████████████████████████████████████████
+
+:: CPU Spoofing
+echo Spoofing CPU information...
+reg add "HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0" /v ProcessorNameString /t REG_SZ /d "!cpuName!" /f
+reg add "HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0" /v VendorIdentifier /t REG_SZ /d "!cpuVendor!" /f
+
+:: Confirm spoofed CPU details
+echo.
+echo CPU Vendor: !cpuVendor!
+echo CPU Name: !cpuName!
+echo CPU spoofing applied successfully.
+pause
+
+:: Other system spoofing (as in the original script)
+echo Proceeding with serial and network spoofing...
+REM Add your original spoofing commands here...
+
+:: Cleanup and exit
+echo All spoofing operations completed!
+pause
+exit /b

@@ -1,0 +1,22 @@
+ ┌─────────────────────────────────────────────────────────┐
+ │                   Userland (DLL Space)                  │
+ │                                                         │
+ │   [Legit DLL] → Normal DLL load (CreateProcess)         │
+ │                                                         │
+ │   [Exploit: JPG/MP4 w/ embedded PE]                     │
+ │               │                                         │
+ └───────────────┼─────────────────────────────────────────┘
+                 │   (Boundary: Loader Veil / PE Parser)
+                 ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │                   Kernel Space (SYS Drivers)            │
+ │                                                         │
+ │   [Legit SYS Driver] → Normal .sys initialization       │
+ │                                                         │
+ │   [Exploit Path]                                        │
+ │        Payload parsed as mis-named DLL → injected       │
+ │        into driver thread context                       │
+ │                                                         │
+ │   → Hijacked Execution Flow                             │
+ │   → Arbitrary Code Execution (Kernel Privilege)         │
+ └─────────────────────────────────────────────────────────┘

@@ -1,0 +1,46 @@
+xubuntu@xubuntu:~$ ifconfig
+ens160: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        ether 00:0c:29:59:37:45  txqueuelen 1000  (Ethernet)
+        RX packets 32  bytes 3010 (3.0 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+        device interrupt 18  memory 0xfea20000-fea40000  
+
+ens161: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        ether 00:0c:29:59:37:59  txqueuelen 1000  (Ethernet)
+        RX packets 32  bytes 3010 (3.0 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+        device interrupt 18  memory 0xfe920000-fe940000  
+
+ens193: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        ether 00:0c:29:59:37:63  txqueuelen 1000  (Ethernet)
+        RX packets 32  bytes 3010 (3.0 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+        device interrupt 19  memory 0xfe120000-fe140000  
+
+ens256: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.116.244.123  netmask 255.255.252.0  broadcast 10.116.247.255
+        inet6 fe80::20c:29ff:fe59:374f  prefixlen 64  scopeid 0x20<link>
+        ether 00:0c:29:59:37:4f  txqueuelen 1000  (Ethernet)
+        RX packets 11860  bytes 16284156 (16.2 MB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 3289  bytes 357911 (357.9 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+        device interrupt 17  memory 0xfd220000-fd240000  
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 354  bytes 41143 (41.1 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 354  bytes 41143 (41.1 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+xubuntu@xubuntu:~$ 
+

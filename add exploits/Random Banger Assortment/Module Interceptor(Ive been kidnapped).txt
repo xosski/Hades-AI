@@ -1,0 +1,145 @@
+// Create root level monitor
+window.__MODULE_MONITOR__ = {
+    modules: new Map(),
+    interceptModule(id, module) {
+        this.modules.set(id, module);
+        return new Proxy(module, {
+            get: (target, prop) => {
+                console.log(`Module ${id} accessed: ${prop}`);
+                return target[prop];
+            },
+            set: (target, prop, value) => {
+                console.log(`Module ${id} modified: ${prop} = ${value}`);
+                target[prop] = value;
+                return true;
+            }
+        });
+    }
+};
+
+// Create the monitor
+window.moduleMonitor = {
+    active: true,
+    data: {},
+    modules: new Map(),
+
+    watch(target, prop) {
+        if (typeof target === 'string') {
+            this.data[target] = prop;
+            return `Now watching ${target}`;
+        }
+        this.data[prop] = target[prop];
+        return `Now watching ${prop}`;
+    },
+
+    edit(key, value) {
+        this.data[key] = value;
+        document.dispatchEvent(new CustomEvent('monitor-value-change', {
+            detail: { key, value }
+        }));
+        return `Updated ${key} to ${value}`;
+    }
+};
+// Create GUI container with event listeners
+const gui = document.createElement('div');
+gui.id = 'monitor-gui';
+gui.style.cssText = `
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #3498db;
+  border: 1px solid #2980b9;
+  padding: 10px;
+  z-index: 9999;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  color: white;
+`;
+
+gui.innerHTML = `
+  <div class="monitor-controls">
+    <h3>Module Monitor</h3>
+    <div id="monitor-values">
+      ${Object.entries(moduleMonitor.data).map(([key, value]) => `
+        <div class="value-pair">
+          <span>${key}:</span>
+          <input type="text" value="${value}" data-key="${key}">
+        </div>
+      `).join('')}
+    </div>
+    <div class="monitor-input-group">
+      <input type="text" id="monitor-input" placeholder="Property to watch">
+      <button id="monitor-add">Add Watch</button>
+    </div>
+  </div>
+`;
+
+document.body.appendChild(gui);
+// Add some test values to monitor
+moduleMonitor.watch('testValue', 123);
+moduleMonitor.watch('anotherValue', 'hello');
+moduleMonitor.watch('thirdValue', true);
+
+
+
+// Update the GUI rendering to include editable inputs
+moduleMonitor.updateGUI = function () {
+    const valuesContainer = document.getElementById('monitor-values');
+    valuesContainer.innerHTML = Object.entries(this.data)
+        .map(([key, val]) => `
+      <div class="value-pair">
+        <span>${key}:</span>
+        <input type="text" value="${val}" data-key="${key}">
+      </div>
+    `).join('');
+
+    // Add edit listeners to new inputs
+    const inputs = valuesContainer.querySelectorAll('input');
+    inputs.forEach(input => {
+        input.addEventListener('change', (e) => {
+            const key = e.target.dataset.key;
+            this.edit(key, e.target.value);
+        });
+    });
+};
+moduleMonitor.updateGUI();
+// Call updateGUI when values change
+document.addEventListener('monitor-value-change', () => {
+    moduleMonitor.updateGUI();
+});
+// Add edit listeners to all value inputs
+const valueInputs = gui.querySelectorAll('#monitor-values input');
+valueInputs.forEach(input => {
+    input.addEventListener('change', (e) => {
+        const key = e.target.dataset.key;
+        moduleMonitor.edit(key, e.target.value);
+    });
+});
+// Add event listeners after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    const addButton = document.getElementById('monitor-add');
+    const input = document.getElementById('monitor-input');
+
+    addButton.addEventListener('click', () => {
+        moduleMonitor.edit(input.value, null);
+    });
+});
+
+// Listen for value changes
+document.addEventListener('monitor-value-change', (e) => {
+    const valuesContainer = document.getElementById('monitor-values');
+    const { key, value } = e.detail;
+
+    const valueElement = document.createElement('div');
+    valueElement.innerHTML = `
+    <span>${key}:</span>
+    <input type="text" value="${value}" data-key="${key}">
+  `;
+
+    const input = valueElement.querySelector('input');
+    input.addEventListener('change', (event) => {
+        moduleMonitor.edit(key, event.target.value);
+    });
+
+    valuesContainer.appendChild(valueElement);
+});
+

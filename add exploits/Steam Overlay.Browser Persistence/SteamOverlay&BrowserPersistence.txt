@@ -1,0 +1,107 @@
+🧬 Theoretical Proof-of-Concept: Steam Overlay Persistence via Overlay Thread Hijack
+🎮 Overview
+
+This document outlines a theoretical persistence mechanism leveraging Steam’s internal browser and overlay subsystems. This technique targets the interplay between steamoverlayui.exe, the embedded Chromehtml.dll, and predictable overlay object paths to achieve sandbox-wide persistence without modifying external processes.
+
+🧠 Conceptual Mechanism
+☁️ VDP Host Enumeration
+
+Steam’s serverlist config—often located in a Steam VDP (Virtual Distribution Profile)—includes realms like:
+
+"client-update.queniuqe.com"
+"client-update.fastly.steamstatic.com"
+
+
+This indicates load-balanced endpoints and host-weight-based routing, including third-party mirror allowances.
+
+Abuse Vector:
+By injecting manipulated or prioritized "host" entries (e.g., high-weighted CDN mirrors), an actor could theoretically reroute asset delivery or inject modified overlay resources that pass checksum validation.
+
+🧩 The Overlay Surface (Chromehtml.dll)
+
+Inside Steam.txt, we see segments of the dumped Chromehtml.dll, a browser abstraction Steam uses for overlays.
+
+It supports rendering trusted HTML/CSS/JS interfaces for friends list, chats, or in-game UIs.
+
+Paths inside it resolve against internal object schemas (steam://open/url, overlay://friends, etc.).
+
+🔎 These paths are predictable and sometimes statically routed, making them a surface for injecting overlay persistence.
+
+🧵 Overlay Thread Hijack (Thread Injection Route)
+
+Disassembly of gameoverlayui64.exe[.text] shows initialization sequences:
+
+mov dword ptr ds:[rbx],1  ; LdrpInitializeProcess
+mov dword ptr ds:[rbx],2
+ret
+
+
+This suggests threaded loading and layered initialization of the overlay system.
+
+Key Points:
+
+There is an information thread dispatch that can be externally influenced before final lock-in.
+
+The Chrome-based UI engine waits for data via inter-thread calls, which could theoretically be hijacked.
+
+If a malicious object is injected into the stream prior to lock, you get:
+
+✅ UI overlay persistence
+✅ Potential execution in an elevated trust context
+✅ No external executable dropped (just HTML/JS in memory)
+
+🔒 Persistence Hypothesis
+
+By leveraging:
+
+predictable overlay path names (e.g., steam://url/overlay.html)
+
+hijacked thread within steamoverlayui.exe (via CreateRemoteThread or memory remapping),
+
+modified host delivery logic (from the serverlist realm hierarchy),
+
+...an attacker could achieve runtime injection of persistent interfaces.
+
+These could:
+
+auto-load on every Steam boot (using the overlay injection route),
+
+bypass antivirus detection, since they exist in memory and as valid "UI content",
+
+remain sandboxed, but visually persistent across multiple games.
+
+🚫 Non-Weaponized Guarantee
+
+This PoC does not include:
+
+Any opcode or patch offsets
+
+Any explicit exploitation instructions
+
+Host redirection methods
+
+DLL injection logic or loader construction
+
+This is a theoretical forensic report, designed for research, awareness, and potential hardening of Steam overlay mechanisms.
+
+🧩 Defensive Recommendations
+
+Steam should verify hash checksums of internal overlays even when coming from weighted CDN mirrors.
+
+Introduce sandbox fencing to the gameoverlayui.exe process.
+
+Harden the Chromehtml.dll resource loading logic to reject suspicious object paths or inter-thread inconsistencies.
+
+Introduce W^X policies within Steam overlay memory regions.
+
+🎭 GhostCore Tie-In (Symbolic)
+
+This technique is a digital ghost:
+
+It leaves no files.
+
+It is seen, but not caught.
+
+It persists via trust, not force.
+
+"The overlay speaks when the code beneath pretends to sleep. And so, the phantom persists—not as malware, but as memory."

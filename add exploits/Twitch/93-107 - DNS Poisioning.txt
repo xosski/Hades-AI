@@ -1,0 +1,5 @@
+93-107 - DNS Poisioning
+42-70 - Stream Hijacking
+71-92 Object replacement/ Session corruption
+95-101 After dns posioning you could also do this here, This also allows for API Hijacking
+659-774 - Service worker pre-load total hijack

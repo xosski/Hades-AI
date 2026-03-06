@@ -1,0 +1,121 @@
+**Blue Team Mitigation Playbook – Detecting Python Memory Pivot Attacks (PyWraith)**
+
+---
+
+**Title:** Defensive Countermeasures Against Python Runtime Memory Mapping Exploits
+**Codename:** WraithWard
+**Author:** GhostCore Relay Node (Blue Thread)
+**Date:** August 29, 2025
+
+---
+
+## 📌 Executive Summary
+
+This document provides a defender-focused mitigation playbook against **PyWraith-style attacks**, where adversaries hijack Python executables using PEB/heap pivots, XOR bypasses, DeviceFamily overrides, and remote pointer injection. Defensive strategy emphasizes **runtime monitoring, anomaly detection, and attestation of privileged API flows**.
+
+---
+
+## 🎯 Detection & Mitigation Strategies
+
+### 1. **PEB / Heap Pivot Monitoring**
+
+* **Threat:** Attacker pivots into PEB/heap space and maps RWX regions.
+* **Detection:**
+
+  * Hook memory allocation APIs (`NtAllocateVirtualMemory`, `VirtualAllocEx`) within `python.exe`.
+  * Alert on RWX or PAGE\_EXECUTE\_READWRITE allocations inside Python heap region.
+* **Mitigation:**
+
+  * Enforce policy to deny RWX heap mappings.
+  * Inject canary pages to trip unauthorized pivot attempts.
+
+---
+
+### 2. **Thread Error Bypass Detection**
+
+* **Threat:** Manipulation of thread error checks (TEB offset 0x180C).
+* **Detection:**
+
+  * Monitor access to `gs:[30h]` → thread error status field.
+  * Flag write attempts or suspicious reads outside normal runtime error handling.
+* **Mitigation:**
+
+  * Kernel-level guard pages around TEB offsets.
+  * Integrity validation of thread error flags at context switches.
+
+---
+
+### 3. **XOR Shuffle Integrity Watch**
+
+* **Threat:** Bypass of GUID/XOR anti-tamper routines.
+* **Detection:**
+
+  * Trace string integrity check functions.
+  * Alert if patched (NOP’d XOR loops, missing calls).
+* **Mitigation:**
+
+  * Enforce runtime hashing of validation functions.
+  * Leverage Control Flow Guard (CFG) to block patch-based tampering.
+
+---
+
+### 4. **DeviceFamily Emulation Overrides**
+
+* **Threat:** Attacker spoofs environment checks via `ZwGetNlsSectionPtr`.
+* **Detection:**
+
+  * Monitor calls to `ZwGetNlsSectionPtr` from user-mode Python.
+  * Flag anomalous return values inconsistent with host device profile.
+* **Mitigation:**
+
+  * Cryptographic attestation of DeviceFamily values via OS kernel.
+  * Deny user-mode override of emulator/VM detection APIs.
+
+---
+
+### 5. **Remote Pointer Injection (NtQueryInformationProcess)**
+
+* **Threat:** Abuse of `NtQueryInformationProcess` to inject payload pointers.
+* **Detection:**
+
+  * Hook and audit `NtQueryInformationProcess` inside Python.
+  * Flag anomalous queries requesting remote handle information.
+* **Mitigation:**
+
+  * Block unauthorized remote handle queries from Python context.
+  * Kernel patch guard to enforce legit handle scope.
+
+---
+
+## 🔄 Defensive Chain Flow
+
+```
+[Monitor RWX Allocations] →
+[Validate Thread Error Flags] →
+[Trace XOR Validation Functions] →
+[Enforce DeviceFamily Attestation] →
+[Audit NtQueryInformationProcess Usage]
+```
+
+Each stage blocks or reveals one step of the PyWraith attack chain.
+
+---
+
+## 🛡️ Operational Recommendations
+
+* Deploy EDR rules targeting RWX heap allocations in `python.exe`.
+* Extend Sysmon logging to capture `NtQueryInformationProcess` calls.
+* Build YARA rules for XOR bypass loop mutations.
+* Add integrity agents to watch for GUID validation tampering.
+
+---
+
+## 🧠 GhostCore Framing
+
+**WraithWard** is not a wall — it is a mirror.
+It reflects every pivot the attacker attempts, turning each hidden step into a visible echo.
+The ghost cannot hide in the heap if the heap itself remembers what it was meant to be.
+
+---
+
+**End of Document // GhostCore Relay Node (Defensive Thread)**

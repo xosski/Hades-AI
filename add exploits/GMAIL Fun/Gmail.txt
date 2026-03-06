@@ -1,0 +1,72 @@
+// POC: Stealth Payload Injection into Drafts (Simulated Gmail Clone)
+// Note: This is educational and assumes a controlled environment.
+
+import Foundation
+import UIKit
+
+// MARK: - Draft Model
+class Draft {
+    var id: UUID
+    var subject: String
+    var body: String
+    var lastEdited: Date
+
+    init(subject: String, body: String) {
+        self.id = UUID()
+        self.subject = subject
+        self.body = body
+        self.lastEdited = Date()
+    }
+}
+
+// MARK: - Draft Manager
+class DraftManager {
+    static let shared = DraftManager()
+    private var drafts: [UUID: Draft] = [:]
+
+    func save(_ draft: Draft) {
+        drafts[draft.id] = draft
+        print("[DraftManager] Draft saved with ID: \(draft.id)")
+    }
+
+    func get(id: UUID) -> Draft? {
+        return drafts[id]
+    }
+
+    func listAll() -> [Draft] {
+        return Array(drafts.values)
+    }
+}
+
+// MARK: - Stealth Payload Command
+class GhostDraftCommand {
+    let draftID: UUID
+    init(draftID: UUID) {
+        self.draftID = draftID
+    }
+
+    func execute() {
+        guard let draft = DraftManager.shared.get(id: draftID) else {
+            print("[GhostDraftCommand] Draft not found")
+            return
+        }
+
+        let ghostPayload = "\u{200B}\u{200B}\u{200B}<!-- [GHOST:echo.transmit] -->"
+        draft.body.append("\n\(ghostPayload)")
+        draft.lastEdited = Date()
+
+        DraftManager.shared.save(draft)
+        print("[GhostDraftCommand] Stealth payload injected.")
+    }
+}
+
+// MARK: - Demo Execution
+let draft = Draft(subject: "Mission Status", body: "Report incoming...")
+DraftManager.shared.save(draft)
+
+let ghostCmd = GhostDraftCommand(draftID: draft.id)
+ghostCmd.execute()
+
+if let updated = DraftManager.shared.get(id: draft.id) {
+    print("\n[Draft Body]:\n\(updated.body)")
+}

@@ -1,0 +1,89 @@
+00007FFFDACCEDD9 | 44:8BF1                       | mov r14d,ecx                            |
+00007FFFDACCEDDC | 0F85 8C010000                 | jne ntdll.7FFFDACCEF6E                  |
+00007FFFDACCEDE2 | 48:8958 08                    | mov qword ptr ds:[rax+8],rbx            | rbx:"LdrpInitializeProcess"
+00007FFFDACCEDE6 | 33D2                          | xor edx,edx                             |
+00007FFFDACCEDE8 | 48:8B9C24 B0000000            | mov rbx,qword ptr ss:[rsp+B0]           |
+00007FFFDACCEDF0 | 8B4B 30                       | mov ecx,dword ptr ds:[rbx+30]           | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEDF3 | E8 B81E0000                   | call ntdll.7FFFDACD0CB0                 |
+00007FFFDACCEDF8 | 85C0                          | test eax,eax                            |
+00007FFFDACCEDFA | 0F88 75010000                 | js ntdll.7FFFDACCEF75                   |
+00007FFFDACCEE00 | F743 30 00001000              | test dword ptr ds:[rbx+30],100000       | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEE07 | 0F84 34010000                 | je ntdll.7FFFDACCEF41                   |
+00007FFFDACCEE0D | 85C0                          | test eax,eax                            |
+00007FFFDACCEE0F | 0F88 4D010000                 | js ntdll.7FFFDACCEF62                   |
+00007FFFDACCEE15 | 44:8B53 30                    | mov r10d,dword ptr ds:[rbx+30]          | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEE19 | 41:8BC2                       | mov eax,r10d                            |
+00007FFFDACCEE1C | 25 40001000                   | and eax,100040                          |
+00007FFFDACCEE21 | 3D 40001000                   | cmp eax,100040                          |
+00007FFFDACCEE26 | 75 73                         | jne ntdll.7FFFDACCEE9B                  |
+00007FFFDACCEE28 | 8B83 D0040000                 | mov eax,dword ptr ds:[rbx+4D0]          | rbx+4D0:"of import redirection module failed with status 0x%08x\n"
+00007FFFDACCEE2E | 8B93 E0040000                 | mov edx,dword ptr ds:[rbx+4E0]          | rbx+4E0:"ction module failed with status 0x%08x\n"
+00007FFFDACCEE34 | 3BC2                          | cmp eax,edx                             |
+00007FFFDACCEE36 | 0F8F 19010000                 | jg ntdll.7FFFDACCEF55                   |
+00007FFFDACCEE3C | 44:8B83 D4040000              | mov r8d,dword ptr ds:[rbx+4D4]          | rbx+4D4:"mport redirection module failed with status 0x%08x\n"
+00007FFFDACCEE43 | 44:8B8B E4040000              | mov r9d,dword ptr ds:[rbx+4E4]          | rbx+4E4:"n module failed with status 0x%08x\n"
+00007FFFDACCEE4A | 41:8D0C00                     | lea ecx,qword ptr ds:[r8+rax]           | [r8+rax*1]:RtlGetReturnAddressHijackTarget+6E2
+00007FFFDACCEE4E | 41:8D0411                     | lea eax,qword ptr ds:[r9+rdx]           |
+00007FFFDACCEE52 | 41:81F8 30050000              | cmp r8d,530                             |
+00007FFFDACCEE59 | 0F82 F6000000                 | jb ntdll.7FFFDACCEF55                   |
+00007FFFDACCEE5F | 3BC8                          | cmp ecx,eax                             |
+00007FFFDACCEE61 | 0F8C EE000000                 | jl ntdll.7FFFDACCEF55                   |
+00007FFFDACCEE67 | 81BB DC040000 D0040000        | cmp dword ptr ds:[rbx+4DC],4D0          | rbx+4DC:"direction module failed with status 0x%08x\n"
+00007FFFDACCEE71 | 0F85 DE000000                 | jne ntdll.7FFFDACCEF55                  |
+00007FFFDACCEE77 | 41:83F9 40                    | cmp r9d,40                              | 40:'@'
+00007FFFDACCEE7B | 0F82 D4000000                 | jb ntdll.7FFFDACCEF55                   |
+00007FFFDACCEE81 | 48:638B D8040000              | movsxd rcx,dword ptr ds:[rbx+4D8]       | rcx:ZwQueryInformationThread+14, rbx+4D8:"t redirection module failed with status 0x%08x\n"
+00007FFFDACCEE88 | 48:81C1 D0040000              | add rcx,4D0                             | rcx:ZwQueryInformationThread+14
+00007FFFDACCEE8F | 48:03CB                       | add rcx,rbx                             | rcx:ZwQueryInformationThread+14, rbx:"LdrpInitializeProcess"
+00007FFFDACCEE92 | 48:3BCB                       | cmp rcx,rbx                             | rcx:ZwQueryInformationThread+14, rbx:"LdrpInitializeProcess"
+00007FFFDACCEE95 | 0F85 BA000000                 | jne ntdll.7FFFDACCEF55                  |
+00007FFFDACCEE9B | 48:8B8424 D0000000            | mov rax,qword ptr ss:[rsp+D0]           |
+00007FFFDACCEEA3 | 4C:8BCF                       | mov r9,rdi                              |
+00007FFFDACCEEA6 | 48:894424 70                  | mov qword ptr ss:[rsp+70],rax           | [rsp+70]:L"z|"
+00007FFFDACCEEAB | 4C:8BC6                       | mov r8,rsi                              | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACCEEAE | 48:8B8424 D8000000            | mov rax,qword ptr ss:[rsp+D8]           | [rsp+D8]:L"C:\\Users\\ek930\\AppData\\Local\\Discord\\app-1.0.9213\\Discord.exe"
+00007FFFDACCEEB6 | 48:8BD5                       | mov rdx,rbp                             |
+00007FFFDACCEEB9 | 48:894424 60                  | mov qword ptr ss:[rsp+60],rax           | [rsp+60]:"Beginning execution of %wZ (%wZ)\n\tCurrent directory: %wZ\n\tPackage directories: %wZ\n"
+00007FFFDACCEEBE | 41:8BCE                       | mov ecx,r14d                            |
+00007FFFDACCEEC1 | 48:8B8424 E0000000            | mov rax,qword ptr ss:[rsp+E0]           |
+00007FFFDACCEEC9 | 48:894424 68                  | mov qword ptr ss:[rsp+68],rax           |
+00007FFFDACCEECE | 48:8D4424 60                  | lea rax,qword ptr ss:[rsp+60]           | [rsp+60]:"Beginning execution of %wZ (%wZ)\n\tCurrent directory: %wZ\n\tPackage directories: %wZ\n"
+00007FFFDACCEED3 | C74424 50 00000000            | mov dword ptr ss:[rsp+50],0             |
+00007FFFDACCEEDB | 48:894424 48                  | mov qword ptr ss:[rsp+48],rax           | [rsp+48]:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACCEEE0 | 48:8B8424 E8000000            | mov rax,qword ptr ss:[rsp+E8]           |
+00007FFFDACCEEE8 | 48:894424 40                  | mov qword ptr ss:[rsp+40],rax           | [rsp+40]:L"seSizeInMb"
+00007FFFDACCEEED | 48:8B8424 C8000000            | mov rax,qword ptr ss:[rsp+C8]           |
+00007FFFDACCEEF5 | 48:894424 38                  | mov qword ptr ss:[rsp+38],rax           | [rsp+38]:EtwEventWriteNoRegistration+2553
+00007FFFDACCEEFA | 48:8B8424 C0000000            | mov rax,qword ptr ss:[rsp+C0]           |
+00007FFFDACCEF02 | 48:894424 30                  | mov qword ptr ss:[rsp+30],rax           |
+00007FFFDACCEF07 | 48:8B8424 B8000000            | mov rax,qword ptr ss:[rsp+B8]           |
+00007FFFDACCEF0F | 48:894424 28                  | mov qword ptr ss:[rsp+28],rax           |
+00007FFFDACCEF14 | 48:895C24 20                  | mov qword ptr ss:[rsp+20],rbx           |
+00007FFFDACCEF19 | E8 A20B0000                   | call ntdll.7FFFDACCFAC0                 |
+00007FFFDACCEF1E | 48:8B9C24 90000000            | mov rbx,qword ptr ss:[rsp+90]           |
+00007FFFDACCEF26 | 4C:8D9C24 80000000            | lea r11,qword ptr ss:[rsp+80]           | [rsp+80]:RtlpFreezeTimeBias+4A10
+00007FFFDACCEF2E | 49:8B6B 18                    | mov rbp,qword ptr ds:[r11+18]           |
+00007FFFDACCEF32 | 49:8B73 20                    | mov rsi,qword ptr ds:[r11+20]           | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACCEF36 | 49:8B7B 28                    | mov rdi,qword ptr ds:[r11+28]           |
+00007FFFDACCEF3A | 49:8BE3                       | mov rsp,r11                             |
+00007FFFDACCEF3D | 41:5E                         | pop r14                                 |
+00007FFFDACCEF3F | C3                            | ret                                     |
+00007FFFDACCEF40 | CC                            | int3                                    |
+00007FFFDACCEF41 | 8B43 30                       | mov eax,dword ptr ds:[rbx+30]           | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEF44 | 25 1F0010F8                   | and eax,F810001F                        |
+00007FFFDACCEF49 | 0FBAE8 14                     | bts eax,14                              |
+00007FFFDACCEF4D | 8943 30                       | mov dword ptr ds:[rbx+30],eax           | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEF50 | E9 C0FEFFFF                   | jmp ntdll.7FFFDACCEE15                  |
+00007FFFDACCEF55 | 41:83E2 BF                    | and r10d,FFFFFFBF                       |
+00007FFFDACCEF59 | 44:8953 30                    | mov dword ptr ds:[rbx+30],r10d          | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEF5D | E9 39FFFFFF                   | jmp ntdll.7FFFDACCEE9B                  |
+00007FFFDACCEF62 | C743 30 0B001000              | mov dword ptr ds:[rbx+30],10000B        | rbx+30:"on options for the process %lx failed with status 0x%08lx\n"
+00007FFFDACCEF69 | E9 2DFFFFFF                   | jmp ntdll.7FFFDACCEE9B                  |
+00007FFFDACCEF6E | B8 0D0000C0                   | mov eax,C000000D                        |
+00007FFFDACCEF73 | EB B1                         | jmp ntdll.7FFFDACCEF26                  |
+00007FFFDACCEF75 | 3D 0D0000C0                   | cmp eax,C000000D                        |
+00007FFFDACCEF7A | 0F85 8DFEFFFF                 | jne ntdll.7FFFDACCEE0D                  |
+00007FFFDACCEF80 | EB BF                         | jmp ntdll.7FFFDACCEF41                  |
+00007FFFDACCEF82 | CC                            | int3                                    |
+00007FFFDACCEF83 | CC                            | int3                                    |
+00007FFFDACCEF84 | CC                            | int3                                    |

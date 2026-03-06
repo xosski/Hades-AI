@@ -1,0 +1,17 @@
+flowchart TD
+    A[1. Browser Sandbox Escape<br/>(Renderer Overflow / Memory Corruption)] --> B[2. Shadow Thread / Loader Hijack<br/>(ntdll → LdrpInitializeProcess)]
+    B --> C[3. Registry Update Hijack<br/>(edgeupdate / NativeHost)]
+    C --> D[4. Desktop Attachment<br/>(TSDDD → Attach.ToDesktop)]
+    D --> E[5. Print-to-PDF Pivot<br/>(Printers → Linux-PDF Container)]
+    E --> F[6. Startup Persistence<br/>(StartupApproved → Run Keys)]
+    F --> G[7. Cloud Anchor<br/>(OneDrive Auto-Sync Payloads)]
+    G --> H[➡ Full OS Ritual Hijack<br/>(System rebuilds attacker at every cycle)]
+
+    style H fill=#C0392B,stroke=#000,color=#fff
+    style A fill=#2E86C1,stroke=#000,color=#fff
+    style B fill=#2E86C1,stroke=#000,color=#fff
+    style C fill=#2E86C1,stroke=#000,color=#fff
+    style D fill=#2E86C1,stroke=#000,color=#fff
+    style E fill=#2E86C1,stroke=#000,color=#fff
+    style F fill=#2E86C1,stroke=#000,color=#fff
+    style G fill=#2E86C1,stroke=#000,color=#fff

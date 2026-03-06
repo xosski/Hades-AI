@@ -1,0 +1,43 @@
+00007FFFDACE6C6D | 0F8E F7030000                 | jle ntdll.7FFFDACE706A                  |
+00007FFFDACE6C73 | 48:85D2                       | test rdx,rdx                            |
+00007FFFDACE6C76 | 0F84 EE030000                 | je ntdll.7FFFDACE706A                   |
+00007FFFDACE6C7C | 4D:85E4                       | test r12,r12                            |
+00007FFFDACE6C7F | 0F84 E5030000                 | je ntdll.7FFFDACE706A                   |
+00007FFFDACE6C85 | 44:8BB5 90000000              | mov r14d,dword ptr ss:[rbp+90]          |
+00007FFFDACE6C8C | 41:F7C6 E0FFFFFF              | test r14d,FFFFFFE0                      |
+00007FFFDACE6C93 | 0F85 D1030000                 | jne ntdll.7FFFDACE706A                  |
+00007FFFDACE6C99 | 6548:8B0C25 60000000          | mov rcx,qword ptr gs:[60]               | rcx:ZwQueryInformationThread+14
+00007FFFDACE6CA2 | 8D50 09                       | lea edx,qword ptr ds:[rax+9]            |
+00007FFFDACE6CA5 | 41:B8 AA000000                | mov r8d,AA                              |
+00007FFFDACE6CAB | 4C:89AC24 80010000            | mov qword ptr ss:[rsp+180],r13          | [rsp+180]:TermsrvGetWindowsDirectoryW
+00007FFFDACE6CB3 | 48:8B49 30                    | mov rcx,qword ptr ds:[rcx+30]           | rcx:ZwQueryInformationThread+14, rcx+30:ZwSetInformationFile+4
+00007FFFDACE6CB7 | E8 1455FFFF                   | call <ntdll.RtlAllocateHeap>            |
+00007FFFDACE6CBC | 48:894424 58                  | mov qword ptr ss:[rsp+58],rax           |
+00007FFFDACE6CC1 | 4C:8BE8                       | mov r13,rax                             |
+00007FFFDACE6CC4 | 48:85C0                       | test rax,rax                            |
+00007FFFDACE6CC7 | 0F84 A4030000                 | je ntdll.7FFFDACE7071                   |
+00007FFFDACE6CCD | 48:85F6                       | test rsi,rsi                            | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACE6CD0 | 0F84 FD020000                 | je ntdll.7FFFDACE6FD3                   |
+00007FFFDACE6CD6 | 6644:393E                     | cmp word ptr ds:[rsi],r15w              | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACE6CDA | 0F84 F3020000                 | je ntdll.7FFFDACE6FD3                   |
+00007FFFDACE6CE0 | 85DB                          | test ebx,ebx                            |
+00007FFFDACE6CE2 | 0F8E EB020000                 | jle ntdll.7FFFDACE6FD3                  |
+00007FFFDACE6CE8 | 44:897C24 2C                  | mov dword ptr ss:[rsp+2C],r15d          |
+00007FFFDACE6CED | 48:C7C3 FFFFFFFF              | mov rbx,FFFFFFFFFFFFFFFF                | rbx:"LdrpInitializeProcess"
+00007FFFDACE6CF4 | 48:FFC3                       | inc rbx                                 | rbx:"LdrpInitializeProcess"
+00007FFFDACE6CF7 | 6644:393C5E                   | cmp word ptr ds:[rsi+rbx*2],r15w        |
+00007FFFDACE6CFC | 75 F6                         | jne ntdll.7FFFDACE6CF4                  |
+00007FFFDACE6CFE | 48:8BCE                       | mov rcx,rsi                             | rcx:ZwQueryInformationThread+14, rsi:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACE6D01 | 4C:897C24 48                  | mov qword ptr ss:[rsp+48],r15           | [rsp+48]:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACE6D06 | 03DB                          | add ebx,ebx                             |
+00007FFFDACE6D08 | 48:897424 50                  | mov qword ptr ss:[rsp+50],rsi           | [rsp+50]:"minkernel\\ldr\\ldrinit.c"
+00007FFFDACE6D0D | E8 3E0D1000                   | call <ntdll.wcslen>                     |
+00007FFFDACE6D12 | 48:8BC8                       | mov rcx,rax                             | rcx:ZwQueryInformationThread+14
+00007FFFDACE6D15 | B8 FCFF0000                   | mov eax,FFFC                            |
+00007FFFDACE6D1A | 48:03C9                       | add rcx,rcx                             | rcx:ZwQueryInformationThread+14
+00007FFFDACE6D1D | 48:81F9 FEFF0000              | cmp rcx,FFFE                            | rcx:ZwQueryInformationThread+14
+00007FFFDACE6D24 | 48:0F43C8                     | cmovae rcx,rax                          | rcx:ZwQueryInformationThread+14
+00007FFFDACE6D28 | 66:894C24 48                  | mov word ptr ss:[rsp+48],cx             |
+00007FFFDACE6D2D | 8D41 02                       | lea eax,qword ptr ds:[rcx+2]            | rcx+02:ZwQueryInformationThread+16
+00007FFFDACE6D30 | 66:894424 4A                  | mov word ptr ss:[rsp+4A],ax             |
+00007FFFDACE6D35 | 40:F6C7 04                    | test dil,4                              |

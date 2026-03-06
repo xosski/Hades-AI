@@ -1,0 +1,20 @@
+00007FFFD7F8C9FF | 48:3BDD                       | cmp rbx,rbp                             |
+00007FFFD7F8CA02 | 75 29                         | jne gdi32full.7FFFD7F8CA2D              |
+00007FFFD7F8CA04 | 48:8D0D 8DFB0D00              | lea rcx,qword ptr ds:[7FFFD806C598]     |
+00007FFFD7F8CA0B | 48:FF15 9E800900              | call qword ptr ds:[<RtlLeaveCriticalSec |
+00007FFFD7F8CA12 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7F8CA17 | 48:8B5C24 30                  | mov rbx,qword ptr ss:[rsp+30]           | [rsp+30]:RtlEncodeRemotePointer+CE
+00007FFFD7F8CA1C | B8 01000000                   | mov eax,1                               |
+00007FFFD7F8CA21 | 48:8B6C24 38                  | mov rbp,qword ptr ss:[rsp+38]           |
+00007FFFD7F8CA26 | 48:83C4 20                    | add rsp,20                              |
+00007FFFD7F8CA2A | 5F                            | pop rdi                                 |
+00007FFFD7F8CA2B | C3                            | ret                                     |
+00007FFFD7F8CA2C | CC                            | int3                                    |
+00007FFFD7F8CA2D | 48:8BCB                       | mov rcx,rbx                             |
+00007FFFD7F8CA30 | 48:8B1B                       | mov rbx,qword ptr ds:[rbx]              |
+00007FFFD7F8CA33 | 48:3979 18                    | cmp qword ptr ds:[rcx+18],rdi           |
+00007FFFD7F8CA37 | 75 C6                         | jne gdi32full.7FFFD7F8C9FF              |
+00007FFFD7F8CA39 | BA 01000000                   | mov edx,1                               |
+00007FFFD7F8CA3E | E8 5D1C0000                   | call gdi32full.7FFFD7F8E6A0             |
+00007FFFD7F8CA43 | EB BA                         | jmp gdi32full.7FFFD7F8C9FF              |
+00007FFFD7F8CA45 | CC                            | int3                                    |

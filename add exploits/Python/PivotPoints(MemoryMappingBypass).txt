@@ -1,0 +1,22 @@
+00007FF92BA3FD90 | 6548:8B0425 30000000          | mov rax,qword ptr gs:[30]               |
+00007FF92BA3FD99 | 48:8B40 60                    | mov rax,qword ptr ds:[rax+60]           |
+00007FF92BA3FD9D | C3                            | ret                                     |
+00007FF92BA3FD9E | CC                            | int3                                    |
+00007FF92BA3FD9F | CC                            | int3                                    |
+00007FF92BA3FDA0 | CC                            | int3                                    |
+00007FF92BA3FDA1 | CC                            | int3                                    |
+00007FF92BA3FDA2 | CC                            | int3                                    |
+00007FF92BA3FDA3 | CC                            | int3                                    |
+00007FF92BA3FDA4 | CC                            | int3                                    |
+00007FF92BA3FDA5 | CC                            | int3                                    |
+00007FF92BA3FDA6 | CC                            | int3                                    |
+00007FF92BA3FDA7 | CC                            | int3                                    |
+00007FF92BA3FDA8 | CC                            | int3                                    |
+00007FF92BA3FDA9 | CC                            | int3                                    |
+00007FF92BA3FDAA | CC                            | int3                                    |
+00007FF92BA3FDAB | CC                            | int3                                    |
+00007FF92BA3FDAC | CC                            | int3                                    |
+00007FF92BA3FDAD | CC                            | int3                                    |
+00007FF92BA3FDAE | CC                            | int3                                    |
+00007FF92BA3FDAF | CC                            | int3                                    |
+00007FF92BA3FDB0 | 48:83EC 38                    | sub rsp,38                              |

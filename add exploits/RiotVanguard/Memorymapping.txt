@@ -1,0 +1,98 @@
+00007FF92BA3FD83 | C3                            | ret                                     |
+00007FF92BA3FD84 | CC                            | int3                                    |
+00007FF92BA3FD85 | CC                            | int3                                    |
+00007FF92BA3FD86 | CC                            | int3                                    |
+00007FF92BA3FD87 | CC                            | int3                                    |
+00007FF92BA3FD88 | CC                            | int3                                    |
+00007FF92BA3FD89 | CC                            | int3                                    |
+00007FF92BA3FD8A | CC                            | int3                                    |
+00007FF92BA3FD8B | CC                            | int3                                    |
+00007FF92BA3FD8C | CC                            | int3                                    |
+00007FF92BA3FD8D | CC                            | int3                                    |
+00007FF92BA3FD8E | CC                            | int3                                    |
+00007FF92BA3FD8F | CC                            | int3                                    |
+00007FF92BA3FD90 | 6548:8B0425 30000000          | mov rax,qword ptr gs:[30]               |
+00007FF92BA3FD99 | 48:8B40 60                    | mov rax,qword ptr ds:[rax+60]           |
+00007FF92BA3FD9D | C3                            | ret                                     |
+00007FF92BA3FD9E | CC                            | int3                                    |
+00007FF92BA3FD9F | CC                            | int3                                    |
+00007FF92BA3FDA0 | CC                            | int3                                    |
+00007FF92BA3FDA1 | CC                            | int3                                    |
+00007FF92BA3FDA2 | CC                            | int3                                    |
+00007FF92BA3FDA3 | CC                            | int3                                    |
+00007FF92BA3FDA4 | CC                            | int3                                    |
+00007FF92BA3FDA5 | CC                            | int3                                    |
+00007FF92BA3FDA6 | CC                            | int3                                    |
+00007FF92BA3FDA7 | CC                            | int3                                    |
+00007FF92BA3FDA8 | CC                            | int3                                    |
+00007FF92BA3FDA9 | CC                            | int3                                    |
+00007FF92BA3FDAA | CC                            | int3                                    |
+00007FF92BA3FDAB | CC                            | int3                                    |
+00007FF92BA3FDAC | CC                            | int3                                    |
+00007FF92BA3FDAD | CC                            | int3                                    |
+00007FF92BA3FDAE | CC                            | int3                                    |
+00007FF92BA3FDAF | CC                            | int3                                    |
+00007FF92BA3FDB0 | 48:83EC 38                    | sub rsp,38                              |
+00007FF92BA3FDB4 | 4D:8BC8                       | mov r9,r8                               |
+00007FF92BA3FDB7 | 4C:8BC2                       | mov r8,rdx                              |
+00007FF92BA3FDBA | 48:8BD1                       | mov rdx,rcx                             | rcx:ZwQueryInformationThread+14
+00007FF92BA3FDBD | E8 0E000000                   | call ntdll.7FF92BA3FDD0                 |
+00007FF92BA3FDC2 | 48:83C4 38                    | add rsp,38                              |
+00007FF92BA3FDC6 | C3                            | ret                                     |
+00007FF92BA3FDC7 | CC                            | int3                                    |
+00007FF92BA3FDC8 | CC                            | int3                                    |
+00007FF92BA3FDC9 | CC                            | int3                                    |
+00007FF92BA3FDCA | CC                            | int3                                    |
+00007FF92BA3FDCB | CC                            | int3                                    |
+00007FF92BA3FDCC | CC                            | int3                                    |
+00007FF92BA3FDCD | CC                            | int3                                    |
+00007FF92BA3FDCE | CC                            | int3                                    |
+00007FF92BA3FDCF | CC                            | int3                                    |
+00007FF92BA3FDD0 | 4C:894C24 20                  | mov qword ptr ss:[rsp+20],r9            |
+00007FF92BA3FDD5 | 4C:894424 18                  | mov qword ptr ss:[rsp+18],r8            | [rsp+18]:"LdrpInitializeProcess"
+00007FF92BA3FDDA | 48:895424 10                  | mov qword ptr ss:[rsp+10],rdx           |
+00007FF92BA3FDDF | 53                            | push rbx                                | rbx:"LdrpInitializeProcess"
+00007FF92BA3FDE0 | 48:83EC 50                    | sub rsp,50                              |
+00007FF92BA3FDE4 | 49:8BC0                       | mov rax,r8                              |
+00007FF92BA3FDE7 | 4C:8BD2                       | mov r10,rdx                             |
+00007FF92BA3FDEA | 33DB                          | xor ebx,ebx                             |
+00007FF92BA3FDEC | 895C24 40                     | mov dword ptr ss:[rsp+40],ebx           |
+00007FF92BA3FDF0 | 4D:8BC1                       | mov r8,r9                               |
+00007FF92BA3FDF3 | 48:8BD0                       | mov rdx,rax                             |
+00007FF92BA3FDF6 | 49:8BCA                       | mov rcx,r10                             | rcx:ZwQueryInformationThread+14
+00007FF92BA3FDF9 | E8 02820600                   | call <ntdll.RtlCopyMemory>              |
+00007FF92BA3FDFE | EB 04                         | jmp ntdll.7FF92BA3FE04                  |
+00007FF92BA3FE00 | 8B5C24 40                     | mov ebx,dword ptr ss:[rsp+40]           |
+00007FF92BA3FE04 | 8BC3                          | mov eax,ebx                             |
+00007FF92BA3FE06 | 48:83C4 50                    | add rsp,50                              |
+00007FF92BA3FE0A | 5B                            | pop rbx                                 | rbx:"LdrpInitializeProcess"
+00007FF92BA3FE0B | C3                            | ret                                     |
+00007FF92BA3FE0C | CC                            | int3                                    |
+00007FF92BA3FE0D | CC                            | int3                                    |
+00007FF92BA3FE0E | CC                            | int3                                    |
+00007FF92BA3FE0F | CC                            | int3                                    |
+00007FF92BA3FE10 | CC                            | int3                                    |
+00007FF92BA3FE11 | CC                            | int3                                    |
+00007FF92BA3FE12 | CC                            | int3                                    |
+00007FF92BA3FE13 | CC                            | int3                                    |
+00007FF92BA3FE14 | CC                            | int3                                    |
+00007FF92BA3FE15 | CC                            | int3                                    |
+00007FF92BA3FE16 | CC                            | int3                                    |
+00007FF92BA3FE17 | CC                            | int3                                    |
+00007FF92BA3FE18 | CC                            | int3                                    |
+00007FF92BA3FE19 | CC                            | int3                                    |
+00007FF92BA3FE1A | CC                            | int3                                    |
+00007FF92BA3FE1B | CC                            | int3                                    |
+00007FF92BA3FE1C | CC                            | int3                                    |
+00007FF92BA3FE1D | CC                            | int3                                    |
+00007FF92BA3FE1E | CC                            | int3                                    |
+00007FF92BA3FE1F | CC                            | int3                                    |
+00007FF92BA3FE20 | 48:894C24 08                  | mov qword ptr ss:[rsp+8],rcx            | [rsp+08]:RtlQueryElevationFlags+241, rcx:ZwQueryInformationThread+14
+00007FF92BA3FE25 | 53                            | push rbx                                | rbx:"LdrpInitializeProcess"
+00007FF92BA3FE26 | 56                            | push rsi                                | rsi:"minkernel\\ldr\\ldrinit.c"
+00007FF92BA3FE27 | 57                            | push rdi                                |
+00007FF92BA3FE28 | 41:56                         | push r14                                |
+00007FF92BA3FE2A | 48:83EC 38                    | sub rsp,38                              |
+00007FF92BA3FE2E | 48:8BD9                       | mov rbx,rcx                             | rbx:"LdrpInitializeProcess", rcx:ZwQueryInformationThread+14
+00007FF92BA3FE31 | C64424 68 00                  | mov byte ptr ss:[rsp+68],0              |
+00007FF92BA3FE36 | 48:85C9                       | test rcx,rcx                            | rcx:ZwQueryInformationThread+14

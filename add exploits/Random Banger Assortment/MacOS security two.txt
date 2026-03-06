@@ -1,0 +1,69 @@
+#!/bin/bash
+ 
+# Function to update a specific authorization right
+update_authorization_right() {
+    local right=$1
+    local plist_file="/tmp/${right}.plist"
+ 
+    # Read the current configuration
+    sudo security authorizationdb read "$right" > "$plist_file"
+ 
+    # Create the new plist content
+    cat <<EOF > "$plist_file"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>allow-root</key>
+    <true/>
+    <key>authenticate-user</key>
+    <true/>
+    <key>class</key>
+    <string>user</string>
+    <key>comment</key>
+    <string>Checked by the Admin framework when making changes to the Security preference pane.</string>
+    <key>created</key>
+    <real>$(date +%s)</real>
+    <key>group</key>
+    <array>
+        <string>admin</string>
+        <string>staff</string>
+    </array>
+    <key>modified</key>
+    <real>$(date +%s)</real>
+    <key>session-owner</key>
+    <false/>
+    <key>shared</key>
+    <false/>
+    <key>timeout</key>
+    <integer>2147483647</integer>
+    <key>tries</key>
+    <integer>10000</integer>
+    <key>version</key>
+    <integer>0</integer>
+</dict>
+</plist>
+EOF
+ 
+    # Write the modified configuration back to the authorization database
+    sudo security authorizationdb write "$right" < "$plist_file"
+ 
+    # Clean up
+    rm "$plist_file"
+ 
+    echo "Updated authorization right: $right"
+}
+ 
+# List of rights to update
+rights=(
+    "system.preferences.security"
+    "system.preferences.accessibility"
+    "system.preferences.full-disk-access"
+)
+ 
+# Update each right
+for right in "${rights[@]}"; do
+    update_authorization_right "$right"
+done
+ 
+echo "All specified authorization rights have been updated to include both admin and staff groups."

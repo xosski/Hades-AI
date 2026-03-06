@@ -1,0 +1,40 @@
+Summary
+23andMe's web frontend exposes full user profile metadata directly within JavaScript variables during page load. This includes:
+Full name (first and last)
+Birth year
+ZIP/postal code
+Subscription and service access flags
+Research consent participation
+Genotype status
+AWS S3 profile image URLs with embedded access tokens
+This information is accessible to any authenticated user without the need to trigger API calls, and appears client-side before user interaction.
+Affected Endpoint / Location
+Domain: you.23andme.com
+Endpoint: window.TTAM.ready(...) → new exports.quickInviteModal(...)
+JS Variable: profiles[], embedded on authenticated pages like /family/relatives/
+Severity
+CVSS 3.1 (estimated): 5.3 – Medium
+Attack Vector: Network
+Attack Complexity: Low
+Privileges Required: Low
+User Interaction: None
+Confidentiality Impact: High
+Integrity Impact: None
+Availability Impact: None
+While direct IDOR against /p/{UUID}/quick-invite/ is mitigated (403 response), the data is already leaked in JavaScript at load time, making it accessible to:
+XSS payloads
+Malicious extensions
+Session hijack / browser implant scenarios
+Third-party JS libraries
+Steps to Reproduce
+Log into a 23andMe account and visit https://you.23andme.com/family/relatives/.
+Open DevTools → Console or Network tab.
+Search for the variable quickInviteModal or inspect inline <script> tags.
+Observe the raw JSON profile data embedded in the page, Supporting Evidence
+Screenshot of quickInviteModal payload in browser DevTools
+S3 URL with embedded AWSAccessKeyId & Signature:
+https://ttam-live-human-images-us-west-2.s3.amazonaws.com/c074da2c090446f7...&Signature=6YCDSnhJfMgmF0ghxDgdxstFrTw%3D&Expires=1765765797
+Recommendation
+Move sensitive profile metadata out of client-rendered JS and into authenticated API responses gated by access control. Avoid exposing signed image URLs or PII in global JS scope.
+Impact
+Any attacker with browser access (e.g., via XSS, compromised session, or malicious extension) can scrape sensitive health-related and identity data without further API requests or user consent.

@@ -1,0 +1,12 @@
+00007FFFD7FCC611 | 48:FF15 48AA0A00              | call qword ptr ds:[<&GetOtlLangSysList> |
+00007FFFD7FCC618 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FCC61D | 48:8D5424 20                  | lea rdx,qword ptr ss:[rsp+20]           | [rsp+20]:_free_locale+17D9
+00007FFFD7FCC622 | 8BD8                          | mov ebx,eax                             |
+00007FFFD7FCC624 | 48:8D4C24 68                  | lea rcx,qword ptr ss:[rsp+68]           |
+00007FFFD7FCC629 | 48:FF15 28AA0A00              | call qword ptr ds:[<&FreeOtlResources>] |
+00007FFFD7FCC630 | 0F1F4400 00                   | nop dword ptr ds:[rax+rax],eax          |
+00007FFFD7FCC635 | B8 FF000000                   | mov eax,FF                              |
+00007FFFD7FCC63A | C1FB 08                       | sar ebx,8                               |
+00007FFFD7FCC63D | 66:23D8                       | and bx,ax                               |
+00007FFFD7FCC640 | B8 01000000                   | mov eax,1                               |
+00007FFFD7FCC645 | 66:3BD8                       | cmp bx,ax                               |
