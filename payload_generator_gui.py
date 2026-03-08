@@ -17,6 +17,16 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QColor
 
+# Import payload-exploit integration
+try:
+    from payload_exploit_integration import (
+        PayloadExploitLinker, PayloadProfile,
+        from_payload_generator_to_exploit
+    )
+    INTEGRATION_AVAILABLE = True
+except ImportError:
+    INTEGRATION_AVAILABLE = False
+
 logger = logging.getLogger("PayloadGeneratorGUI")
 
 
@@ -256,6 +266,18 @@ class PayloadGeneratorTab(QWidget):
         self.current_file = None
         self.payloads = []
         self.worker = None
+        self.integration_linker = None  # Payload-Exploit integration
+        self.current_profile_id = None
+        
+        # Initialize payload-exploit integration
+        if INTEGRATION_AVAILABLE:
+            try:
+                self.integration_linker = PayloadExploitLinker()
+                logger.info("Payload-Exploit integration linker initialized in payload generator")
+            except Exception as e:
+                logger.warning(f"Integration linker initialization failed: {e}")
+                self.integration_linker = None
+        
         self.init_ui()
     
     def init_ui(self):
@@ -457,6 +479,19 @@ class PayloadGeneratorTab(QWidget):
         # Display payloads
         self.payloads = result['payloads']
         self._display_payloads(result['detected_type'], result['payloads'])
+        
+        # Create payload profile for integration if available
+        if self.integration_linker:
+            try:
+                profile = from_payload_generator_to_exploit(
+                    result,
+                    {},  # No file analysis yet
+                    result['detected_type']
+                )
+                self.current_profile_id = self.integration_linker.db.save_payload_profile(profile)
+                logger.info(f"Payload profile saved for integration: {self.current_profile_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save payload profile: {e}")
         
         logger.info(f"Generated {result['count']} payloads for {result['file_name']}")
     
