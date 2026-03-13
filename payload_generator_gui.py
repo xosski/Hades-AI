@@ -27,6 +27,16 @@ try:
 except ImportError:
     INTEGRATION_AVAILABLE = False
 
+# Import AI integration
+try:
+    from payload_exploit_ai_integration import (
+        AIPayloadGenerator, PayloadRequest, AIExploitAnalyzer,
+        PayloadExploitAIBridge, LLMProvider
+    )
+    AI_INTEGRATION_AVAILABLE = True
+except ImportError:
+    AI_INTEGRATION_AVAILABLE = False
+
 logger = logging.getLogger("PayloadGeneratorGUI")
 
 
@@ -239,6 +249,69 @@ class PayloadGenerator:
         }
 
 
+class AIPayloadWorker(QThread):
+    """Background worker for AI-powered payload generation"""
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    
+    def __init__(self, ai_bridge, file_type: str, target_info: dict):
+        super().__init__()
+        self.ai_bridge = ai_bridge
+        self.file_type = file_type
+        self.target_info = target_info
+    
+    def run(self):
+        try:
+            if not AI_INTEGRATION_AVAILABLE:
+                self.error.emit("AI integration not available")
+                return
+            
+            from payload_exploit_ai_integration import PayloadRequest
+            
+            self.progress.emit("Initializing AI model...")
+            
+            # Generate targeted payloads using AI
+            request = PayloadRequest(
+                file_type=self.file_type,
+                vulnerability_type="General Injection",
+                target_info=self.target_info,
+                count=5
+            )
+            
+            self.progress.emit("Generating AI payloads...")
+            payloads = self.ai_bridge.payload_generator.generate_payloads(request)
+            
+            self.progress.emit(f"Scoring {len(payloads)} payloads...")
+            
+            # Convert to dict format for signal
+            payload_dicts = []
+            for p in payloads:
+                payload_dicts.append({
+                    'payload': p.payload,
+                    'description': p.description,
+                    'risk_level': p.risk_level,
+                    'ai_reasoning': p.ai_reasoning,
+                    'execution_method': p.execution_method,
+                    'detection_evasion': p.detection_evasion,
+                    'source': p.source
+                })
+            
+            result = {
+                'payloads': payload_dicts,
+                'provider': self.ai_bridge.get_active_provider(),
+                'count': len(payload_dicts),
+                'file_type': self.file_type
+            }
+            
+            self.finished.emit(result)
+        except Exception as e:
+            import traceback
+            error_detail = f"AI generation error: {str(e)}\n{traceback.format_exc()}"
+            logger.error(error_detail)
+            self.error.emit(error_detail)
+
+
 class PayloadGeneratorWorker(QThread):
     """Background worker for payload generation"""
     finished = pyqtSignal(dict)
@@ -277,6 +350,18 @@ class PayloadGeneratorTab(QWidget):
             except Exception as e:
                 logger.warning(f"Integration linker initialization failed: {e}")
                 self.integration_linker = None
+        
+        # Initialize AI integration
+        self.ai_bridge = None
+        self.ai_enabled = False
+        if AI_INTEGRATION_AVAILABLE:
+            try:
+                from payload_exploit_ai_integration import PayloadExploitAIBridge
+                self.ai_bridge = PayloadExploitAIBridge()
+                self.ai_enabled = True
+                logger.info("AI Bridge initialized for payload generation")
+            except Exception as e:
+                logger.warning(f"AI Bridge initialization failed: {e}")
         
         self.init_ui()
     
@@ -328,9 +413,21 @@ class PayloadGeneratorTab(QWidget):
         self.file_type_combo.currentTextChanged.connect(self._on_type_changed)
         custom_layout.addRow("Override Type:", self.file_type_combo)
         
+        # Generation buttons
+        btn_layout = QHBoxLayout()
+        
         generate_btn = QPushButton("Generate Payloads")
         generate_btn.clicked.connect(self._generate_payloads)
-        custom_layout.addRow("", generate_btn)
+        btn_layout.addWidget(generate_btn)
+        
+        # AI-powered generation button (if available)
+        if self.ai_enabled:
+            ai_btn = QPushButton("🤖 AI Enhanced")
+            ai_btn.clicked.connect(self._generate_ai_payloads)
+            ai_btn.setToolTip("Generate payloads using AI models")
+            btn_layout.addWidget(ai_btn)
+        
+        custom_layout.addRow("", btn_layout)
         
         custom_group.setLayout(custom_layout)
         layout.addWidget(custom_group)
@@ -669,6 +766,85 @@ class PayloadGeneratorTab(QWidget):
             logger.info(f"Exported {len(self.payloads)} payloads to {file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export:\n{e}")
+    
+    def _generate_ai_payloads(self):
+        """Generate payloads using AI"""
+        if not self.ai_enabled or not self.ai_bridge:
+            QMessageBox.warning(self, "AI Not Available", "AI integration is not available")
+            return
+        
+        if not self.current_file:
+            QMessageBox.warning(self, "Error", "Please select a file first")
+            return
+        
+        self.progress.setVisible(True)
+        self.progress.setRange(0, 0)  # Indeterminate
+        
+        # Get current file type
+        file_type = self.file_type_label.text()
+        if file_type == "Unknown":
+            file_type = self.file_type_combo.currentText()
+        
+        # Prepare target info
+        target_info = {
+            'file': self.current_file,
+            'filename': Path(self.current_file).name,
+            'file_type': file_type,
+            'file_size': self.file_size_label.text()
+        }
+        
+        # Run AI generation in background
+        self.worker = AIPayloadWorker(
+            self.ai_bridge,
+            file_type,
+            target_info
+        )
+        self.worker.finished.connect(self._on_ai_generation_complete)
+        self.worker.error.connect(self._on_generation_error)
+        self.worker.progress.connect(lambda msg: self.progress.setFormat(msg))
+        self.worker.start()
+    
+    def _on_ai_generation_complete(self, result: dict):
+        """Handle AI generation completion"""
+        self.progress.setVisible(False)
+        
+        # Extract generated payloads
+        ai_payloads = result.get('payloads', [])
+        
+        # Convert to simple payload strings for display
+        payload_strings = [p.get('payload', '') for p in ai_payloads if p.get('payload')]
+        self.payloads = payload_strings
+        
+        # Update UI
+        self.payload_count_label.setText(str(len(payload_strings)))
+        
+        # Display payloads
+        file_type = self.file_type_label.text()
+        self._display_payloads(file_type, payload_strings)
+        
+        # Show details about AI-generated payloads
+        details = f"AI-ENHANCED PAYLOAD GENERATION\n"
+        details += "=" * 50 + "\n\n"
+        details += f"Model: {result.get('provider', 'Unknown')}\n"
+        details += f"Total Payloads: {len(payload_strings)}\n"
+        details += f"Type: {file_type}\n\n"
+        
+        # Add reasoning from first payload
+        if ai_payloads and ai_payloads[0].get('ai_reasoning'):
+            details += "AI REASONING:\n"
+            details += "-" * 50 + "\n"
+            details += ai_payloads[0].get('ai_reasoning', '')[:300] + "...\n\n"
+        
+        details += "ADVANCED METRICS:\n"
+        details += "-" * 50 + "\n"
+        for idx, p in enumerate(ai_payloads[:3], 1):
+            details += f"\n{idx}. {p.get('description', 'No description')[:60]}...\n"
+            details += f"   Risk: {p.get('risk_level', 'Unknown')}\n"
+            details += f"   Method: {p.get('execution_method', 'N/A')}\n"
+        
+        self.details_text.setText(details)
+        
+        logger.info(f"Generated {len(payload_strings)} AI-enhanced payloads")
     
     def _clear(self):
         """Clear all"""
