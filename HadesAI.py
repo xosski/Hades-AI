@@ -141,6 +141,17 @@ except ImportError:
     ExploitGeneratorTab = None
     HAS_EXPLOIT_GEN = False
 
+# PHASE 1 INTEGRATION - Critical Systems
+try:
+    from modules.obsidian_core_integration import get_obsidian_core
+    from modules.ethical_control_integration import get_ethical_control
+    from modules.malware_engine_integration import get_malware_engine
+    from phase1_gui_tabs import ObsidianCoreTab, EthicalControlTab, MalwareEngineTab
+    HAS_PHASE1_INTEGRATION = True
+except ImportError as e:
+    logger.warning(f"Phase 1 Integration failed: {str(e)}")
+    HAS_PHASE1_INTEGRATION = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -4122,6 +4133,29 @@ class HadesGUI(QMainWindow):
                 logger.warning(f"Deployment Automation tab failed: {e}")
         if HAS_AUTONOMOUS_AGENT:
             self.tabs.addTab(self._create_agent_tab(), "🤖 Autonomous Coder")
+        
+        # PHASE 1 INTEGRATION TABS - Critical Systems
+        if HAS_PHASE1_INTEGRATION:
+            try:
+                self.obsidian_tab = ObsidianCoreTab()
+                self.tabs.addTab(self.obsidian_tab, "🤖 AI Orchestration")
+                logger.info("✓ ObsidianCore tab added")
+            except Exception as e:
+                logger.warning(f"ObsidianCore tab failed: {str(e)}")
+            
+            try:
+                self.ethical_tab = EthicalControlTab()
+                self.tabs.addTab(self.ethical_tab, "🔒 Ethical Control")
+                logger.info("✓ EthicalControl tab added")
+            except Exception as e:
+                logger.warning(f"EthicalControl tab failed: {str(e)}")
+            
+            try:
+                self.malware_tab = MalwareEngineTab()
+                self.tabs.addTab(self.malware_tab, "🔄 Payload Mutation")
+                logger.info("✓ MalwareEngine tab added")
+            except Exception as e:
+                logger.warning(f"MalwareEngine tab failed: {str(e)}")
         
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
