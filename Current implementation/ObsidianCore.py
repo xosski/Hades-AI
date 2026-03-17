@@ -2,7 +2,7 @@ import os
 import time
 import string
 import struct
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import win32api
 import win32con
 import win32service
@@ -17,8 +17,7 @@ import string
 import psutil
 import socket
 import networkx as nx
-import b64encode
-import timedelta
+from base64 import b64encode
 import json
 import pefile
 from cryptography.fernet import Fernet
@@ -2427,7 +2426,7 @@ class AutomatedDefense:
 
     def _create_wmi_persistence(self):
         """Create WMI-based persistence"""
-        wmi = win32com.client.GetObject("winmgmts:\\.\root\subscription")
+        wmi = win32com.client.GetObject(r"winmgmts:\\.\root\subscription")
         
         event_filter = wmi.Get("__EventFilter").SpawnInstance_()
         event_filter.Name = self.filter_name
