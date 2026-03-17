@@ -3280,7 +3280,7 @@ Current query:
             return []
         return self.llm_manager.get_available_providers()
     
-     def full_site_scan(self, url: str, callback=None) -> Dict[str, Any]:
+    def full_site_scan(self, url: str, callback=None) -> Dict[str, Any]:
         """
         Comprehensive automated reconnaissance on a target URL.
         Runs multiple scan types and learns from findings.
