@@ -7438,24 +7438,15 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             self.brain = pcore.update_emotion(self.brain, user_input)
             self.brain = pcore.update_topics(self.brain, user_input)
             
-            # Get selected LLM provider
-            selected_provider = self.llm_provider_combo.currentText() if hasattr(self, 'llm_provider_combo') else None
-            
-            # Try to use LLM if available and a good provider is selected
-            if selected_provider and selected_provider != "fallback" and self.ai.llm_manager:
-                try:
-                    response = self.ai.llm_chat(
-                        user_input,
-                        provider=selected_provider,
-                        system_prompt="You are HADES, an expert security and pentesting assistant. Provide technical, practical advice for security testing."
-                    )
-                except Exception as llm_error:
-                    logger.warning(f"LLM error, falling back to personality system: {llm_error}")
-                    response = self._generate_intelligent_response(user_input)
-            else:
-                # Generate intelligent response using personality system
-                response = self._generate_intelligent_response(user_input)
-            
+            # Primary chat flow: route through core ChatProcessor for up-to-date
+            # command matching and action dispatch.
+            chat_result = self.ai.chat(user_input)
+            response = chat_result.get('response', '') if isinstance(chat_result, dict) else str(chat_result)
+
+            # Execute any structured action returned by ChatProcessor.
+            if isinstance(chat_result, dict) and chat_result.get('action'):
+                self._execute_action(chat_result['action'])
+
             # Allow loaded modules to enhance response
             response = self._process_through_modules(user_input, response)
             
