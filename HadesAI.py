@@ -3250,19 +3250,60 @@ Current query:
             return "❌ LLM Core not initialized. Check dependencies."
         
         try:
+            available_providers = self.llm_manager.get_available_providers()
+
+            # Prefer local/free providers when no API keys are configured.
+            resolved_provider = provider
+            if not resolved_provider:
+                if "ollama" in available_providers:
+                    resolved_provider = "ollama"
+                elif "fallback" in available_providers:
+                    resolved_provider = "fallback"
+                elif available_providers:
+                    resolved_provider = available_providers[0]
+                else:
+                    resolved_provider = "fallback"
+
+            if resolved_provider not in available_providers:
+                if "ollama" in available_providers:
+                    resolved_provider = "ollama"
+                elif "fallback" in available_providers:
+                    resolved_provider = "fallback"
+
+            model_defaults = {
+                "openai": "gpt-3.5-turbo",
+                "mistral": "mistral-small-latest",
+                "ollama": "llama3.2",
+                "azure": "gpt-35-turbo",
+                "fallback": "fallback",
+            }
+            resolved_model = model or model_defaults.get(resolved_provider, "fallback")
+
             # Create or reuse conversation
             if not hasattr(self, '_llm_conversation'):
                 self._llm_conversation = self.llm_manager.create_conversation(
                     title="HadesAI Session",
-                    provider=provider or "openai",
-                    model=model or "gpt-3.5-turbo",
+                    provider=resolved_provider,
+                    model=resolved_model,
                     system_prompt=system_prompt or "You are HADES, an expert security and coding assistant."
                 )
             else:
                 # Update provider/model if specified
-                if provider:
-                    self.llm_manager.switch_provider(self._llm_conversation.id, provider, model or "gpt-3.5-turbo")
-            
+                current_provider = self._llm_conversation.provider
+                current_model = self._llm_conversation.model
+                if current_provider != resolved_provider or current_model != resolved_model:
+                    switched = self.llm_manager.switch_provider(
+                        self._llm_conversation.id,
+                        resolved_provider,
+                        resolved_model,
+                    )
+                    if not switched and "fallback" in available_providers:
+                        self.llm_manager.switch_provider(
+                            self._llm_conversation.id,
+                            "fallback",
+                            model_defaults["fallback"],
+                        )
+
             # Send message
             response = self.llm_manager.send_message(
                 message,

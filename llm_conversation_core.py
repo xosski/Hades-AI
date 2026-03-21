@@ -148,9 +148,10 @@ class OpenAIProvider(LLMProviderBase):
             return None
         
         try:
+            messages = kwargs.get("messages") or [{"role": "user", "content": prompt}]
             response = self.client.chat.completions.create(
                 model=kwargs.get("model", "gpt-3.5-turbo"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=kwargs.get("max_tokens", 2000),
                 temperature=kwargs.get("temperature", 0.7),
                 timeout=kwargs.get("timeout", 30)
@@ -165,9 +166,10 @@ class OpenAIProvider(LLMProviderBase):
             return
         
         try:
+            messages = kwargs.get("messages") or [{"role": "user", "content": prompt}]
             stream = self.client.chat.completions.create(
                 model=kwargs.get("model", "gpt-3.5-turbo"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=kwargs.get("max_tokens", 2000),
                 temperature=kwargs.get("temperature", 0.7),
                 stream=True,
@@ -204,9 +206,10 @@ class MistralProvider(LLMProviderBase):
             return None
         
         try:
+            messages = kwargs.get("messages") or [{"role": "user", "content": prompt}]
             response = self.client.chat.complete(
                 model=kwargs.get("model", "mistral-tiny"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=kwargs.get("max_tokens", 2000),
                 temperature=kwargs.get("temperature", 0.7)
             )
@@ -220,9 +223,10 @@ class MistralProvider(LLMProviderBase):
             return
         
         try:
+            messages = kwargs.get("messages") or [{"role": "user", "content": prompt}]
             stream = self.client.chat.stream(
                 model=kwargs.get("model", "mistral-tiny"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=kwargs.get("max_tokens", 2000),
                 temperature=kwargs.get("temperature", 0.7)
             )
@@ -264,8 +268,23 @@ class OllamaProvider(LLMProviderBase):
             return None
         
         try:
+            model = kwargs.get("model", "llama3.2")
+            messages = kwargs.get("messages")
+
+            if messages:
+                response = self.client.chat(
+                    model=model,
+                    messages=messages,
+                    stream=False,
+                    options={
+                        "temperature": kwargs.get("temperature", 0.7),
+                        "num_predict": kwargs.get("max_tokens", 2000)
+                    }
+                )
+                return (response.get("message") or {}).get("content", "")
+
             response = self.client.generate(
-                model=kwargs.get("model", "llama2"),
+                model=model,
                 prompt=prompt,
                 stream=False,
                 options={
@@ -283,8 +302,28 @@ class OllamaProvider(LLMProviderBase):
             return
         
         try:
+            model = kwargs.get("model", "llama3.2")
+            messages = kwargs.get("messages")
+
+            if messages:
+                stream = self.client.chat(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": kwargs.get("temperature", 0.7),
+                        "num_predict": kwargs.get("max_tokens", 2000)
+                    }
+                )
+
+                for chunk in stream:
+                    content = ((chunk.get("message") or {}).get("content"))
+                    if content:
+                        yield content
+                return
+
             stream = self.client.generate(
-                model=kwargs.get("model", "llama2"),
+                model=model,
                 prompt=prompt,
                 stream=True,
                 options={
@@ -328,9 +367,10 @@ class AzureOpenAIProvider(LLMProviderBase):
             return None
         
         try:
+            messages = kwargs.get("messages") or [{"role": "user", "content": prompt}]
             response = self.client.chat.completions.create(
                 deployment_name=kwargs.get("deployment", "gpt-35-turbo"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=kwargs.get("max_tokens", 2000),
                 temperature=kwargs.get("temperature", 0.7)
             )
@@ -344,9 +384,10 @@ class AzureOpenAIProvider(LLMProviderBase):
             return
         
         try:
+            messages = kwargs.get("messages") or [{"role": "user", "content": prompt}]
             stream = self.client.chat.completions.create(
                 deployment_name=kwargs.get("deployment", "gpt-35-turbo"),
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=kwargs.get("max_tokens", 2000),
                 temperature=kwargs.get("temperature", 0.7),
                 stream=True
@@ -420,6 +461,27 @@ class ConversationManager:
         
         available = [name for name, prov in self.providers.items() if prov.available]
         logger.info(f"Available LLM providers: {available}")
+
+    def _default_model_for(self, provider: str) -> str:
+        model_map = {
+            "openai": "gpt-3.5-turbo",
+            "mistral": "mistral-small-latest",
+            "ollama": "llama3.2",
+            "azure": "gpt-35-turbo",
+            "fallback": "fallback",
+        }
+        return model_map.get(provider, "fallback")
+
+    def _select_default_provider(self) -> str:
+        """Prefer free local LLM when cloud API keys are absent."""
+        if self.providers.get("ollama") and self.providers["ollama"].available:
+            return "ollama"
+        if self.providers.get("fallback") and self.providers["fallback"].available:
+            return "fallback"
+        for name, prov in self.providers.items():
+            if prov.available:
+                return name
+        return "fallback"
     
     def _init_db(self):
         """Initialize SQLite database for conversation storage"""
@@ -465,6 +527,10 @@ class ConversationManager:
             f"{title}{datetime.now().isoformat()}".encode()
         ).hexdigest()
         
+        if provider not in self.providers or not self.providers[provider].available:
+            provider = self._select_default_provider()
+            model = self._default_model_for(provider)
+
         conv = Conversation(
             id=conv_id,
             title=title,
@@ -584,21 +650,26 @@ class ConversationManager:
         if use_streaming:
             response_stream = provider.generate_stream(
                 content,
+                messages=api_messages,
                 model=conv.model,
                 temperature=conv.temperature,
                 max_tokens=conv.max_tokens
             )
             
-            full_response = ""
-            for chunk in response_stream:
-                full_response += chunk
-                yield chunk
-            
-            conv.add_message("assistant", full_response)
-            self._save_conversation(conv)
+            def _stream_and_persist():
+                full_response = ""
+                for chunk in response_stream:
+                    full_response += chunk
+                    yield chunk
+
+                conv.add_message("assistant", full_response)
+                self._save_conversation(conv)
+
+            return _stream_and_persist()
         else:
             response = provider.generate(
                 content,
+                messages=api_messages,
                 model=conv.model,
                 temperature=conv.temperature,
                 max_tokens=conv.max_tokens
@@ -660,7 +731,10 @@ class ConversationManager:
         if not conv or provider not in self.providers:
             return False
         
+        if not self.providers[provider].available:
+            return False
+
         conv.provider = provider
-        conv.model = model
+        conv.model = model or self._default_model_for(provider)
         self._save_conversation(conv)
         return True
