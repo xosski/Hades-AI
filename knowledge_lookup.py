@@ -89,7 +89,9 @@ class KnowledgeLookup:
             results = cursor.fetchall()
             return [dict(row) for row in results]
         except Exception as e:
-            print(f"[!] CVE search error: {e}")
+            # Older/newer DB builds may not include this table.
+            if "no such table" not in str(e).lower():
+                print(f"[!] CVE search error: {e}")
             return []
     
     def search_techniques(self, query: str, limit: int = 5) -> List[Dict]:
@@ -100,7 +102,7 @@ class KnowledgeLookup:
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                SELECT technique_id, name, category, description, references
+                SELECT technique_id, name, category, description, "references"
                 FROM techniques
                 WHERE name LIKE ? OR category LIKE ? OR description LIKE ?
                 ORDER BY name
@@ -110,7 +112,9 @@ class KnowledgeLookup:
             results = cursor.fetchall()
             return [dict(row) for row in results]
         except Exception as e:
-            print(f"[!] Technique search error: {e}")
+            # Table may be absent in minimal knowledge DB snapshots.
+            if "no such table" not in str(e).lower():
+                print(f"[!] Technique search error: {e}")
             return []
     
     def search_all(self, query: str) -> Dict[str, List]:
