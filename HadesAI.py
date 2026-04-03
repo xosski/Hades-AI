@@ -55,6 +55,14 @@ except ImportError:
     FallbackLLM = None
     HAS_FALLBACK_LLM = False
 
+# Offline LLM orchestrator for no-API operation
+try:
+    from offline_llm import OfflineLLM
+    HAS_OFFLINE_LLM = True
+except ImportError:
+    OfflineLLM = None
+    HAS_OFFLINE_LLM = False
+
 # LLM Conversation Core - Multi-provider support
 try:
     from llm_conversation_core import ConversationManager
@@ -4350,6 +4358,18 @@ please consider supporting its development.</p>
         """Open donation link in browser."""
         import webbrowser
         webbrowser.open(self.DONATE_URL)
+
+    def _set_current_tab_by_label(self, label_contains: str, fallback_index: Optional[int] = None) -> bool:
+        """Select a tab by label text to avoid brittle hardcoded tab indices."""
+        target = label_contains.lower()
+        for idx in range(self.tabs.count()):
+            if target in self.tabs.tabText(idx).lower():
+                self.tabs.setCurrentIndex(idx)
+                return True
+        if fallback_index is not None and 0 <= fallback_index < self.tabs.count():
+            self.tabs.setCurrentIndex(fallback_index)
+            return True
+        return False
         
     def _create_chat_tab(self) -> QWidget:
         widget = QWidget()
@@ -6895,7 +6915,10 @@ please consider supporting its development.</p>
                 self.si_gpt_status_label.setStyleSheet("color: #ff6b6b; padding: 5px;")
     
     def _si_has_ai(self) -> bool:
-        """Check if any AI provider is available with a valid key"""
+        """Check if any AI path is available (remote provider or local fallback)."""
+        if HAS_OFFLINE_LLM or HAS_FALLBACK_LLM:
+            return True
+
         provider = self._si_get_current_provider()
         key = self._si_get_api_key()
         if provider == "azure":
@@ -6932,6 +6955,26 @@ please consider supporting its development.</p>
     def _si_get_openai_client(self):
         """Get an OpenAI client instance (legacy, for compatibility)"""
         return self._si_get_ai_client()
+
+    def _si_local_fallback_response(self, system_prompt: str, user_prompt: str, source: str = "fallback") -> str:
+        """Generate a robust local response when external AI providers are unavailable."""
+        if HAS_OFFLINE_LLM:
+            try:
+                if not hasattr(self, '_offline_llm'):
+                    self._offline_llm = OfflineLLM(use_knowledge_db=True)
+                mood = self.brain.get('mood', 'neutral') if hasattr(self, 'brain') else 'neutral'
+                local_result = self._offline_llm.generate(
+                    user_input=user_prompt,
+                    mood=mood,
+                    system_prompt=system_prompt,
+                )
+                if local_result and local_result.strip():
+                    return local_result
+            except Exception as e:
+                logger.warning(f"OfflineLLM fallback failed ({source}): {e}")
+
+        # Final local fallback: existing deterministic response engine.
+        return self._generate_intelligent_response(user_prompt)
     
     def _si_call_ai(self, system_prompt: str, user_prompt: str, max_tokens: int = 2000, temperature: float = 0.3) -> str:
         """Call the current AI provider with the given prompts"""
@@ -6941,7 +6984,7 @@ please consider supporting its development.</p>
         try:
             if provider == "ollama":
                 if not HAS_OLLAMA:
-                    return "❌ Ollama library not installed. Run: pip install ollama\n\nThen install Ollama from https://ollama.ai"
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="ollama-unavailable")
                 
                 model = self.si_ollama_model.currentText() if hasattr(self, 'si_ollama_model') else "llama3.2"
                 response = ollama_lib.chat(
@@ -6959,16 +7002,16 @@ please consider supporting its development.</p>
                     return getattr(getattr(response, 'message', response), 'content', str(response))
             elif provider == "azure":
                 if not HAS_AZURE_OPENAI:
-                    return "❌ Azure OpenAI not available. Run: pip install openai"
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="azure-unavailable")
                 if not key:
-                    return "⚠️ No API key configured. Enter your Azure API key above."
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="azure-no-key")
                 
                 endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
                 deployment = self.si_azure_deployment.text().strip() if hasattr(self, 'si_azure_deployment') else ""
                 api_version = self.si_azure_api_version.currentText() if hasattr(self, 'si_azure_api_version') else "2024-02-15-preview"
                 
                 if not endpoint or not deployment:
-                    return "⚠️ Azure requires Endpoint URL and Deployment Name."
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="azure-config-missing")
                 
                 client = AzureOpenAI(
                     api_key=key,
@@ -6987,9 +7030,9 @@ please consider supporting its development.</p>
                 return response.choices[0].message.content
             elif provider == "mistral":
                 if not HAS_MISTRAL:
-                    return "❌ Mistral library not installed. Run: pip install mistralai"
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="mistral-unavailable")
                 if not key:
-                    return "⚠️ No API key configured. Enter your Mistral API key above."
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="mistral-no-key")
                 
                 client = Mistral(api_key=key)
                 response = client.chat.complete(
@@ -7002,9 +7045,9 @@ please consider supporting its development.</p>
                 return response.choices[0].message.content
             else:
                 if not HAS_OPENAI:
-                    return "❌ OpenAI library not installed. Run: pip install openai"
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="openai-unavailable")
                 if not key:
-                    return "⚠️ No API key configured. Enter your OpenAI API key above."
+                    return self._si_local_fallback_response(system_prompt, user_prompt, source="openai-no-key")
                 
                 client = OpenAI(api_key=key)
                 response = client.chat.completions.create(
@@ -7018,7 +7061,8 @@ please consider supporting its development.</p>
                 )
                 return response.choices[0].message.content
         except Exception as e:
-            return f"❌ AI Error: {str(e)}"
+            logger.warning(f"AI provider error ({provider}), switching to local fallback: {e}")
+            return self._si_local_fallback_response(system_prompt, user_prompt, source=f"{provider}-exception")
     
     def _si_load_hades_file(self, filename: str):
         """Load a HADES source file"""
@@ -7514,7 +7558,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         has_security = any(keyword in text for keyword in security_keywords)
         is_question = any(text.startswith(q) for q in question_words)
         
-        if hasattr(self, '_si_has_ai') and self._si_has_ai() and (has_security or is_question or len(text.split()) > 3):
+        if has_security or is_question or len(text.split()) > 3:
             try:
                 return self._get_gpt_response(user_input)
             except Exception as e:
@@ -7623,7 +7667,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         # Start/execute commands - for pending actions
         if text.startswith('start') or text.startswith('execute') or text.startswith('run') or text.startswith('go'):
             if 'cache' in text or 'browser' in text:
-                self.tabs.setCurrentIndex(10)
+                self._set_current_tab_by_label("Cache Scanner", fallback_index=10)
                 self._start_cache_scan()
                 return "🔍 Cache scan initiated. Analyzing browser artifacts..."
             
@@ -7666,7 +7710,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         
         # Cache/browser scanning - AUTO-EXECUTE
         if any(q in text for q in ['cache', 'browser', 'cookies']):
-            self.tabs.setCurrentIndex(10)
+            self._set_current_tab_by_label("Cache Scanner", fallback_index=10)
             self._start_cache_scan()
             return "🔍 Browser cache scan initiated. Hunting for artifacts and threats..."
         
@@ -7755,15 +7799,11 @@ Current mood: {self.brain.get('mood', 'neutral')}
 Be concise, technical when needed, and maintain your dark, calculated persona.
 You can help with: port scanning, vulnerability assessment, exploit research, and security analysis."""
         
-        # Use the unified AI call system from Self-Improvement tab
-        if hasattr(self, '_si_has_ai') and self._si_has_ai():
-            result = self._si_call_ai(system_prompt, user_input, max_tokens=500, temperature=0.7)
-            if not result.startswith("❌") and not result.startswith("⚠️"):
-                return result
-        
-        # Fallback message
-        provider = self._si_get_current_provider() if hasattr(self, '_si_get_current_provider') else "unknown"
-        return f"AI not available. Go to the Self-Improvement tab and configure your {provider.upper()} provider."
+        # Always go through unified call path; it now includes robust local fallback.
+        result = self._si_call_ai(system_prompt, user_input, max_tokens=500, temperature=0.7)
+        if result and result.strip():
+            return result
+        return self._si_local_fallback_response(system_prompt, user_input, source="empty-response")
 
     def _process_through_modules(self, user_input: str, base_response: str) -> str:
         """Allow loaded modules to process and enhance responses."""
@@ -7798,7 +7838,7 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         target = action.get('target')
         
         if action_type == 'cache_scan':
-            self.tabs.setCurrentIndex(10)  # Cache Scanner tab
+            self._set_current_tab_by_label("Cache Scanner", fallback_index=10)
             self._start_cache_scan()
         elif action_type == 'full_scan' and target:
             self._add_chat_message('tool', f"🚀 Starting full reconnaissance on {target}...")
@@ -7816,7 +7856,7 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
             tool_map = {'port_scan': 0, 'dir_bruteforce': 1, 'subdomain_enum': 2, 'banner_grab': 3, 'vuln_scan': 4}
             if action_type in tool_map:
                 self.tool_combo.setCurrentIndex(tool_map[action_type])
-            self.tabs.setCurrentIndex(2)  # Tools tab (after Network Monitor)
+            self._set_current_tab_by_label("Tools & Targets", fallback_index=2)
             self._run_tool()
             
     def _run_full_scan(self, target: str):
