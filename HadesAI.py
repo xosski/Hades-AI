@@ -5291,16 +5291,71 @@ please consider supporting its development.</p>
         title.setStyleSheet("color: #e94560;")
         layout.addWidget(title)
 
+        controls_layout = QHBoxLayout()
+        self.web_knowledge_url_input = QLineEdit()
+        self.web_knowledge_url_input.setPlaceholderText("https://example.com/security-advisory")
+        controls_layout.addWidget(self.web_knowledge_url_input)
+
+        learn_btn = QPushButton("🌐 Learn From Website")
+        learn_btn.clicked.connect(self._learn_from_web_knowledge_tab)
+        controls_layout.addWidget(learn_btn)
+
+        refresh_btn = QPushButton("🔁 Refresh Web Knowledge")
+        refresh_btn.clicked.connect(self._display_recent_web_knowledge)
+        controls_layout.addWidget(refresh_btn)
+        layout.addLayout(controls_layout)
+
+        self.web_knowledge_status = QLabel("Ready")
+        self.web_knowledge_status.setStyleSheet("color: #69db7c;")
+        layout.addWidget(self.web_knowledge_status)
+
         self.web_knowledge_display = QTextEdit()
         self.web_knowledge_display.setReadOnly(True)
         self.web_knowledge_display.setFont(QFont("Consolas", 11))
         layout.addWidget(self.web_knowledge_display)
 
-        refresh_btn = QPushButton("🔁 Refresh Web Knowledge")
-        refresh_btn.clicked.connect(self._display_recent_web_knowledge)
-        layout.addWidget(refresh_btn)
+        self._display_recent_web_knowledge()
 
         return widget
+
+    def _learn_from_web_knowledge_tab(self):
+        """Learn exploit/security patterns from a URL entered in the Web Knowledge tab."""
+        if not hasattr(self, 'web_knowledge_url_input'):
+            return
+
+        url = self.web_knowledge_url_input.text().strip()
+        if not url:
+            self.web_knowledge_status.setText("⚠ Enter a website URL to learn from.")
+            self.web_knowledge_status.setStyleSheet("color: #ffa94d;")
+            return
+
+        if not url.startswith(('http://', 'https://')):
+            url = f"https://{url}"
+            self.web_knowledge_url_input.setText(url)
+
+        self.web_knowledge_status.setText(f"📡 Learning from {url}...")
+        self.web_knowledge_status.setStyleSheet("color: #4dabf7;")
+        QApplication.processEvents()
+
+        result = self.ai.learn_from_url(url)
+
+        if result.get('error'):
+            self.web_knowledge_status.setText(f"❌ Learning failed: {result['error']}")
+            self.web_knowledge_status.setStyleSheet("color: #ff6b6b;")
+            return
+
+        patterns_found = result.get('patterns_found', 0)
+        exploits_learned = result.get('exploits_learned', 0)
+        self.web_knowledge_status.setText(
+            f"✅ Learned from {url} | Patterns: {patterns_found} | Exploits: {exploits_learned}"
+        )
+        self.web_knowledge_status.setStyleSheet("color: #69db7c;")
+
+        self._display_recent_web_knowledge()
+
+        # Keep user flow smooth by also updating learned exploits tab if available.
+        if hasattr(self, 'learned_table'):
+            self._refresh_learned()
     def _refresh_module_list(self):
         from os import listdir
         from os.path import isfile, join
@@ -5419,7 +5474,11 @@ please consider supporting its development.</p>
         else:
             summary = "No recent web-based learning data found."
 
-        self.web_knowledge_display.setPlainText(f"[HadesAI :: Web Knowledge]\n\n{summary}")
+        self.web_knowledge_display.setPlainText(
+            "[HadesAI :: Web Knowledge]\n\n"
+            "Use the URL field above to ingest a website and extract patterns/exploits.\n\n"
+            f"{summary}"
+        )
     def _toggle_learning_mode(self, enabled: bool):
         if self.network_monitor:
             self.network_monitor.set_learning_mode(enabled)

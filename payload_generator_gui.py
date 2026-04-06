@@ -10,6 +10,7 @@ import csv
 from pathlib import Path
 from datetime import datetime
 from PyQt6.QtWidgets import (
+    QApplication,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit,
     QTableWidget, QTableWidgetItem, QGroupBox, QFormLayout,
     QFileDialog, QMessageBox, QProgressBar, QComboBox, QSpinBox, QTabWidget
@@ -542,6 +543,7 @@ class PayloadGeneratorTab(QWidget):
         """Handle file type override"""
         if self.current_file:
             payloads = PayloadGenerator.get_payloads(file_type)
+            self.file_type_label.setText(file_type)
             self._display_payloads(file_type, payloads)
     
     def _generate_payloads(self):
@@ -600,19 +602,23 @@ class PayloadGeneratorTab(QWidget):
     
     def _display_payloads(self, file_type: str, payloads: list):
         """Display payloads in table"""
+        # Keep payload state in sync with what is currently shown in the table/viewers.
+        self.payloads = [str(p) for p in payloads]
+        self.payload_count_label.setText(str(len(self.payloads)))
+
         self.payloads_table.setRowCount(0)
-        
-        for idx, payload in enumerate(payloads):
+
+        for idx, payload in enumerate(self.payloads):
             self.payloads_table.insertRow(idx)
             self.payloads_table.setItem(idx, 0, QTableWidgetItem(str(idx + 1)))
             self.payloads_table.setItem(idx, 1, QTableWidgetItem(str(payload)))
         
         # Update all payloads viewer
         all_payloads_text = f"=== ALL PAYLOADS FOR {file_type.upper()} ===\n"
-        all_payloads_text += f"Total: {len(payloads)} payload{'s' if len(payloads) != 1 else ''}\n"
+        all_payloads_text += f"Total: {len(self.payloads)} payload{'s' if len(self.payloads) != 1 else ''}\n"
         all_payloads_text += "=" * 70 + "\n\n"
         
-        for idx, payload in enumerate(payloads, 1):
+        for idx, payload in enumerate(self.payloads, 1):
             all_payloads_text += f"{idx}. {payload}\n\n"
         
         self.all_payloads_text.setText(all_payloads_text)
@@ -620,23 +626,25 @@ class PayloadGeneratorTab(QWidget):
         # Update details
         details = f"FILE TYPE: {file_type.upper()}\n"
         details += "=" * 50 + "\n\n"
-        details += f"Total Payloads: {len(payloads)}\n"
+        details += f"Total Payloads: {len(self.payloads)}\n"
         details += f"Category: {file_type.upper()}\n"
         details += f"File: {Path(self.current_file).name if self.current_file else 'N/A'}\n"
         details += f"File Size: {self.file_size_label.text()}\n\n"
         details += "SAMPLE PAYLOADS:\n"
         details += "-" * 50 + "\n"
-        for idx, payload in enumerate(payloads[:5], 1):
+        for idx, payload in enumerate(self.payloads[:5], 1):
             truncated = payload[:60] + "..." if len(payload) > 60 else payload
             details += f"{idx}. {truncated}\n"
-        if len(payloads) > 5:
-            details += f"\n... and {len(payloads) - 5} more payloads"
+        if len(self.payloads) > 5:
+            details += f"\n... and {len(self.payloads) - 5} more payloads"
         
         self.details_text.setText(details)
         
         # Initialize raw payload viewer with first payload
-        if payloads:
-            self.raw_payload_text.setText(payloads[0])
+        if self.payloads:
+            self.raw_payload_text.setText(self.payloads[0])
+        else:
+            self.raw_payload_text.clear()
     
     def _on_payload_selected(self):
         """Handle payload selection"""
@@ -669,7 +677,6 @@ class PayloadGeneratorTab(QWidget):
         row = selected_rows[0].row()
         payload = self.payloads_table.item(row, 1).text()
         
-        from PyQt6.QtGui import QApplication
         QApplication.clipboard().setText(payload)
         QMessageBox.information(self, "✅ Success", f"Payload #{row + 1} copied to clipboard\n\n{payload[:100]}...")
     
@@ -681,7 +688,6 @@ class PayloadGeneratorTab(QWidget):
         
         all_text = "\n".join(self.payloads)
         
-        from PyQt6.QtGui import QApplication
         QApplication.clipboard().setText(all_text)
         QMessageBox.information(self, "✅ Success", f"All {len(self.payloads)} payloads copied to clipboard")
     
@@ -849,6 +855,7 @@ class PayloadGeneratorTab(QWidget):
     def _clear(self):
         """Clear all"""
         self.current_file = None
+        self.current_profile_id = None
         self.payloads = []
         self.file_label.setText("No file selected")
         self.file_label.setStyleSheet("color: #ff6b6b;")
@@ -856,6 +863,8 @@ class PayloadGeneratorTab(QWidget):
         self.file_size_label.setText("0 bytes")
         self.payload_count_label.setText("0")
         self.payloads_table.setRowCount(0)
+        self.raw_payload_text.clear()
+        self.all_payloads_text.clear()
         self.details_text.clear()
 
 
