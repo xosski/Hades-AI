@@ -6397,6 +6397,11 @@ please consider supporting its development.</p>
         load_personality_btn.clicked.connect(lambda: self._si_load_hades_file("modules/personality_core_v2.py"))
         load_personality_btn.setStyleSheet("background: #0f3460;")
         hades_files_layout.addWidget(load_personality_btn)
+
+        load_si_section_btn = QPushButton("🧬 Load Self-Improvement Section")
+        load_si_section_btn.clicked.connect(self._si_load_self_improvement_section)
+        load_si_section_btn.setStyleSheet("background: #0f3460;")
+        hades_files_layout.addWidget(load_si_section_btn)
         
         file_layout.addLayout(hades_files_layout)
         
@@ -6491,6 +6496,21 @@ please consider supporting its development.</p>
         secondary_actions.addWidget(add_tests_btn)
         
         action_layout.addLayout(secondary_actions)
+
+        # Self-update actions row
+        self_update_actions = QHBoxLayout()
+
+        self_update_btn = QPushButton("♻️ Self-Update Section")
+        self_update_btn.clicked.connect(self._si_self_update_section)
+        self_update_btn.setStyleSheet("background: #ff8c42;")
+        self_update_actions.addWidget(self_update_btn)
+
+        apply_self_update_btn = QPushButton("💾 Apply Section Update")
+        apply_self_update_btn.clicked.connect(self._si_apply_section_update_to_file)
+        apply_self_update_btn.setStyleSheet("background: #4CAF50;")
+        self_update_actions.addWidget(apply_self_update_btn)
+
+        action_layout.addLayout(self_update_actions)
         
         # Custom instruction
         custom_layout = QHBoxLayout()
@@ -6549,6 +6569,45 @@ please consider supporting its development.</p>
         """Update line count display"""
         lines = self.si_code_editor.toPlainText().count('\n') + 1
         self.si_line_count.setText(f"Lines: {lines}")
+
+    def _si_get_provider_display_name(self, provider: Optional[str] = None) -> str:
+        """Human-readable provider name for UI messages."""
+        provider = provider or self._si_get_current_provider()
+        names = {
+            "openai": "OpenAI",
+            "mistral": "Mistral AI",
+            "ollama": "Ollama",
+            "azure": "Azure OpenAI",
+        }
+        return names.get(provider, "OpenAI")
+
+    def _si_extract_code_from_response(self, text: str) -> str:
+        """Extract raw code from model output, stripping markdown if present."""
+        content = (text or "").strip()
+        if not content:
+            return ""
+
+        if "```" in content:
+            code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', content, re.DOTALL)
+            if code_blocks:
+                return code_blocks[0].strip()
+        return content
+
+    def _si_result_looks_like_code(self, text: str) -> bool:
+        """Heuristic check to avoid writing status/error text as code."""
+        candidate = (text or "").strip()
+        if not candidate or candidate.startswith(("⚠️", "❌", "🔄", "📋", "✅")):
+            return False
+
+        # For section-level updates, methods are indented; wrap in a dummy class for parsing.
+        try:
+            ast.parse("class _Temp:\n" + candidate)
+            return True
+        except SyntaxError:
+            pass
+
+        tokens = ("def ", "class ", "import ", "from ", "return", "=")
+        return any(token in candidate for token in tokens)
     
     def _si_get_current_provider(self) -> str:
         """Get the currently selected AI provider"""
@@ -6672,6 +6731,10 @@ please consider supporting its development.</p>
             provider = self._si_get_current_provider()
             if provider == "mistral":
                 key = os.getenv("MISTRAL_API_KEY", "")
+            elif provider == "azure":
+                key = os.getenv("AZURE_OPENAI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+            elif provider == "ollama":
+                key = ""
             else:
                 key = os.getenv("OPENAI_API_KEY", "")
         return key
@@ -6805,7 +6868,8 @@ please consider supporting its development.</p>
                 json.dump(config, f)
             
             self._si_update_gpt_status()
-            self.si_result_display.setPlainText(f"✅ Ollama selected as provider. No API key needed!\n\nClick 🔌 Test to verify connection.")
+            provider_name = self._si_get_provider_display_name(provider)
+            self.si_result_display.setPlainText(f"✅ {provider_name} selected as provider.\n\nClick 🔌 Test to verify connection.")
         except Exception as e:
             self.si_result_display.setPlainText(f"❌ Error saving preference: {str(e)}")
     
@@ -6882,7 +6946,7 @@ please consider supporting its development.</p>
                 result = response.choices[0].message.content
             
             self._si_update_gpt_status()
-            provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+            provider_name = self._si_get_provider_display_name(provider)
             self.si_result_display.setPlainText(f"✅ {provider_name} Connection Successful!\n\nResponse: {result}\n\nYou can now use all AI features.")
         except Exception as e:
             self.si_result_display.setPlainText(f"❌ API Test Failed: {str(e)}\n\nPlease check your API key.")
@@ -6999,13 +7063,24 @@ please consider supporting its development.</p>
         provider = self._si_get_current_provider()
         key = self._si_get_api_key()
         
+        if provider == "ollama":
+            return ollama_lib if HAS_OLLAMA else None
+        
         if not key:
             return None
-        
+
         if provider == "mistral":
             if not HAS_MISTRAL:
                 return None
             return Mistral(api_key=key)
+        elif provider == "azure":
+            if not HAS_AZURE_OPENAI:
+                return None
+            endpoint = self.si_azure_endpoint.text().strip() if hasattr(self, 'si_azure_endpoint') else ""
+            api_version = self.si_azure_api_version.currentText() if hasattr(self, 'si_azure_api_version') else "2024-02-15-preview"
+            if not endpoint:
+                return None
+            return AzureOpenAI(api_key=key, api_version=api_version, azure_endpoint=endpoint)
         else:
             if not HAS_OPENAI:
                 return None
@@ -7162,6 +7237,128 @@ please consider supporting its development.</p>
             self.si_result_display.setPlainText(f"✅ Loaded {os.path.basename(filepath)} ({len(content)} characters)")
         except Exception as e:
             self.si_result_display.setPlainText(f"❌ Error loading file: {str(e)}")
+
+    def _si_load_self_improvement_section(self):
+        """Load only this self-improvement section from HadesAI.py for focused self-updates."""
+        try:
+            target_path = os.path.join(os.path.dirname(__file__), "HadesAI.py")
+            with open(target_path, 'r', encoding='utf-8') as f:
+                source = f.read()
+
+            start_marker = "    def _create_self_improvement_tab(self) -> QWidget:"
+            end_marker = "\n    def _load_code_file(self):"
+
+            start_idx = source.find(start_marker)
+            end_idx = source.find(end_marker, start_idx)
+
+            if start_idx == -1 or end_idx == -1:
+                self.si_result_display.setPlainText("❌ Could not locate self-improvement section boundaries in HadesAI.py")
+                return
+
+            section = source[start_idx:end_idx].rstrip() + "\n"
+            start_line = source[:start_idx].count('\n') + 1
+            end_line = source[:end_idx].count('\n') + 1
+
+            self.si_code_editor.setPlainText(section)
+            self.si_file_path.setText(target_path)
+            self._si_self_section_meta = {
+                "path": target_path,
+                "start_marker": start_marker,
+                "end_marker": end_marker,
+                "start_line": start_line,
+                "end_line": end_line,
+            }
+            self.si_result_display.setPlainText(
+                f"✅ Loaded self-improvement section from HadesAI.py\n"
+                f"Lines: {start_line}-{end_line}\n\n"
+                "Use ♻️ Self-Update Section, then 💾 Apply Section Update."
+            )
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Error loading self-improvement section: {str(e)}")
+
+    def _si_self_update_section(self):
+        """AI-upgrade the loaded self-improvement section with a focused prompt."""
+        section = self.si_code_editor.toPlainText().strip()
+        if not section:
+            self.si_result_display.setPlainText("⚠️ Load the self-improvement section first.")
+            return
+
+        provider_name = self._si_get_provider_display_name()
+        self.si_result_display.setPlainText(f"🔄 Updating self-improvement section with {provider_name}...")
+        QApplication.processEvents()
+
+        system_prompt = (
+            "You are maintaining a PyQt6 desktop app. Improve this self-improvement tab section so it can safely update itself and fix obvious errors. "
+            "Keep method names and integration points intact, preserve existing features, and do not remove unrelated capabilities. "
+            "Return only valid Python code for the section exactly as it should replace the existing section."
+        )
+        user_prompt = f"Update this section:\n\n```python\n{section[:14000]}\n```"
+        result = self._si_call_ai(system_prompt, user_prompt, max_tokens=5000, temperature=0.2)
+        updated = self._si_extract_code_from_response(result)
+
+        if not self._si_result_looks_like_code(updated):
+            self.si_result_display.setPlainText(
+                "⚠️ The update response did not look like code. Review the output manually or try again.\n\n"
+                f"Raw output:\n{result[:2000]}"
+            )
+            return
+
+        self.si_result_display.setPlainText(updated)
+
+    def _si_apply_section_update_to_file(self):
+        """Apply the updated self-improvement section back to HadesAI.py with backup + syntax validation."""
+        meta = getattr(self, '_si_self_section_meta', None)
+        if not meta:
+            self.si_result_display.setPlainText("⚠️ Load the self-improvement section first using '🧬 Load Self-Improvement Section'.")
+            return
+
+        updated_section = self._si_extract_code_from_response(self.si_result_display.toPlainText())
+        if not self._si_result_looks_like_code(updated_section):
+            editor_fallback = self.si_code_editor.toPlainText()
+            if self._si_result_looks_like_code(editor_fallback):
+                updated_section = editor_fallback
+            else:
+                self.si_result_display.setPlainText("⚠️ No valid updated code found. Run self-update first or paste valid section code.")
+                return
+
+        try:
+            target_path = meta["path"]
+            with open(target_path, 'r', encoding='utf-8') as f:
+                original_source = f.read()
+
+            start_marker = meta["start_marker"]
+            end_marker = meta["end_marker"]
+            start_idx = original_source.find(start_marker)
+            end_idx = original_source.find(end_marker, start_idx)
+
+            if start_idx == -1 or end_idx == -1:
+                self.si_result_display.setPlainText("❌ Could not locate section boundaries in file. Apply aborted to avoid corruption.")
+                return
+
+            normalized_section = updated_section.rstrip() + "\n\n"
+            new_source = original_source[:start_idx] + normalized_section + original_source[end_idx:]
+
+            # Safety gate: ensure the full file still parses before writing.
+            ast.parse(new_source)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = f"{target_path}.bak.{timestamp}"
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(original_source)
+
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.write(new_source)
+
+            self.si_code_editor.setPlainText(updated_section.rstrip() + "\n")
+            self.si_result_display.setPlainText(
+                f"✅ Self-update applied to HadesAI.py\n"
+                f"Backup created: {backup_path}\n"
+                "Restart HADES to load the updated code."
+            )
+        except SyntaxError as e:
+            self.si_result_display.setPlainText(f"❌ Syntax validation failed. File not modified.\n\n{str(e)}")
+        except Exception as e:
+            self.si_result_display.setPlainText(f"❌ Failed to apply update: {str(e)}")
     
     def _si_analyze_code(self):
         """Analyze code for issues"""
@@ -7171,7 +7368,7 @@ please consider supporting its development.</p>
             return
         
         provider = self._si_get_current_provider()
-        provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+        provider_name = self._si_get_provider_display_name(provider)
         self.si_result_display.setPlainText(f"🔄 Analyzing code with {provider_name}...")
         QApplication.processEvents()
         
@@ -7250,7 +7447,7 @@ Be thorough but concise."""
             return
         
         provider = self._si_get_current_provider()
-        provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+        provider_name = self._si_get_provider_display_name(provider)
         self.si_result_display.setPlainText(f"🔧 Auto-fixing code with {provider_name}...")
         QApplication.processEvents()
         
@@ -7266,14 +7463,7 @@ Be thorough but concise."""
 IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, just the raw Python code that can be saved directly to a file."""
             
             result = self._si_call_ai(system_prompt, f"Fix and improve this code:\n\n{code[:12000]}", max_tokens=4000, temperature=0.2)
-            
-            # Extract code from markdown if present
-            if '```' in result:
-                code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', result, re.DOTALL)
-                if code_blocks:
-                    result = code_blocks[0].strip()
-            
-            self.si_result_display.setPlainText(result)
+            self.si_result_display.setPlainText(self._si_extract_code_from_response(result))
         else:
             self.si_result_display.setPlainText("⚠️ Auto-fix requires AI. Enter your API key above.\n\nOr use the local analysis to identify issues manually.")
     
@@ -7331,7 +7521,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         
         if self._si_has_ai():
             provider = self._si_get_current_provider()
-            provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+            provider_name = self._si_get_provider_display_name(provider)
             ai_result = self._si_call_ai(
                 "You are a code reviewer. Briefly verify if this code is correct, well-structured, and follows best practices. Be concise - max 3-4 sentences.",
                 f"Verify this code:\n\n```python\n{code[:4000]}\n```",
@@ -7350,7 +7540,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             return
         
         provider = self._si_get_current_provider()
-        provider_name = "Mistral AI" if provider == "mistral" else "OpenAI"
+        provider_name = self._si_get_provider_display_name(provider)
         self.si_result_display.setPlainText(f"🔄 Processing with {provider_name}: {action}...")
         QApplication.processEvents()
         
@@ -7361,13 +7551,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
                 max_tokens=4000,
                 temperature=0.2
             )
-            
-            if '```' in result:
-                code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', result, re.DOTALL)
-                if code_blocks:
-                    result = code_blocks[0].strip()
-            
-            self.si_result_display.setPlainText(result)
+            self.si_result_display.setPlainText(self._si_extract_code_from_response(result))
         else:
             self.si_result_display.setPlainText("⚠️ This action requires AI. Enter your API key above.")
     
@@ -7382,10 +7566,10 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
     def _si_apply_to_editor(self):
         """Apply the fixed code back to the editor"""
         result = self.si_result_display.toPlainText()
-        if result and not result.startswith(("⚠️", "❌", "🔄", "📋")):
-            # Check if it looks like code
-            if 'def ' in result or 'class ' in result or 'import ' in result or '=' in result:
-                self.si_code_editor.setPlainText(result)
+        extracted = self._si_extract_code_from_response(result)
+        if extracted and not extracted.startswith(("⚠️", "❌", "🔄", "📋")):
+            if self._si_result_looks_like_code(extracted):
+                self.si_code_editor.setPlainText(extracted)
                 self.si_result_display.setPlainText("✅ Fixed code applied to editor. You can now save it to file.")
             else:
                 self.si_result_display.setPlainText("⚠️ Result doesn't appear to be code. Run 'Auto-Fix' first to get fixed code.")
@@ -7394,7 +7578,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
     
     def _si_save_fixed_code(self):
         """Save the fixed code to a file"""
-        code = self.si_result_display.toPlainText()
+        code = self._si_extract_code_from_response(self.si_result_display.toPlainText())
         if not code or code.startswith(("⚠️", "❌", "🔄")):
             # Try using editor content instead
             code = self.si_code_editor.toPlainText()
@@ -7424,7 +7608,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
     def _si_show_diff(self):
         """Show diff between original and fixed code"""
         original = self.si_code_editor.toPlainText()
-        fixed = self.si_result_display.toPlainText()
+        fixed = self._si_extract_code_from_response(self.si_result_display.toPlainText())
         
         if not fixed or fixed.startswith(("⚠️", "❌", "🔄", "📋", "✅")):
             self.si_result_display.setPlainText("⚠️ No fixed code to compare. Run 'Auto-Fix' first.")
