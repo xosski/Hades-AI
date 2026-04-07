@@ -7188,6 +7188,7 @@ please consider supporting its development.</p>
             "Amp-style coding helper. Commands:\n"
             "- /files\n"
             "- /open relative/path.py\n"
+            "- /create relative/path.py | what to build\n"
             "- /save\n"
             "- /edit relative/path.py | your instruction"
         )
@@ -8328,6 +8329,11 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             self._si_append_chat("assistant", command_result)
             return
 
+        llm_intent_result = self._si_handle_chat_intent_with_ai(text)
+        if llm_intent_result is not None:
+            self._si_append_chat("assistant", llm_intent_result)
+            return
+
         quick_result = self._si_handle_chat_natural_request(text)
         if quick_result is not None:
             self._si_append_chat("assistant", quick_result)
@@ -8346,6 +8352,78 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         )
         self._si_append_chat("assistant", reply)
 
+    def _si_handle_chat_intent_with_ai(self, text: str) -> Optional[str]:
+        """Use LLM intent parsing so natural chat can trigger workspace actions."""
+        if text.strip().startswith('/'):
+            return None
+
+        workdir = self._si_resolve_workdir()
+        if not (workdir.exists() and workdir.is_dir()):
+            return None
+
+        current_file = self.si_file_path.text().strip() if hasattr(self, 'si_file_path') else ''
+        system_prompt = (
+            "You are an intent parser for a coding assistant. "
+            "Return ONLY valid JSON with keys: action, path, instruction, pattern, reply. "
+            "Allowed action values: command, chat, none. "
+            "For command actions, convert user request into one command using this format: "
+            "`/files [pattern]`, `/open <path>`, `/save [path]`, `/create <path> | <instruction>`, `/edit <path> | <instruction>`. "
+            "Set `reply` to the exact command string. "
+            "If user is asking a normal question/discussion, set action=chat and put a concise reply in `reply`. "
+            "If uncertain, set action=none. No markdown."
+        )
+        user_prompt = (
+            f"Workdir: {workdir}\n"
+            f"Current file: {current_file or 'none'}\n"
+            f"User message: {text}"
+        )
+
+        raw = self._si_call_ai(system_prompt, user_prompt, max_tokens=260, temperature=0)
+        lowered = (raw or '').lower()
+        if '<details>' in lowered or 'thinking process' in lowered:
+            return None
+        parsed = self._si_parse_json_object(raw)
+        if not isinstance(parsed, dict):
+            return None
+
+        action = str(parsed.get('action', '')).strip().lower()
+        reply = str(parsed.get('reply', '')).strip()
+        if action == 'command' and reply.startswith('/'):
+            return self._si_handle_chat_command(reply)
+        if action == 'chat' and reply:
+            return reply
+        return None
+
+    def _si_parse_json_object(self, text: str) -> Optional[dict]:
+        """Best-effort JSON object parser for model output."""
+        raw = (text or '').strip()
+        if not raw:
+            return None
+
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            pass
+
+        fenced = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw, re.DOTALL)
+        if fenced:
+            try:
+                parsed = json.loads(fenced.group(1))
+                return parsed if isinstance(parsed, dict) else None
+            except Exception:
+                pass
+
+        inline = re.search(r'(\{.*\})', raw, re.DOTALL)
+        if inline:
+            try:
+                parsed = json.loads(inline.group(1))
+                return parsed if isinstance(parsed, dict) else None
+            except Exception:
+                return None
+
+        return None
+
     def _si_handle_chat_natural_request(self, text: str) -> Optional[str]:
         """Handle common conversational workspace requests before sending to LLM."""
         message = text.strip().lower()
@@ -8357,7 +8435,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             if workdir.exists() and workdir.is_dir():
                 return (
                     f"Yes — current workdir is:\n{workdir}\n\n"
-                    "You can run `/files` to browse, `/open <file>` to load, `/edit <file> | <instruction>` to modify, and `/save` to write changes."
+                    "You can run `/files` to browse, `/open <file>` to load, `/create <file> | <instruction>` to create, `/edit <file> | <instruction>` to modify, and `/save` to write changes."
                 )
             return "I can't access a valid workdir yet. Set one with the Workdir field and click `Set`."
 
@@ -8366,6 +8444,29 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
         if message in {'help', 'commands'}:
             return self._si_handle_chat_command('/help')
+
+        natural_create = re.match(r'^(?:create|make|add)\s+(?:a\s+)?(?:file\s+)?(.+?)\s*\|\s*(.+)$', text.strip(), re.IGNORECASE)
+        if natural_create:
+            file_part = natural_create.group(1).strip()
+            instruction = natural_create.group(2).strip()
+            return self._si_handle_chat_command(f"/create {file_part} | {instruction}")
+
+        natural_edit = re.match(r'^(?:edit|update|modify)\s+(.+?)\s*\|\s*(.+)$', text.strip(), re.IGNORECASE)
+        if natural_edit:
+            file_part = natural_edit.group(1).strip()
+            instruction = natural_edit.group(2).strip()
+            return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
+
+        natural_open = re.match(r'^(?:open|load|show)\s+(?:file\s+)?(.+)$', text.strip(), re.IGNORECASE)
+        if natural_open:
+            file_part = natural_open.group(1).strip()
+            return self._si_handle_chat_command(f"/open {file_part}")
+
+        natural_list = re.match(r'^(?:list|show)\s+(?:files\s+)?(?:in\s+)?(.+)$', text.strip(), re.IGNORECASE)
+        if natural_list:
+            target = natural_list.group(1).strip()
+            if target and target.lower() not in {'files', 'file'}:
+                return self._si_handle_chat_command(f"/files {target}")
 
         return None
 
@@ -8387,15 +8488,26 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
                 "/files [pattern] - list files in workdir\n"
                 "/open <relative_path> - load file into editor\n"
                 "/save [relative_path] - save editor code\n"
+                "/create <relative_path> | <instruction> - AI create file and save result\n"
                 "/edit <relative_path> | <instruction> - AI edit file and load result"
             )
 
         if cmd == '/files':
-            pattern = arg if arg else '*.py'
-            files = sorted(workdir.rglob(pattern))
-            files = [p for p in files if p.is_file()][:80]
+            files: List[Path] = []
+            if arg:
+                candidate = (workdir / arg).resolve()
+                if (workdir in candidate.parents or candidate == workdir) and candidate.exists() and candidate.is_dir():
+                    files = sorted([p for p in candidate.rglob('*') if p.is_file()])[:120]
+                else:
+                    pattern = arg
+                    files = sorted([p for p in workdir.rglob(pattern) if p.is_file()])[:120]
+            else:
+                files = sorted([p for p in workdir.rglob('*') if p.is_file()])[:120]
+
             if not files:
-                return f"No files matched '{pattern}' in {workdir}."
+                if arg:
+                    return f"No files matched '{arg}' in {workdir}."
+                return f"No files found in {workdir}."
             rels = [str(p.relative_to(workdir)) for p in files]
             return "Files:\n" + "\n".join(rels)
 
@@ -8437,6 +8549,59 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
                 return f"Saved {target.relative_to(workdir)}"
             except Exception as e:
                 return f"Failed to save: {str(e)}"
+
+        if cmd == '/create':
+            if '|' not in arg:
+                return "Usage: /create <relative_path> | <instruction>"
+
+            file_part, instruction = [p.strip() for p in arg.split('|', 1)]
+            if not file_part or not instruction:
+                return "Usage: /create <relative_path> | <instruction>"
+
+            target = (workdir / file_part).resolve()
+            if workdir not in target.parents and target != workdir:
+                return "Path escapes workdir; blocked."
+            if target.exists() and target.is_dir():
+                return "Target path is a directory, not a file."
+
+            try:
+                existing = ""
+                if target.exists() and target.is_file():
+                    existing = target.read_text(encoding='utf-8', errors='ignore')
+
+                prompt = (
+                    "Generate file content for the requested path and instruction. "
+                    "Return only the file content, no markdown and no explanations.\n"
+                    f"Target path: {target.relative_to(workdir)}\n"
+                    f"Instruction: {instruction}\n"
+                )
+                if existing:
+                    prompt += f"\nExisting content to improve/replace:\n{existing[:12000]}"
+
+                created = self._si_call_ai(
+                    "You are an expert software engineer. Create complete, production-quality file contents from the user's instruction.",
+                    prompt,
+                    max_tokens=4500,
+                    temperature=0.2,
+                )
+                created_content = self._si_extract_code_from_response(created)
+                if not created_content.strip():
+                    return "AI returned empty output."
+
+                if target.suffix.lower() == '.py':
+                    try:
+                        ast.parse(created_content)
+                    except SyntaxError as e:
+                        return f"Generated Python has syntax errors; file not written: {str(e)}"
+
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(created_content, encoding='utf-8')
+                self.si_code_editor.setPlainText(created_content)
+                self.si_file_path.setText(str(target))
+                self._si_update_line_count()
+                return f"Created and saved {target.relative_to(workdir)}"
+            except Exception as e:
+                return f"Create failed: {str(e)}"
 
         if cmd == '/edit':
             if '|' not in arg:
