@@ -6114,6 +6114,7 @@ please consider supporting its development.</p>
         
         self.exploit_os = QComboBox()
         self.exploit_os.addItems(['linux', 'windows'])
+        self.exploit_os.currentTextChanged.connect(self._update_exploit_payload_options)
         config_layout.addRow("Target OS:", self.exploit_os)
         
         self.exploit_type = QComboBox()
@@ -6151,7 +6152,29 @@ please consider supporting its development.</p>
         self.exploit_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.exploit_results)
         
+        self._update_exploit_payload_options(self.exploit_os.currentText())
+
         return widget
+
+    def _update_exploit_payload_options(self, os_type: str):
+        """Update payload options to match selected target OS."""
+        if not hasattr(self, 'exploit_type'):
+            return
+
+        payloads_by_os = {
+            'linux': ['whoami', 'id', 'ls', 'pwd', 'uname', 'cat_passwd', 'cat_shadow', 'ifconfig', 'netstat', 'ps', 'env', 'curl', 'reverse_shell'],
+            'windows': ['whoami', 'dir', 'ipconfig', 'net_user', 'systeminfo', 'tasklist', 'netstat', 'powershell', 'certutil']
+        }
+
+        current = self.exploit_type.currentText()
+        options = payloads_by_os.get(os_type, payloads_by_os['linux'])
+
+        self.exploit_type.blockSignals(True)
+        self.exploit_type.clear()
+        self.exploit_type.addItems(options)
+        if current in options:
+            self.exploit_type.setCurrentText(current)
+        self.exploit_type.blockSignals(False)
         
     def _create_injection_tab(self) -> QWidget:
         widget = QWidget()
@@ -8769,10 +8792,19 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         attacker_ip = self.attacker_ip.text() or 'ATTACKER_IP'
         attacker_port = self.attacker_port.text() or '4444'
         
+        if not attacker_port.isdigit():
+            QMessageBox.warning(self, "Error", "Attacker Port must be numeric")
+            return
+        
         payloads = self.ai.exploitation.generate_payloads(
             payload_type, os_type, attacker_ip, attacker_port
         )
-        
+
+        if not payloads:
+            self.exploit_results.setRowCount(0)
+            self._add_chat_message('tool', f"No payloads available for {payload_type} on {os_type}")
+            return
+
         self.exploit_results.setRowCount(len(payloads))
         for i, p in enumerate(payloads):
             self.exploit_results.setItem(i, 0, QTableWidgetItem(p['payload'][:60]))
@@ -8784,29 +8816,43 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         self._add_chat_message('tool', f"Generated {len(payloads)} {payload_type} payloads for {os_type}")
         
     def _fuzz_target(self):
-        url = self.exploit_url.text()
+        url = self.exploit_url.text().strip()
         param = self.exploit_param.text()
         
         if not url or not param:
             QMessageBox.warning(self, "Error", "Enter target URL and parameter")
             return
             
+        if not url.startswith(('http://', 'https://')):
+            url = f"https://{url}"
+            self.exploit_url.setText(url)
+
         os_type = self.exploit_os.currentText()
         payload_type = self.exploit_type.currentText()
-        
-        payloads = self.ai.exploitation.generate_payloads(payload_type, os_type)
+        attacker_ip = self.attacker_ip.text() or 'ATTACKER_IP'
+        attacker_port = self.attacker_port.text() or '4444'
+
+        payloads = self.ai.exploitation.generate_payloads(payload_type, os_type, attacker_ip, attacker_port)
+        if not payloads:
+            self.exploit_results.setRowCount(0)
+            self._add_chat_message('tool', f"No payloads available to fuzz with for {payload_type}/{os_type}")
+            return
+
         payload_strings = [p['payload'] for p in payloads]
-        
+
         self._add_chat_message('tool', f"Fuzzing {url} param={param} with {len(payload_strings)} payloads...")
-        
+
         results = self.ai.exploitation.fuzz_parameter(url, param, payload_strings)
         
         self.exploit_results.setRowCount(len(results))
         for i, r in enumerate(results):
-            self.exploit_results.setItem(i, 0, QTableWidgetItem(r.get('payload', '')[:50]))
-            self.exploit_results.setItem(i, 1, QTableWidgetItem(str(r.get('status', 'Error'))))
+            if not isinstance(r, dict):
+                r = {'error': str(r)}
+
+            self.exploit_results.setItem(i, 0, QTableWidgetItem(str(r.get('payload', ''))[:80]))
+            self.exploit_results.setItem(i, 1, QTableWidgetItem(str(r.get('status', 'Error' if r.get('error') else '-'))))
             self.exploit_results.setItem(i, 2, QTableWidgetItem(str(r.get('length', '-'))))
-            indicators = ', '.join(r.get('indicators', []))[:30]
+            indicators = ', '.join(r.get('indicators', []))[:60] if isinstance(r.get('indicators', []), list) else str(r.get('error', ''))[:60]
             self.exploit_results.setItem(i, 3, QTableWidgetItem(indicators or '-'))
             
             vuln = r.get('vulnerable', False)
@@ -8866,7 +8912,8 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
             self.injection_results.setItem(i, 4, int_item)
             
         interesting_count = sum(1 for r in results if r.get('interesting'))
-        self._add_chat_message('assistant', f"Injection complete. {interesting_count} interesting responses found.")
+        error_count = sum(1 for r in results if isinstance(r, dict) and r.get('error'))
+        self._add_chat_message('assistant', f"Injection complete. {interesting_count} interesting responses found. Errors: {error_count}.")
         
     def _try_login_bypass(self):
         url = self.login_url.text()
