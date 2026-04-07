@@ -4655,6 +4655,28 @@ please consider supporting its development.</p>
 
         layout.addWidget(config_group)
 
+        stats_group = QGroupBox("Defense Stats")
+        stats_layout = QHBoxLayout(stats_group)
+        self.defense_tab_stats_labels = {}
+        stats_fields = [
+            ('threats_mitigated', 'Mitigated', '0'),
+            ('ips_blocked', 'IPs Blocked', '0'),
+            ('honeypot_hits', 'Honeypot Hits', '0'),
+            ('active_honeypots', 'Active Honeypots', '0'),
+            ('tracked_ips', 'Tracked IPs', '0'),
+        ]
+        for key, title, default in stats_fields:
+            card = QGroupBox(title)
+            card_layout = QVBoxLayout(card)
+            value_lbl = QLabel(default)
+            value_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            value_lbl.setFont(QFont("Consolas", 14, QFont.Weight.Bold))
+            value_lbl.setStyleSheet("color: #00fff2;")
+            card_layout.addWidget(value_lbl)
+            self.defense_tab_stats_labels[key] = value_lbl
+            stats_layout.addWidget(card)
+        layout.addWidget(stats_group)
+
         layout.addWidget(QLabel("Threat Log (Recent)"))
         self.defense_threat_log = QTextEdit()
         self.defense_threat_log.setReadOnly(True)
@@ -4672,6 +4694,7 @@ please consider supporting its development.</p>
         self.defense_tab_engine.on_threat_mitigated = self._on_active_defense_threat_mitigated
         self._apply_active_defense_tab_config()
         self._update_defense_blocked_ips_log()
+        self._update_active_defense_stats()
 
         layout.addStretch()
         widget.setLayout(layout)
@@ -4699,6 +4722,23 @@ please consider supporting its development.</p>
     def _append_active_defense_log(self, message: str):
         if hasattr(self, 'defense_threat_log'):
             self.defense_threat_log.append(message)
+
+    def _update_active_defense_stats(self):
+        """Refresh Active Defense stats panel from engine metrics."""
+        if not hasattr(self, 'defense_tab_engine') or not hasattr(self, 'defense_tab_stats_labels'):
+            return
+
+        try:
+            stats = self.defense_tab_engine.get_stats()
+            self.defense_tab_stats_labels['threats_mitigated'].setText(str(stats.get('threats_mitigated', 0)))
+            limiter_stats = stats.get('rate_limiter', {}) if isinstance(stats.get('rate_limiter', {}), dict) else {}
+            blocked_count = max(int(stats.get('ips_blocked', 0)), int(limiter_stats.get('blocked_count', 0)))
+            self.defense_tab_stats_labels['ips_blocked'].setText(str(blocked_count))
+            self.defense_tab_stats_labels['honeypot_hits'].setText(str(stats.get('honeypot_hits', 0)))
+            self.defense_tab_stats_labels['active_honeypots'].setText(str(stats.get('active_honeypots', 0)))
+            self.defense_tab_stats_labels['tracked_ips'].setText(str(limiter_stats.get('tracked_ips', 0)))
+        except Exception as e:
+            logger.warning(f"Failed to update active defense stats: {e}")
         
     def _toggle_defense_tab(self):
         """Toggle defense tab engine state"""
@@ -4730,6 +4770,7 @@ please consider supporting its development.</p>
                 self.defense_status_label.setStyleSheet("color: #ff6b6b;")
 
         self._update_defense_blocked_ips_log()
+        self._update_active_defense_stats()
         
     def _block_ip_from_defense_tab(self):
         """Block an IP address from the defense tab"""
@@ -4751,10 +4792,12 @@ please consider supporting its development.</p>
         try:
             self.defense_tab_engine.rate_limiter.blocked_ips.add(ip)
             self.defense_tab_engine._apply_firewall_block(ip, permanent=True)
+            self.defense_tab_engine.stats['ips_blocked'] += 1
 
             # Update blocked IPs display
             self._update_defense_blocked_ips_log()
             self._append_active_defense_log(f"🚫 Manually blocked IP: {ip}")
+            self._update_active_defense_stats()
             self.defense_block_input.clear()
             QMessageBox.information(self, "Success", f"IP {ip} has been blocked")
         except Exception as e:
@@ -4779,6 +4822,7 @@ please consider supporting its development.</p>
         self.defense_tab_engine.rate_limiter.unblock(ip)
         self._update_defense_blocked_ips_log()
         self._append_active_defense_log(f"✅ Manually unblocked IP: {ip}")
+        self._update_active_defense_stats()
         self.defense_block_input.clear()
 
     def _on_active_defense_level_changed(self, level_name: str):
@@ -4793,23 +4837,27 @@ please consider supporting its development.</p>
         self.defense_tab_engine.enable(level)
         self.defense_status_label.setText(f"Status: Enabled ({level_name})")
         self._append_active_defense_log(f"🔄 Defense level updated to: {level_name}")
+        self._update_active_defense_stats()
 
     def _on_active_defense_auto_response_changed(self, _: bool):
         self._apply_active_defense_tab_config()
         mode = "enabled" if self.defense_auto_response_cb.isChecked() else "disabled"
         self._append_active_defense_log(f"⚙️ Auto-response {mode}")
+        self._update_active_defense_stats()
 
     def _on_active_defense_threshold_changed(self, _: float):
         self._apply_active_defense_tab_config()
         self._append_active_defense_log(
             f"⚙️ Block threshold set to {self.defense_block_threshold.value():.2f}"
         )
+        self._update_active_defense_stats()
 
     def _on_active_defense_action_taken(self, action_data: dict):
         ip = action_data.get('ip', 'Unknown')
         actions = ', '.join(action_data.get('actions', [])) or 'logged'
         self._append_active_defense_log(f"🤖 Action taken for {ip}: {actions}")
         self._update_defense_blocked_ips_log()
+        self._update_active_defense_stats()
 
     def _on_active_defense_threat_mitigated(self, threat_data: dict, actions: list):
         threat = threat_data.get('threat_type', 'Unknown')
@@ -4817,6 +4865,7 @@ please consider supporting its development.</p>
         action_names = [a.value if hasattr(a, 'value') else str(a) for a in actions]
         self._append_active_defense_log(f"⚔️ Mitigated {threat} from {ip}: {', '.join(action_names)}")
         self._update_defense_blocked_ips_log()
+        self._update_active_defense_stats()
         
     def _update_defense_blocked_ips_log(self):
         """Update the blocked IPs log from defense tab engine"""
