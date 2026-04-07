@@ -7238,15 +7238,31 @@ please consider supporting its development.</p>
 
     def _si_extract_code_from_response(self, text: str) -> str:
         """Extract raw code from model output, stripping markdown if present."""
-        content = (text or "").strip()
+        content = self._si_strip_thinking_markup(text)
         if not content:
             return ""
 
         if "```" in content:
-            code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', content, re.DOTALL)
+            code_blocks = re.findall(r'```(?:[a-zA-Z0-9_+-]+)?\n?(.*?)```', content, re.DOTALL)
             if code_blocks:
-                return code_blocks[0].strip()
+                # Prefer the largest code block when multiple are present.
+                return max(code_blocks, key=len).strip()
         return content
+
+    def _si_strip_thinking_markup(self, text: str) -> str:
+        """Remove chain-of-thought style HTML wrappers that break command/file flows."""
+        content = (text or "").strip()
+        if not content:
+            return ""
+
+        # Remove details/summary wrappers often produced by "thinking process" formatters.
+        content = re.sub(r'<details[^>]*>.*?</details>', '', content, flags=re.IGNORECASE | re.DOTALL)
+        content = re.sub(r'<summary[^>]*>.*?</summary>', '', content, flags=re.IGNORECASE | re.DOTALL)
+
+        # If labels leaked without wrappers, trim leading label lines.
+        lines = content.splitlines()
+        filtered = [ln for ln in lines if 'thinking process' not in ln.lower()]
+        return '\n'.join(filtered).strip()
 
     def _si_result_looks_like_code(self, text: str) -> bool:
         """Heuristic check to avoid writing status/error text as code."""
@@ -8350,7 +8366,17 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             max_tokens=1800,
             temperature=0.25,
         )
-        self._si_append_chat("assistant", reply)
+        clean_reply = self._si_strip_thinking_markup(reply) or reply
+        self._si_append_chat("assistant", clean_reply)
+
+        generated = self._si_extract_code_from_response(clean_reply)
+        if generated and self._si_result_looks_like_code(generated):
+            self._si_last_generated_code = generated
+            lower_text = text.lower()
+            if any(k in lower_text for k in ['edit', 'modify', 'change', 'update', 'add', 'create', 'refactor', 'fix']):
+                self.si_code_editor.setPlainText(generated)
+                self._si_update_line_count()
+                self._si_append_chat("assistant", "Loaded generated code into editor. Run `/save` to write it to file.")
 
     def _si_handle_chat_intent_with_ai(self, text: str) -> Optional[str]:
         """Use LLM intent parsing so natural chat can trigger workspace actions."""
@@ -8424,6 +8450,64 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
         return None
 
+    def _si_is_plausible_full_file(self, candidate: str, baseline: str = "", target: Optional[Path] = None) -> bool:
+        """Heuristic guard to avoid overwriting files with partial/snippet outputs."""
+        content = (candidate or '').strip()
+        if not content:
+            return False
+
+        lower = content.lower()
+        if lower.startswith('```') or lower.startswith('@@') or lower.startswith('diff --git'):
+            return False
+
+        if baseline.strip():
+            base_len = len(baseline.strip())
+            cand_len = len(content)
+            base_lines = len(baseline.splitlines())
+            cand_lines = len(content.splitlines())
+
+            # Prevent tiny snippets from replacing whole files.
+            if cand_len < max(120, int(base_len * 0.35)) and cand_lines < max(8, int(base_lines * 0.35)):
+                return False
+
+        if target and target.suffix.lower() == '.py':
+            try:
+                ast.parse(content)
+            except SyntaxError:
+                return False
+
+        return True
+
+    def _si_apply_structured_edits(self, source: str, edit_payload: str) -> Optional[str]:
+        """Apply model-provided targeted edits in JSON format to existing source."""
+        parsed = self._si_parse_json_object(edit_payload)
+        if not isinstance(parsed, dict):
+            return None
+
+        edits = parsed.get('edits')
+        if not isinstance(edits, list) or not edits:
+            return None
+
+        updated = source
+        applied = 0
+        for edit in edits:
+            if not isinstance(edit, dict):
+                continue
+
+            old = str(edit.get('old', ''))
+            new = str(edit.get('new', ''))
+            if not old:
+                continue
+            if old not in updated:
+                continue
+
+            updated = updated.replace(old, new, 1)
+            applied += 1
+
+        if applied == 0 or updated == source:
+            return None
+        return updated
+
     def _si_handle_chat_natural_request(self, text: str) -> Optional[str]:
         """Handle common conversational workspace requests before sending to LLM."""
         message = text.strip().lower()
@@ -8455,6 +8539,18 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         if natural_edit:
             file_part = natural_edit.group(1).strip()
             instruction = natural_edit.group(2).strip()
+            return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
+
+        natural_edit_to = re.match(r'^(?:edit|update|modify|change)\s+(.+?)\s+(?:to|so that)\s+(.+)$', text.strip(), re.IGNORECASE)
+        if natural_edit_to:
+            file_part = natural_edit_to.group(1).strip()
+            instruction = natural_edit_to.group(2).strip()
+            return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
+
+        natural_file_edit = re.match(r'^.*?file\s+(.+?)\s+(?:to|so that)\s+(.+)$', text.strip(), re.IGNORECASE)
+        if natural_file_edit and any(k in message for k in {'edit', 'update', 'modify', 'change', 'add'}):
+            file_part = natural_file_edit.group(1).strip()
+            instruction = natural_file_edit.group(2).strip()
             return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
 
         natural_open = re.match(r'^(?:open|load|show)\s+(?:file\s+)?(.+)$', text.strip(), re.IGNORECASE)
@@ -8543,10 +8639,40 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
                 return "Path escapes workdir; blocked."
 
             try:
+                content_to_save = self.si_code_editor.toPlainText()
+                used_suggested = False
+
+                last_generated = getattr(self, '_si_last_generated_code', '')
+                if isinstance(last_generated, str) and last_generated.strip() and self._si_result_looks_like_code(last_generated):
+                    if not self._si_is_plausible_full_file(last_generated, content_to_save, target):
+                        last_generated = ''
+
+                if isinstance(last_generated, str) and last_generated.strip() and self._si_result_looks_like_code(last_generated):
+                    if last_generated.strip() != content_to_save.strip():
+                        content_to_save = last_generated
+                        used_suggested = True
+                        self.si_code_editor.setPlainText(content_to_save)
+                        self._si_update_line_count()
+
+                if hasattr(self, 'si_result_display'):
+                    suggested = self._si_extract_code_from_response(self.si_result_display.toPlainText())
+                    if suggested and self._si_result_looks_like_code(suggested):
+                        if not self._si_is_plausible_full_file(suggested, content_to_save, target):
+                            suggested = ""
+
+                    if suggested and self._si_result_looks_like_code(suggested):
+                        if suggested.strip() != content_to_save.strip():
+                            content_to_save = suggested
+                            used_suggested = True
+                            # Keep editor aligned with what gets written to disk.
+                            self.si_code_editor.setPlainText(content_to_save)
+                            self._si_update_line_count()
+
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(self.si_code_editor.toPlainText(), encoding='utf-8')
+                target.write_text(content_to_save, encoding='utf-8')
                 self.si_file_path.setText(str(target))
-                return f"Saved {target.relative_to(workdir)}"
+                suffix = " (applied latest suggested changes)" if used_suggested else ""
+                return f"Saved {target.relative_to(workdir)}{suffix}"
             except Exception as e:
                 return f"Failed to save: {str(e)}"
 
@@ -8596,6 +8722,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(created_content, encoding='utf-8')
+                self._si_last_generated_code = created_content
                 self.si_code_editor.setPlainText(created_content)
                 self.si_file_path.setText(str(target))
                 self._si_update_line_count()
@@ -8618,22 +8745,50 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
             try:
                 source = target.read_text(encoding='utf-8', errors='ignore')
-                prompt = (
-                    "Modify this code according to the instruction. Return only valid code, no markdown.\n"
+                structured_prompt = (
+                    "Apply the instruction using targeted edits and return ONLY JSON in this shape: "
+                    "{\"edits\":[{\"old\":\"exact existing text\",\"new\":\"replacement text\"}]}. "
+                    "Use exact `old` snippets copied from the source. Do not return markdown.\n"
                     f"Instruction: {instruction}\n\n"
-                    f"Code:\n{source[:12000]}"
+                    f"Source:\n{source[:12000]}"
                 )
-                edited = self._si_call_ai(
-                    "You are an expert software engineer. Apply requested edits safely and preserve behavior unless asked.",
-                    prompt,
-                    max_tokens=4000,
-                    temperature=0.2,
+                edit_plan = self._si_call_ai(
+                    "You are a precise code transformation engine. Produce deterministic JSON patch operations only.",
+                    structured_prompt,
+                    max_tokens=3000,
+                    temperature=0,
                 )
-                edited_code = self._si_extract_code_from_response(edited)
+
+                edited_code = self._si_apply_structured_edits(source, edit_plan)
+                if not edited_code:
+                    prompt = (
+                        "Modify this FULL file according to the instruction. Return the complete updated file content only, no markdown.\n"
+                        f"Instruction: {instruction}\n\n"
+                        f"Code:\n{source[:12000]}"
+                    )
+                    edited = self._si_call_ai(
+                        "You are an expert software engineer. Return the complete updated file content.",
+                        prompt,
+                        max_tokens=4000,
+                        temperature=0.2,
+                    )
+                    edited_code = self._si_extract_code_from_response(edited)
+
                 if not edited_code.strip():
                     return "AI returned empty output."
+                if not self._si_result_looks_like_code(edited_code):
+                    return "AI returned non-code output. Please retry with a more specific instruction."
+                if not self._si_is_plausible_full_file(edited_code, source, target):
+                    return "AI returned partial content; file not overwritten. Try a more specific instruction or use /edit with focused scope."
+
+                if target.suffix.lower() == '.py':
+                    try:
+                        ast.parse(edited_code)
+                    except SyntaxError as e:
+                        return f"Generated Python has syntax errors; file not written: {str(e)}"
 
                 target.write_text(edited_code, encoding='utf-8')
+                self._si_last_generated_code = edited_code
                 self.si_code_editor.setPlainText(edited_code)
                 self.si_file_path.setText(str(target))
                 self._si_update_line_count()
