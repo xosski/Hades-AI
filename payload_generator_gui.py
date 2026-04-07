@@ -565,34 +565,55 @@ class PayloadGeneratorTab(QWidget):
         """Handle generation completion"""
         self.progress.setVisible(False)
         
+        detected_type = result.get('detected_type', 'unknown')
+        payloads = list(result.get('payloads', []))
+        effective_type = detected_type
+
+        # If detection fails, use the selected override type so the tab still produces payloads.
+        if not payloads and detected_type == 'unknown':
+            override_type = self.file_type_combo.currentText()
+            override_payloads = PayloadGenerator.get_payloads(override_type)
+            if override_payloads:
+                payloads = override_payloads
+                effective_type = override_type
+
         # Update file info
-        self.file_type_label.setText(result['detected_type'])
-        self.file_size_label.setText(f"{result['file_size']:,} bytes")
-        self.payload_count_label.setText(str(result['count']))
-        
+        if detected_type == 'unknown' and effective_type != 'unknown':
+            self.file_type_label.setText(f"unknown → {effective_type} (override)")
+        else:
+            self.file_type_label.setText(effective_type)
+        self.file_size_label.setText(f"{result.get('file_size', 0):,} bytes")
+        self.payload_count_label.setText(str(len(payloads)))
+
         # Update combo box
         self.file_type_combo.blockSignals(True)
-        self.file_type_combo.setCurrentText(result['detected_type'])
+        available_types = [self.file_type_combo.itemText(i) for i in range(self.file_type_combo.count())]
+        if effective_type in available_types:
+            self.file_type_combo.setCurrentText(effective_type)
         self.file_type_combo.blockSignals(False)
         
         # Display payloads
-        self.payloads = result['payloads']
-        self._display_payloads(result['detected_type'], result['payloads'])
-        
+        self.payloads = payloads
+        self._display_payloads(effective_type, payloads)
+
         # Create payload profile for integration if available
         if self.integration_linker:
             try:
+                profile_result = dict(result)
+                profile_result['detected_type'] = effective_type
+                profile_result['payloads'] = payloads
+                profile_result['count'] = len(payloads)
                 profile = from_payload_generator_to_exploit(
-                    result,
+                    profile_result,
                     {},  # No file analysis yet
-                    result['detected_type']
+                    effective_type
                 )
                 self.current_profile_id = self.integration_linker.db.save_payload_profile(profile)
                 logger.info(f"Payload profile saved for integration: {self.current_profile_id}")
             except Exception as e:
                 logger.warning(f"Failed to save payload profile: {e}")
-        
-        logger.info(f"Generated {result['count']} payloads for {result['file_name']}")
+
+        logger.info(f"Generated {len(payloads)} payloads for {result.get('file_name', 'unknown file')} ({effective_type})")
     
     def _on_generation_error(self, error: str):
         """Handle generation error"""
