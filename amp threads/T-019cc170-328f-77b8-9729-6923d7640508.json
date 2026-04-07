@@ -1,0 +1,70 @@
+{
+  "v": 7,
+  "id": "T-019cc170-328f-77b8-9729-6923d7640508",
+  "created": 1772771881935,
+  "messages": [
+    {
+      "role": "user",
+      "messageId": 0,
+      "content": [
+        {
+          "type": "text",
+          "text": "testing"
+        }
+      ],
+      "userState": {
+        "currentlyVisibleFiles": []
+      },
+      "agentMode": "deep",
+      "meta": {
+        "sentAt": 1772771943144
+      }
+    }
+  ],
+  "agentMode": "deep",
+  "nextMessageId": 1,
+  "meta": {
+    "traces": [
+      {
+        "name": "agent",
+        "id": "WeCNK",
+        "startTime": "2026-03-06T04:39:03.149Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-03-06T04:39:03.399Z"
+      },
+      {
+        "name": "inference",
+        "id": "wNong",
+        "parent": "WeCNK",
+        "startTime": "2026-03-06T04:39:03.152Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-03-06T04:39:03.400Z"
+      }
+    ]
+  },
+  "env": {
+    "initial": {
+      "trees": [
+        {
+          "displayName": "C:",
+          "uri": "file:///c%3A/"
+        }
+      ],
+      "platform": {
+        "os": "windows",
+        "osVersion": "Microsoft Windows 11 Home Single Language 10.0.26100 N/A Build 26100",
+        "cpuArchitecture": "x64",
+        "webBrowser": false,
+        "client": "VS Code CLI",
+        "clientVersion": "0.0.1772755761-g627c2b",
+        "clientType": "cli",
+        "installationID": "8819158e-3869-407a-a12a-bc15f9d818fe",
+        "deviceFingerprint": "v1:fp_27d82d9b8fbc23e68ca4dab7d875d80ab12031a0d874d8cad4fdf2de6ee06e9c"
+      }
+    }
+  }
+}

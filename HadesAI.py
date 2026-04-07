@@ -428,6 +428,22 @@ class KnowledgeBase:
         cursor.execute('''CREATE TABLE IF NOT EXISTS web_learnings (
             id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, content_type TEXT,
             patterns_found TEXT, exploits_found TEXT, learned_at TEXT)''')
+
+        # Legacy/general tracking tables expected by stats/reporting paths.
+        cursor.execute('''CREATE TABLE IF NOT EXISTS experiences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            content TEXT,
+            confidence REAL DEFAULT 0.5,
+            created_at TEXT)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS cache_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT,
+            browser TEXT,
+            entry_type TEXT,
+            metadata TEXT,
+            detected_at TEXT)''')
         
         # NEW: Techniques table for normalized security knowledge
         cursor.execute('''CREATE TABLE IF NOT EXISTS techniques (
@@ -478,6 +494,29 @@ class KnowledgeBase:
             categories TEXT,
             is_blocked INTEGER DEFAULT 0,
             notes TEXT)''')
+
+        # NEW: Local amp thread learning sources
+        cursor.execute('''CREATE TABLE IF NOT EXISTS amp_thread_sources (
+            thread_id TEXT PRIMARY KEY,
+            source_path TEXT,
+            file_hash TEXT,
+            imported_at TEXT,
+            message_count INTEGER DEFAULT 0)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS amp_thread_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT NOT NULL,
+            role TEXT,
+            message_text TEXT,
+            source_file TEXT,
+            message_index INTEGER,
+            imported_at TEXT,
+            FOREIGN KEY (thread_id) REFERENCES amp_thread_sources(thread_id) ON DELETE CASCADE)''')
+
+        cursor.execute('''CREATE INDEX IF NOT EXISTS idx_amp_thread_messages_thread_id
+            ON amp_thread_messages(thread_id)''')
+        cursor.execute('''CREATE INDEX IF NOT EXISTS idx_amp_thread_messages_role
+            ON amp_thread_messages(role)''')
 
         self.conn.commit()
     
@@ -756,6 +795,96 @@ class KnowledgeBase:
             VALUES (?,?,?,?,?)''',
             (url, content_type, json.dumps(patterns), json.dumps(exploits), datetime.now().isoformat()))
             self.conn.commit()
+
+    # ========== Amp Threads Learning ==========
+    def get_amp_thread_source_hash(self, thread_id: str) -> Optional[str]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT file_hash FROM amp_thread_sources WHERE thread_id = ?', (thread_id,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def replace_amp_thread_messages(self, thread_id: str, source_path: str,
+                                    file_hash: str, messages: List[Dict[str, Any]]):
+        with self.lock:
+            cursor = self.conn.cursor()
+            imported_at = datetime.now().isoformat()
+
+            cursor.execute('''INSERT INTO amp_thread_sources
+                (thread_id, source_path, file_hash, imported_at, message_count)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(thread_id) DO UPDATE SET
+                    source_path=excluded.source_path,
+                    file_hash=excluded.file_hash,
+                    imported_at=excluded.imported_at,
+                    message_count=excluded.message_count''',
+                (thread_id, source_path, file_hash, imported_at, len(messages)))
+
+            cursor.execute('DELETE FROM amp_thread_messages WHERE thread_id = ?', (thread_id,))
+
+            if messages:
+                rows = []
+                for idx, msg in enumerate(messages):
+                    rows.append((
+                        thread_id,
+                        (msg.get('role') or 'unknown')[:32],
+                        msg.get('text', ''),
+                        source_path,
+                        int(msg.get('index', idx)),
+                        imported_at
+                    ))
+
+                cursor.executemany('''INSERT INTO amp_thread_messages
+                    (thread_id, role, message_text, source_file, message_index, imported_at)
+                    VALUES (?, ?, ?, ?, ?, ?)''', rows)
+
+            self.conn.commit()
+
+    def search_amp_thread_messages(self, query: str, limit: int = 8) -> List[Dict[str, Any]]:
+        cursor = self.conn.cursor()
+        cleaned_query = (query or '').strip().lower()
+        if not cleaned_query:
+            cursor.execute('''SELECT thread_id, role, message_text, source_file, message_index
+                FROM amp_thread_messages
+                ORDER BY imported_at DESC, id DESC LIMIT ?''', (limit,))
+        else:
+            tokens = re.findall(r'[a-z0-9_\-]{3,}', cleaned_query)[:6]
+            conditions = []
+            params: List[Any] = []
+
+            like_query = f"%{cleaned_query}%"
+            conditions.append('LOWER(message_text) LIKE ?')
+            params.append(like_query)
+
+            for token in tokens:
+                conditions.append('LOWER(message_text) LIKE ?')
+                params.append(f"%{token}%")
+
+            where_clause = ' OR '.join(conditions)
+            params.append(limit)
+
+            cursor.execute(f'''SELECT thread_id, role, message_text, source_file, message_index
+                FROM amp_thread_messages
+                WHERE {where_clause}
+                ORDER BY imported_at DESC, id DESC LIMIT ?''', params)
+
+        return [
+            {
+                'thread_id': row[0],
+                'role': row[1],
+                'text': row[2],
+                'source_file': row[3],
+                'message_index': row[4]
+            }
+            for row in cursor.fetchall()
+        ]
+
+    def get_amp_learning_stats(self) -> Dict[str, int]:
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM amp_thread_sources')
+        thread_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM amp_thread_messages')
+        message_count = cursor.fetchone()[0]
+        return {'thread_sources': thread_count, 'thread_messages': message_count}
 
 
     def fetch_recent_web_patterns(self, limit=1) -> List[str]:
@@ -2612,14 +2741,18 @@ Just give me a URL or IP and I'll get to work!""",
         
     def _get_stats(self) -> str:
         cursor = self.kb.conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM experiences')
-        exp_count = cursor.fetchone()[0]
-        cursor.execute('SELECT COUNT(*) FROM security_patterns')
-        pattern_count = cursor.fetchone()[0]
-        cursor.execute('SELECT COUNT(*) FROM learned_exploits')
-        exploit_count = cursor.fetchone()[0]
-        cursor.execute('SELECT COUNT(*) FROM threat_findings')
-        threat_count = cursor.fetchone()[0]
+
+        def safe_count(table_name: str) -> int:
+            try:
+                cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+                return cursor.fetchone()[0]
+            except sqlite3.Error:
+                return 0
+
+        exp_count = safe_count('experiences')
+        pattern_count = safe_count('security_patterns')
+        exploit_count = safe_count('learned_exploits')
+        threat_count = safe_count('threat_findings')
         
         return f"""**HADES AI Statistics:**
 • Experiences: {exp_count}
@@ -2920,6 +3053,7 @@ class HadesAI:
         self.last_code = ""
         self.files = {} # filename -> code str
         self.code_assistant = CodeEditorAssistant()
+        self.amp_threads_folder = os.getenv('HADES_AMP_THREADS_DIR', 'amp threads')
         
         # Initialize LLM conversation manager
         if HAS_LLM_CORE:
@@ -2940,7 +3074,22 @@ class HadesAI:
             self.cognitive = None
             logger.warning("Cognitive memory system not available")
         
+        # Learn from local amp thread exports at startup when available.
+        try:
+            import_result = self.learn_from_amp_threads_folder(self.amp_threads_folder)
+            if import_result.get('scanned_files', 0) > 0:
+                logger.info(
+                    "Amp threads sync complete: imported=%s skipped=%s failed=%s messages=%s",
+                    import_result.get('imported_threads', 0),
+                    import_result.get('skipped_threads', 0),
+                    import_result.get('failed_threads', 0),
+                    import_result.get('total_messages', 0),
+                )
+        except Exception as e:
+            logger.warning(f"Amp threads startup import failed: {str(e)}")
+
         self._optimizer_thread = None
+
     def chat(self, message: str) -> Dict:
         return self.chat_processor.process(message)
         
@@ -2950,12 +3099,170 @@ class HadesAI:
     def get_stats(self) -> Dict:
         cursor = self.kb.conn.cursor()
         stats = {}
+
+        def safe_count(table_name: str) -> int:
+            try:
+                cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+                return cursor.fetchone()[0]
+            except sqlite3.Error:
+                return 0
+
         for table in ['experiences', 'security_patterns', 'learned_exploits', 'threat_findings', 'cache_entries']:
-            cursor.execute(f'SELECT COUNT(*) FROM {table}')
-            stats[table] = cursor.fetchone()[0]
+            stats[table] = safe_count(table)
+        stats['amp_learning'] = self.kb.get_amp_learning_stats()
         if self.cognitive:
             stats['cognitive_memories'] = self.cognitive.get_memory_stats()
         return stats
+
+    # ========== Amp Thread Learning Methods ==========
+    def _extract_text_fragments(self, node: Any) -> List[str]:
+        """Recursively extract text fragments from Amp thread JSON content."""
+        fragments: List[str] = []
+
+        if node is None:
+            return fragments
+        if isinstance(node, str):
+            text = node.strip()
+            if text:
+                fragments.append(text)
+            return fragments
+        if isinstance(node, list):
+            for item in node:
+                fragments.extend(self._extract_text_fragments(item))
+            return fragments
+        if isinstance(node, dict):
+            if isinstance(node.get('text'), str):
+                text = node['text'].strip()
+                if text:
+                    fragments.append(text)
+            if isinstance(node.get('output'), str):
+                output_text = node['output'].strip()
+                if output_text:
+                    fragments.append(output_text)
+
+            for key in ('content', 'input', 'result', 'message', 'run'):
+                if key in node:
+                    fragments.extend(self._extract_text_fragments(node[key]))
+            return fragments
+
+        return fragments
+
+    def _parse_amp_thread_file(self, file_path: Path) -> Tuple[str, List[Dict[str, Any]]]:
+        """Parse a thread export file and return normalized message entries."""
+        thread_id = file_path.stem
+        raw = file_path.read_text(encoding='utf-8', errors='ignore')
+
+        try:
+            data = json.loads(raw)
+        except Exception:
+            # Some files may be plain-text exports rather than strict JSON.
+            fallback_text = raw.strip()
+            fallback_messages = []
+            if fallback_text:
+                fallback_messages.append({'role': 'dataset', 'text': fallback_text[:12000], 'index': 0})
+            return thread_id, fallback_messages
+
+        if isinstance(data, dict):
+            thread_id = str(data.get('id') or thread_id)
+            raw_messages = data.get('messages', [])
+        elif isinstance(data, list):
+            raw_messages = data
+        else:
+            raw_messages = []
+
+        normalized: List[Dict[str, Any]] = []
+        for idx, msg in enumerate(raw_messages):
+            role = 'unknown'
+            content = msg
+
+            if isinstance(msg, dict):
+                role = str(msg.get('role') or role)
+                content = msg.get('content', msg)
+
+            fragments = self._extract_text_fragments(content)
+            combined = "\n".join(part for part in fragments if part).strip()
+            if not combined:
+                continue
+
+            normalized.append({
+                'role': role,
+                'text': combined[:12000],
+                'index': idx
+            })
+
+        return thread_id, normalized
+
+    def learn_from_amp_threads_folder(self, folder_path: Optional[str] = None,
+                                      refresh_changed_only: bool = True,
+                                      max_files: int = 5000) -> Dict[str, Any]:
+        """Import local amp thread JSON exports into the knowledge base."""
+        base_folder = Path(folder_path or self.amp_threads_folder)
+        result = {
+            'folder': str(base_folder),
+            'scanned_files': 0,
+            'imported_threads': 0,
+            'skipped_threads': 0,
+            'failed_threads': 0,
+            'total_messages': 0,
+            'errors': []
+        }
+
+        if not base_folder.exists() or not base_folder.is_dir():
+            return result
+
+        files = sorted(base_folder.glob('*.json'))[:max_files]
+        result['scanned_files'] = len(files)
+
+        for file_path in files:
+            try:
+                raw_bytes = file_path.read_bytes()
+                file_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+                thread_id, messages = self._parse_amp_thread_file(file_path)
+                if not thread_id:
+                    thread_id = file_path.stem
+
+                existing_hash = self.kb.get_amp_thread_source_hash(thread_id)
+                if refresh_changed_only and existing_hash == file_hash:
+                    result['skipped_threads'] += 1
+                    continue
+
+                self.kb.replace_amp_thread_messages(
+                    thread_id=thread_id,
+                    source_path=str(file_path),
+                    file_hash=file_hash,
+                    messages=messages
+                )
+                result['imported_threads'] += 1
+                result['total_messages'] += len(messages)
+            except Exception as e:
+                result['failed_threads'] += 1
+                result['errors'].append(f"{file_path.name}: {str(e)}")
+
+        return result
+
+    def get_amp_threads_context(self, query: str, limit: int = 8,
+                                char_limit: int = 2200) -> str:
+        """Build concise context from imported amp thread messages."""
+        matches = self.kb.search_amp_thread_messages(query, limit=limit)
+        if not matches:
+            return ""
+
+        lines = ["Local amp threads teaching context:"]
+        current_len = len(lines[0])
+
+        for msg in matches:
+            snippet = " ".join((msg.get('text') or '').split())
+            if len(snippet) > 260:
+                snippet = snippet[:257] + "..."
+
+            line = f"- [{msg.get('thread_id')}:{msg.get('role')}] {snippet}"
+            if current_len + len(line) + 1 > char_limit:
+                break
+            lines.append(line)
+            current_len += len(line) + 1
+
+        return "\n".join(lines)
     
     # ========== Cognitive Memory Methods ==========
     def remember(self, text: str, importance: float = 0.5, metadata: dict = None) -> Optional[str]:
@@ -3292,13 +3599,25 @@ Current query:
             }
             resolved_model = model or model_defaults.get(resolved_provider, "fallback")
 
+            default_system_prompt = "You are HADES, an expert security and coding assistant."
+            base_system_prompt = system_prompt or default_system_prompt
+            amp_context = self.get_amp_threads_context(message)
+            effective_system_prompt = base_system_prompt
+            if amp_context:
+                effective_system_prompt = (
+                    f"{base_system_prompt}\n\n"
+                    f"Use this local context from the amp threads learning folder when relevant:\n"
+                    f"{amp_context}\n\n"
+                    "Prefer accurate retrieval over speculation."
+                )
+
             # Create or reuse conversation
             if not hasattr(self, '_llm_conversation'):
                 self._llm_conversation = self.llm_manager.create_conversation(
                     title="HadesAI Session",
                     provider=resolved_provider,
                     model=resolved_model,
-                    system_prompt=system_prompt or "You are HADES, an expert security and coding assistant."
+                    system_prompt=effective_system_prompt
                 )
             else:
                 # Update provider/model if specified
@@ -3316,6 +3635,16 @@ Current query:
                             "fallback",
                             model_defaults["fallback"],
                         )
+
+                # Keep system prompt aligned with current context without exposing it in user-visible input.
+                if hasattr(self, '_llm_conversation'):
+                    self._llm_conversation.system_prompt = effective_system_prompt
+                    self.llm_manager._save_conversation(self._llm_conversation)
+
+            # Ensure prompt refresh also applies right after initial conversation creation.
+            if hasattr(self, '_llm_conversation') and self._llm_conversation.system_prompt != effective_system_prompt:
+                self._llm_conversation.system_prompt = effective_system_prompt
+                self.llm_manager._save_conversation(self._llm_conversation)
 
             # Send message
             response = self.llm_manager.send_message(
@@ -4032,7 +4361,10 @@ Current query:
             cursor = self.kb.conn.cursor()
             cursor.execute('DELETE FROM threat_findings')
             cursor.execute('DELETE FROM learned_exploits')
-            cursor.execute('DELETE FROM cache_entries')
+            try:
+                cursor.execute('DELETE FROM cache_entries')
+            except sqlite3.Error:
+                pass
             self.kb.conn.commit()
     
     def _get_owasp_category(self, threat_type: str) -> str:
@@ -5469,6 +5801,10 @@ please consider supporting its development.</p>
         refresh_btn = QPushButton("🔁 Refresh Web Knowledge")
         refresh_btn.clicked.connect(self._display_recent_web_knowledge)
         controls_layout.addWidget(refresh_btn)
+
+        sync_amp_btn = QPushButton("🧠 Sync Amp Threads")
+        sync_amp_btn.clicked.connect(self._sync_amp_threads_from_tab)
+        controls_layout.addWidget(sync_amp_btn)
         layout.addLayout(controls_layout)
 
         self.web_knowledge_status = QLabel("Ready")
@@ -5522,6 +5858,42 @@ please consider supporting its development.</p>
         # Keep user flow smooth by also updating learned exploits tab if available.
         if hasattr(self, 'learned_table'):
             self._refresh_learned()
+
+    def _sync_amp_threads_from_tab(self):
+        """Manually sync local amp thread exports into the learning database."""
+        self.web_knowledge_status.setText("🧠 Syncing amp threads learning folder...")
+        self.web_knowledge_status.setStyleSheet("color: #4dabf7;")
+        QApplication.processEvents()
+
+        result = self.ai.learn_from_amp_threads_folder()
+        scanned = result.get('scanned_files', 0)
+        imported = result.get('imported_threads', 0)
+        skipped = result.get('skipped_threads', 0)
+        failed = result.get('failed_threads', 0)
+        messages = result.get('total_messages', 0)
+
+        if scanned == 0:
+            self.web_knowledge_status.setText("⚠ No amp threads folder found or no JSON files detected.")
+            self.web_knowledge_status.setStyleSheet("color: #ffa94d;")
+            return
+
+        if failed > 0:
+            self.web_knowledge_status.setText(
+                f"⚠ Amp sync partial: imported {imported}, skipped {skipped}, failed {failed}"
+            )
+            self.web_knowledge_status.setStyleSheet("color: #ffa94d;")
+        else:
+            self.web_knowledge_status.setText(
+                f"✅ Amp threads synced | files: {scanned} | imported: {imported} | skipped: {skipped} | messages: {messages}"
+            )
+            self.web_knowledge_status.setStyleSheet("color: #69db7c;")
+
+        self._display_recent_web_knowledge()
+
+        # Keep user flow smooth by also updating learned exploits tab if available.
+        if hasattr(self, 'learned_table'):
+            self._refresh_learned()
+
     def _refresh_module_list(self):
         from os import listdir
         from os.path import isfile, join
@@ -6481,6 +6853,8 @@ please consider supporting its development.</p>
         """Self-Improvement tab - Upload code and AI will fix/amend/verify it"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
         
         # Info banner
         info_label = QLabel("🔧 HADES Self-Improvement Engine - Upload code for AI analysis, fixes, and verification")
@@ -6673,6 +7047,8 @@ please consider supporting its development.</p>
         # Right side - Analysis and fixes
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
         
         # Action buttons
         action_group = QGroupBox("🚀 AI Actions")
@@ -6750,7 +7126,6 @@ please consider supporting its development.</p>
         custom_layout.addWidget(apply_custom_btn)
         
         action_layout.addLayout(custom_layout)
-        right_layout.addWidget(action_group)
         
         # Results/Fixed code
         result_group = QGroupBox("📋 AI Analysis & Fixed Code")
@@ -6782,10 +7157,63 @@ please consider supporting its development.</p>
         result_actions.addWidget(diff_btn)
         
         result_layout.addLayout(result_actions)
-        right_layout.addWidget(result_group)
         
+        # Amp-style coding chat with workdir support
+        amp_chat_group = QGroupBox("🧠 Amp-Style Coding Chat")
+        amp_chat_layout = QVBoxLayout(amp_chat_group)
+
+        workdir_layout = QHBoxLayout()
+        workdir_layout.addWidget(QLabel("Workdir:"))
+        self.si_workdir_input = QLineEdit()
+        self.si_workdir_input.setText(str(Path.cwd()))
+        self.si_workdir_input.setPlaceholderText("Working directory for file operations")
+        workdir_layout.addWidget(self.si_workdir_input)
+
+        workdir_browse_btn = QPushButton("📁")
+        workdir_browse_btn.setMaximumWidth(36)
+        workdir_browse_btn.clicked.connect(self._si_browse_workdir)
+        workdir_layout.addWidget(workdir_browse_btn)
+
+        workdir_apply_btn = QPushButton("Set")
+        workdir_apply_btn.clicked.connect(self._si_set_workdir)
+        workdir_layout.addWidget(workdir_apply_btn)
+        amp_chat_layout.addLayout(workdir_layout)
+
+        self.si_chat_display = QTextEdit()
+        self.si_chat_display.setReadOnly(True)
+        self.si_chat_display.setMinimumHeight(240)
+        self.si_chat_display.setFont(QFont("Consolas", 10))
+        self.si_chat_display.setStyleSheet("background: #0b1220; border: 1px solid #1f2a44; padding: 6px;")
+        self.si_chat_display.setPlaceholderText(
+            "Amp-style coding helper. Commands:\n"
+            "- /files\n"
+            "- /open relative/path.py\n"
+            "- /save\n"
+            "- /edit relative/path.py | your instruction"
+        )
+        amp_chat_layout.addWidget(self.si_chat_display)
+
+        chat_input_layout = QHBoxLayout()
+        self.si_chat_input = QLineEdit()
+        self.si_chat_input.setPlaceholderText("Ask AI to help, code, explain, or edit files in the workdir...")
+        self.si_chat_input.returnPressed.connect(self._si_send_amp_chat)
+        chat_input_layout.addWidget(self.si_chat_input)
+
+        send_chat_btn = QPushButton("Send")
+        send_chat_btn.clicked.connect(self._si_send_amp_chat)
+        chat_input_layout.addWidget(send_chat_btn)
+        amp_chat_layout.addLayout(chat_input_layout)
+
+        # Clean architecture: resizable panels (Chat -> Actions -> Results)
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
+        right_splitter.addWidget(amp_chat_group)
+        right_splitter.addWidget(action_group)
+        right_splitter.addWidget(result_group)
+        right_splitter.setSizes([300, 260, 320])
+        right_layout.addWidget(right_splitter)
+
         main_splitter.addWidget(right_widget)
-        main_splitter.setSizes([500, 500])
+        main_splitter.setSizes([520, 620])
         
         layout.addWidget(main_splitter)
         
@@ -7855,6 +8283,201 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         else:
             self.si_result_display.setPlainText("✅ No differences - code is unchanged.")
     
+    # ========== Self-Improvement Amp-Style Chat ==========
+    def _si_append_chat(self, role: str, message: str):
+        if not hasattr(self, 'si_chat_display'):
+            return
+        color = "#4ec9b0" if role == "user" else "#e94560"
+        label = "YOU" if role == "user" else "HADES"
+        safe = html.escape(str(message)).replace('\n', '<br>')
+        self.si_chat_display.append(f'<p><span style="color:{color};font-weight:bold;">[{label}]</span> {safe}</p>')
+        self.si_chat_display.verticalScrollBar().setValue(self.si_chat_display.verticalScrollBar().maximum())
+
+    def _si_resolve_workdir(self) -> Path:
+        raw = self.si_workdir_input.text().strip() if hasattr(self, 'si_workdir_input') else ''
+        if not raw:
+            return Path.cwd()
+        return Path(raw).expanduser().resolve()
+
+    def _si_set_workdir(self):
+        workdir = self._si_resolve_workdir()
+        if workdir.exists() and workdir.is_dir():
+            self.si_workdir_input.setText(str(workdir))
+            self._si_append_chat("assistant", f"Workdir set to: {workdir}")
+        else:
+            self._si_append_chat("assistant", "Invalid workdir. Please choose an existing folder.")
+
+    def _si_browse_workdir(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Workdir", str(Path.cwd()))
+        if folder:
+            self.si_workdir_input.setText(folder)
+            self._si_set_workdir()
+
+    def _si_send_amp_chat(self):
+        if not hasattr(self, 'si_chat_input'):
+            return
+        text = self.si_chat_input.text().strip()
+        if not text:
+            return
+
+        self.si_chat_input.clear()
+        self._si_append_chat("user", text)
+
+        command_result = self._si_handle_chat_command(text)
+        if command_result is not None:
+            self._si_append_chat("assistant", command_result)
+            return
+
+        quick_result = self._si_handle_chat_natural_request(text)
+        if quick_result is not None:
+            self._si_append_chat("assistant", quick_result)
+            return
+
+        code = self.si_code_editor.toPlainText().strip()
+        prompt = text
+        if code:
+            prompt += f"\n\nCurrent editor code context:\n```python\n{code[:9000]}\n```"
+
+        reply = self._si_call_ai(
+            "You are HADES in an Amp-style coding assistant mode. Be practical, concise, and provide implementation-ready guidance.",
+            prompt,
+            max_tokens=1800,
+            temperature=0.25,
+        )
+        self._si_append_chat("assistant", reply)
+
+    def _si_handle_chat_natural_request(self, text: str) -> Optional[str]:
+        """Handle common conversational workspace requests before sending to LLM."""
+        message = text.strip().lower()
+        workdir = self._si_resolve_workdir()
+
+        if any(k in message for k in ['workdir', 'working directory', 'workspace']) and any(
+            k in message for k in ['can you see', 'what is', 'where is', 'show', 'current']
+        ):
+            if workdir.exists() and workdir.is_dir():
+                return (
+                    f"Yes — current workdir is:\n{workdir}\n\n"
+                    "You can run `/files` to browse, `/open <file>` to load, `/edit <file> | <instruction>` to modify, and `/save` to write changes."
+                )
+            return "I can't access a valid workdir yet. Set one with the Workdir field and click `Set`."
+
+        if message in {'files', 'show files', 'list files'}:
+            return self._si_handle_chat_command('/files')
+
+        if message in {'help', 'commands'}:
+            return self._si_handle_chat_command('/help')
+
+        return None
+
+    def _si_handle_chat_command(self, text: str) -> Optional[str]:
+        if not text.startswith('/'):
+            return None
+
+        parts = text.split(' ', 1)
+        cmd = parts[0].lower()
+        arg = parts[1].strip() if len(parts) > 1 else ''
+        workdir = self._si_resolve_workdir()
+
+        if not (workdir.exists() and workdir.is_dir()):
+            return "Workdir is invalid. Set a valid folder first."
+
+        if cmd == '/help':
+            return (
+                "Commands:\n"
+                "/files [pattern] - list files in workdir\n"
+                "/open <relative_path> - load file into editor\n"
+                "/save [relative_path] - save editor code\n"
+                "/edit <relative_path> | <instruction> - AI edit file and load result"
+            )
+
+        if cmd == '/files':
+            pattern = arg if arg else '*.py'
+            files = sorted(workdir.rglob(pattern))
+            files = [p for p in files if p.is_file()][:80]
+            if not files:
+                return f"No files matched '{pattern}' in {workdir}."
+            rels = [str(p.relative_to(workdir)) for p in files]
+            return "Files:\n" + "\n".join(rels)
+
+        if cmd == '/open':
+            if not arg:
+                return "Usage: /open <relative_path>"
+            target = (workdir / arg).resolve()
+            if not target.exists() or not target.is_file():
+                return "File not found."
+            if workdir not in target.parents and target != workdir:
+                return "Path escapes workdir; blocked."
+            try:
+                content = target.read_text(encoding='utf-8', errors='ignore')
+                self.si_code_editor.setPlainText(content)
+                self.si_file_path.setText(str(target))
+                self._si_update_line_count()
+                return f"Loaded {target.relative_to(workdir)} ({len(content)} chars)."
+            except Exception as e:
+                return f"Failed to open file: {str(e)}"
+
+        if cmd == '/save':
+            target_rel = arg
+            if not target_rel:
+                current_path = self.si_file_path.text().strip() if hasattr(self, 'si_file_path') else ''
+                if current_path:
+                    target = Path(current_path).resolve()
+                else:
+                    return "Usage: /save <relative_path> (or load/open a file first)."
+            else:
+                target = (workdir / target_rel).resolve()
+
+            if workdir not in target.parents and target != workdir:
+                return "Path escapes workdir; blocked."
+
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(self.si_code_editor.toPlainText(), encoding='utf-8')
+                self.si_file_path.setText(str(target))
+                return f"Saved {target.relative_to(workdir)}"
+            except Exception as e:
+                return f"Failed to save: {str(e)}"
+
+        if cmd == '/edit':
+            if '|' not in arg:
+                return "Usage: /edit <relative_path> | <instruction>"
+            file_part, instruction = [p.strip() for p in arg.split('|', 1)]
+            if not file_part or not instruction:
+                return "Usage: /edit <relative_path> | <instruction>"
+
+            target = (workdir / file_part).resolve()
+            if not target.exists() or not target.is_file():
+                return "File not found."
+            if workdir not in target.parents and target != workdir:
+                return "Path escapes workdir; blocked."
+
+            try:
+                source = target.read_text(encoding='utf-8', errors='ignore')
+                prompt = (
+                    "Modify this code according to the instruction. Return only valid code, no markdown.\n"
+                    f"Instruction: {instruction}\n\n"
+                    f"Code:\n{source[:12000]}"
+                )
+                edited = self._si_call_ai(
+                    "You are an expert software engineer. Apply requested edits safely and preserve behavior unless asked.",
+                    prompt,
+                    max_tokens=4000,
+                    temperature=0.2,
+                )
+                edited_code = self._si_extract_code_from_response(edited)
+                if not edited_code.strip():
+                    return "AI returned empty output."
+
+                target.write_text(edited_code, encoding='utf-8')
+                self.si_code_editor.setPlainText(edited_code)
+                self.si_file_path.setText(str(target))
+                self._si_update_line_count()
+                return f"Edited and saved {target.relative_to(workdir)}"
+            except Exception as e:
+                return f"Edit failed: {str(e)}"
+
+        return "Unknown command. Use /help for available commands."
+
     def _load_code_file(self):
         """Load a file into the code editor"""
         filepath = self.file_path_input.text().strip()

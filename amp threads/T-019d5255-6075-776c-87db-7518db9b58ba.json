@@ -1,0 +1,1172 @@
+{
+  "v": 1317,
+  "id": "T-019d5255-6075-776c-87db-7518db9b58ba",
+  "created": 1775202820216,
+  "messages": [
+    {
+      "role": "user",
+      "messageId": 0,
+      "content": [
+        {
+          "type": "text",
+          "text": "can we update the memoryt scanners"
+        }
+      ],
+      "userState": {
+        "currentlyVisibleFiles": []
+      },
+      "agentMode": "deep",
+      "meta": {
+        "sentAt": 1775202826684
+      }
+    },
+    {
+      "role": "assistant",
+      "messageId": 1,
+      "content": [
+        {
+          "type": "text",
+          "text": "I’ll quickly scan the repo for anything named “memory scanners” (or close variants) so I can update the right component safely. Then I’ll apply the changes and run the relevant checks."
+        },
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_jbzGKsXDi2zG4hnVpnVqcexv",
+          "name": "shell_command",
+          "input": {
+            "command": "rg -n \"memoryt|memory scanner|memory_scanner|memoryscanner|scanner\"",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "commentary"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 148,
+        "cacheCreationInputTokens": 10047,
+        "cacheReadInputTokens": 0,
+        "totalInputTokens": 10047,
+        "timestamp": "2026-04-03T07:53:51.294Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 2,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_jbzGKsXDi2zG4hnVpnVqcexv",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "/usr/bin/bash: line 1: rg: command not found\n",
+              "exitCode": 127
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 3,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_xQRFgE2X7FRkZXJt6aQqRnxF",
+          "name": "shell_command",
+          "input": {
+            "command": "git grep -n -i \"memoryt\\|memory scanner\\|memory_scanner\\|memoryscanner\\|scanner\"",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 96,
+        "cacheCreationInputTokens": 10175,
+        "cacheReadInputTokens": 0,
+        "totalInputTokens": 10175,
+        "timestamp": "2026-04-03T07:53:54.171Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 4,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_xQRFgE2X7FRkZXJt6aQqRnxF",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "ScannerGui.py:131:        self.logger = logging.getLogger('ScannerGui')\nScannerGui.py:636:            # Start monitoring if scanner is available\nScannerGui.py:637:            if hasattr(self, 'scanner') and self.scanner:\nScannerGui.py:639:                self.log_scan_message(\"Memory scanner initialized\")\nShellCodeMagic.py:27:import ScannerGui\nShellCodeMagic.py:28:from ScannerGui import ScannerGui\nShellCodeMagic.py:31:    # from Memory import MemoryScanner  # Circular import - will import when needed\nShellCodeMagic.py:35:    class MemoryScanner:\nShellCodeMagic.py:43:            self.scanner = MemoryScanner()\nShellCodeMagic.py:45:            self.scanner = None\nShellCodeMagic.py:182:        self.quarantine_dir = quarantine_dir or os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\nShellCodeMagic.py:513:            from Memory import MemoryScanner as RealMemoryScanner\nShellCodeMagic.py:514:            self.scanner = RealMemoryScanner()\nShellCodeMagic.py:516:            self.scanner = MemoryScanner()  # Use dummy scanner\nShellCodeMagic.py:5503:        file_handler = logging.FileHandler(str(log_dir / 'scanner.log'))\nShellCodeMagic.py:5558:            logging.debug(\"Initializing ScannerGUI\")\nShellCodeMagic.py:5560:            logging.debug(\"Creating ScannerGUI instance\")\nShellCodeMagic.py:5561:            app = ScannerGui(root)\nUN-altered source code/Unnamed.py:265:class ScannerGui:\nUN-altered source code/Unnamed.py:307:        self.root.title(\"Memory Protection Scanner\")\nUN-altered source code/Unnamed.py:366:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:625:        self.scanner.quarantine_enabled = self.quarantine_var.get()\nUN-altered source code/Unnamed.py:626:        self.scanner.quarantine_threshold = self.threshold_var.get()\nUN-altered source code/Unnamed.py:803:        # Skip the current scanner process\nUN-altered source code/Unnamed.py:1227:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:1281:            if not hasattr(MemoryScanner, \"memory_quarantine\"):\nUN-altered source code/Unnamed.py:1282:                MemoryScanner.memory_quarantine = {'active': {}, 'quarantined': []}\nUN-altered source code/Unnamed.py:1283:            MemoryScanner.memory_quarantine['active'][quarantine_id] = metadata\nUN-altered source code/Unnamed.py:1284:            MemoryScanner.memory_quarantine.setdefault('quarantined', []).append(quarantine_id)\nUN-altered source code/Unnamed.py:1392:            MalwareScanner.quarantine_dir.mkdir(exist_ok=True)\nUN-altered source code/Unnamed.py:1394:            quarantine_path = MalwareScanner.quarantine_dir / f\"{filename}.quarantine\"\nUN-altered source code/Unnamed.py:1439:        quarantine_path = MalwareScanner.quarantine_dir / quarantine_id\nUN-altered source code/Unnamed.py:1452:            quarantine_path = MalwareScanner.quarantine_dir / quarantine_id\nUN-altered source code/Unnamed.py:1603:        # Initialize scanner\nUN-altered source code/Unnamed.py:1604:        logging.debug(\"Initializing scanner\")\nUN-altered source code/Unnamed.py:1605:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:1606:        self.scanner.alert_callback = self.log_detection\nUN-altered source code/Unnamed.py:1607:        logging.debug(\"Scanner initialized\")\nUN-altered source code/Unnamed.py:1610:        if isinstance(pid, MemoryScanner):\nUN-altered source code/Unnamed.py:1611:            logging.warning(\"Invalid PID type detected - scanner object passed as PID\")\nUN-altered source code/Unnamed.py:1636:        if not self.scanner.is_critical_process(proc.name()) and not is_known_protected_app(proc.name()):\nUN-altered source code/Unnamed.py:1670:                    if not self.scanner.is_critical_process(proc.name()):\nUN-altered source code/Unnamed.py:1736:                        if hasattr(self.scanner, 'detect_injection_techniques'):\nUN-altered source code/Unnamed.py:1737:                            injection_findings = self.scanner.detect_injection_techniques(process_handle, proc.pid)\nUN-altered source code/Unnamed.py:1749:                        if hasattr(self.scanner, 'inspect_threads'):\nUN-altered source code/Unnamed.py:1750:                            thread_findings = self.scanner.inspect_threads(proc.pid)\nUN-altered source code/Unnamed.py:1762:                        if hasattr(self.scanner, 'check_network_connections'):\nUN-altered source code/Unnamed.py:1763:                            connections = self.scanner.check_network_connections(proc.pid)\nUN-altered source code/Unnamed.py:1777:                        if hasattr(self.scanner, 'verify_registry'):\nUN-altered source code/Unnamed.py:1778:                            registry_findings = self.scanner.verify_registry(proc.pid)\nUN-altered source code/Unnamed.py:1790:                        if hasattr(self.scanner, 'verify_modules'):\nUN-altered source code/Unnamed.py:1791:                            module_findings = self.scanner.verify_modules(process_handle, proc.pid)\nUN-altered source code/Unnamed.py:1839:                        base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUN-altered source code/Unnamed.py:2045:                                    (hasattr(self.scanner, 'should_scan_region') and\nUN-altered source code/Unnamed.py:2046:                                    self.scanner.should_scan_region(region)))\nUN-altered source code/Unnamed.py:2056:                                    if hasattr(self.scanner, 'injection_patterns'):\nUN-altered source code/Unnamed.py:2057:                                        for name, pattern in self.scanner.injection_patterns.items():\nUN-altered source code/Unnamed.py:2091:                                    if hasattr(self.scanner, 'combined_rules') and self.scanner.combined_rules:\nUN-altered source code/Unnamed.py:2093:                                            matches = self.scanner.combined_rules.match(data=memory_content)\nUN-altered source code/Unnamed.py:2135:                        base_addr_int = self.scanner.safe_int_conversion(region['BaseAddress'])\nUN-altered source code/Unnamed.py:2218:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:2221:        # Initialize YARA rules and scanner properly\nUN-altered source code/Unnamed.py:2234:        logging.debug(\"Initializing scanner components...\")\nUN-altered source code/Unnamed.py:2285:                system_info = self.scanner._get_system_info_winapi()\nUN-altered source code/Unnamed.py:2308:                    detailed_info = self.scanner._get_process_info_winapi(pid)\nUN-altered source code/Unnamed.py:2320:                    pid = self.scanner.safe_process_validation(pid)\nUN-altered source code/Unnamed.py:2329:                            process_name = self.scanner.get_process_name(pid)\nUN-altered source code/Unnamed.py:2364:                            registry_issues = self.scanner.verify_process_registry(process_name, cmd_line)\nUN-altered source code/Unnamed.py:2424:                        if hasattr(self.scanner, 'verify_signature'):\nUN-altered source code/Unnamed.py:2426:                            signature_info = self.scanner.verify_signature(exe_path)\nUN-altered source code/Unnamed.py:2445:                                if module_path.lower().startswith('c:\\\\windows\\\\system32\\\\') and not self.scanner.verify_system_modules:\nUN-altered source code/Unnamed.py:2449:                                if hasattr(self.scanner, 'verify_signature'):\nUN-altered source code/Unnamed.py:2450:                                    module_signature = self.scanner.verify_signature(module_path)\nUN-altered source code/Unnamed.py:2511:                    if hasattr(self.scanner, 'detect_process_hollowing'):\nUN-altered source code/Unnamed.py:2514:                            hollowing_result = self.scanner.detect_process_hollowing(pid)\nUN-altered source code/Unnamed.py:2522:                                parent_pid = self.scanner.get_parent_pid(pid)\nUN-altered source code/Unnamed.py:2529:                                if self.scanner.is_unusual_parent(pid, parent_pid):\nUN-altered source code/Unnamed.py:2534:                                elif self.scanner.check_path_discrepancy(pid):\nUN-altered source code/Unnamed.py:2539:                                elif self.scanner.check_handle_operations(pid):\nUN-altered source code/Unnamed.py:2554:                                    process_handle = self.scanner.get_process_handle(pid)\nUN-altered source code/Unnamed.py:2556:                                        extended_info = self.scanner.get_extended_process_info(pid)\nUN-altered source code/Unnamed.py:2583:                        process_handle = self.scanner.get_process_handle(pid)\nUN-altered source code/Unnamed.py:2596:                        for region in self.scanner._enumerate_memory_regions_winapi(process_handle):\nUN-altered source code/Unnamed.py:2602:                                if not (region.get('State', 0) & self.scanner.MEM_COMMIT):\nUN-altered source code/Unnamed.py:2608:                                if not (region.State & self.scanner.MEM_COMMIT):\nUN-altered source code/Unnamed.py:2615:                            base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUN-altered source code/Unnamed.py:2721:                                    memory_content = self.scanner._read_memory_in_chunks_winapi(\nUN-altered source code/Unnamed.py:2848:                                    scan_results = self.scanner.scan_bytes(memory_content)\nUN-altered source code/Unnamed.py:2910:                                                    if hasattr(self.scanner, 'get_extended_process_info'):\nUN-altered source code/Unnamed.py:2912:                                                            extended_info = self.scanner.get_extended_process_info(pid)\nUN-altered source code/Unnamed.py:2976:            if hasattr(self.scanner, 'detect_unusual_relationships'):\nUN-altered source code/Unnamed.py:2978:                    unusual_relationships = self.scanner.detect_unusual_relationships()\nUN-altered source code/Unnamed.py:2993:            if hasattr(self.scanner, 'detect_persistence_methods'):\nUN-altered source code/Unnamed.py:2995:                    persistence_findings = self.scanner.detect_persistence_methods()\nUN-altered source code/Unnamed.py:3145:        # Initialize YARA rules and scanner\nUN-altered source code/Unnamed.py:3166:                if 'extended_info' not in detection and hasattr(self.scanner, 'get_extended_process_info'):\nUN-altered source code/Unnamed.py:3168:                        process_handle = self.scanner.get_process_handle(detection['pid'])\nUN-altered source code/Unnamed.py:3170:                            detection['extended_info'] = self.scanner.get_extended_process_info(detection['pid'], process_handle)\nUN-altered source code/Unnamed.py:3181:        self.scanner.alert_callback = detection_callback\nUN-altered source code/Unnamed.py:3186:            system_info = MemoryScanner._get_system_info_winapi()\nUN-altered source code/Unnamed.py:3222:                if hasattr(self.scanner, 'detect_process_hollowing'):\nUN-altered source code/Unnamed.py:3225:                        process_name = self.scanner.get_process_name(pid) or process_info.get('name', 'Unknown')\nUN-altered source code/Unnamed.py:3227:                        hollowing_result = self.scanner.detect_process_hollowing(process_info)\nUN-altered source code/Unnamed.py:3230:                            if hasattr(self.scanner, 'get_extended_process_info'):\nUN-altered source code/Unnamed.py:3232:                                process_handle = self.scanner.get_process_handle(pid)\nUN-altered source code/Unnamed.py:3234:                                    extended_info = self.scanner.get_extended_process_info(pid)\nUN-altered source code/Unnamed.py:3276:                    for region in self.scanner._enumerate_memory_regions_winapi(process_handle):\nUN-altered source code/Unnamed.py:3283:                            if not (region.get('State', 0) & self.scanner.MEM_COMMIT):\nUN-altered source code/Unnamed.py:3292:                            if not (region.State & self.scanner.MEM_COMMIT):\nUN-altered source code/Unnamed.py:3301:                        base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUN-altered source code/Unnamed.py:3307:                        base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUN-altered source code/Unnamed.py:3436:                                memory_content = self.scanner._read_memory_in_chunks_winapi(\nUN-altered source code/Unnamed.py:3595:        log_file = log_dir / 'scanner.log'\nUN-altered source code/Unnamed.py:3610:        logger = logging.getLogger('MemoryScanner')\nUN-altered source code/Unnamed.py:4839:class MalwareScanner:\nUN-altered source code/Unnamed.py:4846:        self.scanner = MalwareScanner()\nUN-altered source code/Unnamed.py:4853:            filename='scanner.log',\nUN-altered source code/Unnamed.py:4857:        return logging.getLogger('MalwareScanner')\nUN-altered source code/Unnamed.py:5019:class MemoryScanner:\nUN-altered source code/Unnamed.py:5061:        if not MemoryScanner._initialized:\nUN-altered source code/Unnamed.py:5062:            self.gui = ScannerGui\nUN-altered source code/Unnamed.py:5064:            MemoryScanner._initialized = True\nUN-altered source code/Unnamed.py:5066:            logging.info(\"MemoryScanner\")\nUN-altered source code/Unnamed.py:5070:        self.logger.info(\"MemoryScanner\")\nUN-altered source code/Unnamed.py:5071:        self.scanner = None\nUN-altered source code/Unnamed.py:5077:        self.logging = self.setup_scanner_logging()\nUN-altered source code/Unnamed.py:5078:        self.gui = ScannerGui\nUN-altered source code/Unnamed.py:5082:        logging.debug(\"MemoryScanner Initialization ===\")\nUN-altered source code/Unnamed.py:5083:        logging.info(\"MemoryScanner\")\nUN-altered source code/Unnamed.py:5107:            self.quarantine_dir = os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\nUN-altered source code/Unnamed.py:5165:        # Log scanner setup\nUN-altered source code/Unnamed.py:5167:        logging.debug(\"MemoryScanner Components:\")\nUN-altered source code/Unnamed.py:5172:        logging.debug(\"MemoryScanner Initialization Complete ===\\n\")\nUN-altered source code/Unnamed.py:5271:    def setup_scanner_logging(self):\nUN-altered source code/Unnamed.py:5272:        \"\"\"Set up enhanced logging for the scanner\"\"\"\nUN-altered source code/Unnamed.py:5281:        logger = logging.getLogger('ScannerLogger')\nUN-altered source code/Unnamed.py:5288:            file_path = log_dir / 'scanner_debug.log'\nUN-altered source code/Unnamed.py:5308:            logger.info(\"Scanner logging initialized\")\nUN-altered source code/Unnamed.py:5348:            filename='memory_scanner.log',\nUN-altered source code/Unnamed.py:5352:        return logging.getLogger('memory_scanner')\nUN-altered source code/Unnamed.py:6889:                        logging.error(f\"self._get_process_info_winapi is not a scanner object! Type: {type(self._get_process_info_winapi)}, Value: {self._get_process_info_winapi}\")\nUN-altered source code/Unnamed.py:6976:        # Add more scanners with similar detection formatting...\nUN-altered source code/Unnamed.py:8392:                self.config_dir = os.path.join(os.path.expanduser(\"~\"), \".memory_scanner\")\nUN-altered source code/Unnamed.py:9028:                    logging.error(f\"self._get_process_info_winapi is not a scanner object! Type: {type(self._get_process_info_winapi)}, Value: {self._get_process_info_winapi}\")\nUN-altered source code/Unnamed.py:9125:                    logging.error(f\"self._get_process_info_winapi is not a scanner object! Type: {type(self._get_process_info_winapi)}, Value: {self._get_process_info_winapi}\")\nUN-altered source code/Unnamed.py:11268:                                if hasattr(self.scanner, 'get_extended_process_info'):\nUN-altered source code/Unnamed.py:17016:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:17083:        self.quarantine_dir = quarantine_dir or os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\nUN-altered source code/Unnamed.py:17249:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:17575:        self.scanner = MemoryScanner()\nUN-altered source code/Unnamed.py:21297:        file_handler = logging.FileHandler(str(log_dir / 'scanner.log'))\nUN-altered source code/Unnamed.py:21352:            logging.debug(\"Initializing ScannerGUI\")\nUN-altered source code/Unnamed.py:21354:            logging.debug(\"Creating ScannerGUI instance\")\nUN-altered source code/Unnamed.py:21355:            app = ScannerGui(root)\nUnnamed.py:265:class ScannerGui:\nUnnamed.py:307:        self.root.title(\"Memory Protection Scanner\")\nUnnamed.py:366:        self.scanner = MemoryScanner()\nUnnamed.py:625:        self.scanner.quarantine_enabled = self.quarantine_var.get()\nUnnamed.py:626:        self.scanner.quarantine_threshold = self.threshold_var.get()\nUnnamed.py:803:        # Skip the current scanner process\nUnnamed.py:1227:        self.scanner = MemoryScanner()\nUnnamed.py:1281:            if not hasattr(MemoryScanner, \"memory_quarantine\"):\nUnnamed.py:1282:                MemoryScanner.memory_quarantine = {'active': {}, 'quarantined': []}\nUnnamed.py:1283:            MemoryScanner.memory_quarantine['active'][quarantine_id] = metadata\nUnnamed.py:1284:            MemoryScanner.memory_quarantine.setdefault('quarantined', []).append(quarantine_id)\nUnnamed.py:1392:            MalwareScanner.quarantine_dir.mkdir(exist_ok=True)\nUnnamed.py:1394:            quarantine_path = MalwareScanner.quarantine_dir / f\"{filename}.quarantine\"\nUnnamed.py:1439:        quarantine_path = MalwareScanner.quarantine_dir / quarantine_id\nUnnamed.py:1452:            quarantine_path = MalwareScanner.quarantine_dir / quarantine_id\nUnnamed.py:1603:        # Initialize scanner\nUnnamed.py:1604:        logging.debug(\"Initializing scanner\")\nUnnamed.py:1605:        self.scanner = MemoryScanner()\nUnnamed.py:1606:        self.scanner.alert_callback = self.log_detection\nUnnamed.py:1607:        logging.debug(\"Scanner initialized\")\nUnnamed.py:1610:        if isinstance(pid, MemoryScanner):\nUnnamed.py:1611:            logging.warning(\"Invalid PID type detected - scanner object passed as PID\")\nUnnamed.py:1636:        if not self.scanner.is_critical_process(proc.name()) and not is_known_protected_app(proc.name()):\nUnnamed.py:1670:                    if not self.scanner.is_critical_process(proc.name()):\nUnnamed.py:1736:                        if hasattr(self.scanner, 'detect_injection_techniques'):\nUnnamed.py:1737:                            injection_findings = self.scanner.detect_injection_techniques(process_handle, proc.pid)\nUnnamed.py:1749:                        if hasattr(self.scanner, 'inspect_threads'):\nUnnamed.py:1750:                            thread_findings = self.scanner.inspect_threads(proc.pid)\nUnnamed.py:1762:                        if hasattr(self.scanner, 'check_network_connections'):\nUnnamed.py:1763:                            connections = self.scanner.check_network_connections(proc.pid)\nUnnamed.py:1777:                        if hasattr(self.scanner, 'verify_registry'):\nUnnamed.py:1778:                            registry_findings = self.scanner.verify_registry(proc.pid)\nUnnamed.py:1790:                        if hasattr(self.scanner, 'verify_modules'):\nUnnamed.py:1791:                            module_findings = self.scanner.verify_modules(process_handle, proc.pid)\nUnnamed.py:1839:                        base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUnnamed.py:2045:                                    (hasattr(self.scanner, 'should_scan_region') and\nUnnamed.py:2046:                                    self.scanner.should_scan_region(region)))\nUnnamed.py:2056:                                    if hasattr(self.scanner, 'injection_patterns'):\nUnnamed.py:2057:                                        for name, pattern in self.scanner.injection_patterns.items():\nUnnamed.py:2091:                                    if hasattr(self.scanner, 'combined_rules') and self.scanner.combined_rules:\nUnnamed.py:2093:                                            matches = self.scanner.combined_rules.match(data=memory_content)\nUnnamed.py:2135:                        base_addr_int = self.scanner.safe_int_conversion(region['BaseAddress'])\nUnnamed.py:2218:        self.scanner = MemoryScanner()\nUnnamed.py:2221:        # Initialize YARA rules and scanner properly\nUnnamed.py:2234:        logging.debug(\"Initializing scanner components...\")\nUnnamed.py:2285:                system_info = self.scanner._get_system_info_winapi()\nUnnamed.py:2308:                    detailed_info = self.scanner._get_process_info_winapi(pid)\nUnnamed.py:2320:                    pid = self.scanner.safe_process_validation(pid)\nUnnamed.py:2329:                            process_name = self.scanner.get_process_name(pid)\nUnnamed.py:2364:                            registry_issues = self.scanner.verify_process_registry(process_name, cmd_line)\nUnnamed.py:2424:                        if hasattr(self.scanner, 'verify_signature'):\nUnnamed.py:2426:                            signature_info = self.scanner.verify_signature(exe_path)\nUnnamed.py:2445:                                if module_path.lower().startswith('c:\\\\windows\\\\system32\\\\') and not self.scanner.verify_system_modules:\nUnnamed.py:2449:                                if hasattr(self.scanner, 'verify_signature'):\nUnnamed.py:2450:                                    module_signature = self.scanner.verify_signature(module_path)\nUnnamed.py:2511:                    if hasattr(self.scanner, 'detect_process_hollowing'):\nUnnamed.py:2514:                            hollowing_result = self.scanner.detect_process_hollowing(pid)\nUnnamed.py:2522:                                parent_pid = self.scanner.get_parent_pid(pid)\nUnnamed.py:2529:                                if self.scanner.is_unusual_parent(pid, parent_pid):\nUnnamed.py:2534:                                elif self.scanner.check_path_discrepancy(pid):\nUnnamed.py:2539:                                elif self.scanner.check_handle_operations(pid):\nUnnamed.py:2554:                                    process_handle = self.scanner.get_process_handle(pid)\nUnnamed.py:2556:                                        extended_info = self.scanner.get_extended_process_info(pid)\nUnnamed.py:2583:                        process_handle = self.scanner.get_process_handle(pid)\nUnnamed.py:2596:                        for region in self.scanner._enumerate_memory_regions_winapi(process_handle):\nUnnamed.py:2602:                                if not (region.get('State', 0) & self.scanner.MEM_COMMIT):\nUnnamed.py:2608:                                if not (region.State & self.scanner.MEM_COMMIT):\nUnnamed.py:2615:                            base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUnnamed.py:2721:                                    memory_content = self.scanner._read_memory_in_chunks_winapi(\nUnnamed.py:2848:                                    scan_results = self.scanner.scan_bytes(memory_content)\nUnnamed.py:2910:                                                    if hasattr(self.scanner, 'get_extended_process_info'):\nUnnamed.py:2912:                                                            extended_info = self.scanner.get_extended_process_info(pid)\nUnnamed.py:2976:            if hasattr(self.scanner, 'detect_unusual_relationships'):\nUnnamed.py:2978:                    unusual_relationships = self.scanner.detect_unusual_relationships()\nUnnamed.py:2993:            if hasattr(self.scanner, 'detect_persistence_methods'):\nUnnamed.py:2995:                    persistence_findings = self.scanner.detect_persistence_methods()\nUnnamed.py:3145:        # Initialize YARA rules and scanner\nUnnamed.py:3166:                if 'extended_info' not in detection and hasattr(self.scanner, 'get_extended_process_info'):\nUnnamed.py:3168:                        process_handle = self.scanner.get_process_handle(detection['pid'])\nUnnamed.py:3170:                            detection['extended_info'] = self.scanner.get_extended_process_info(detection['pid'], process_handle)\nUnnamed.py:3181:        self.scanner.alert_callback = detection_callback\nUnnamed.py:3186:            system_info = MemoryScanner._get_system_info_winapi()\nUnnamed.py:3222:                if hasattr(self.scanner, 'detect_process_hollowing'):\nUnnamed.py:3225:                        process_name = self.scanner.get_process_name(pid) or process_info.get('name', 'Unknown')\nUnnamed.py:3227:                        hollowing_result = self.scanner.detect_process_hollowing(process_info)\nUnnamed.py:3230:                            if hasattr(self.scanner, 'get_extended_process_info'):\nUnnamed.py:3232:                                process_handle = self.scanner.get_process_handle(pid)\nUnnamed.py:3234:                                    extended_info = self.scanner.get_extended_process_info(pid)\nUnnamed.py:3276:                    for region in self.scanner._enumerate_memory_regions_winapi(process_handle):\nUnnamed.py:3283:                            if not (region.get('State', 0) & self.scanner.MEM_COMMIT):\nUnnamed.py:3292:                            if not (region.State & self.scanner.MEM_COMMIT):\nUnnamed.py:3301:                        base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUnnamed.py:3307:                        base_addr_int = self.scanner.safe_int_conversion(base_addr)\nUnnamed.py:3436:                                memory_content = self.scanner._read_memory_in_chunks_winapi(\nUnnamed.py:3595:        log_file = log_dir / 'scanner.log'\nUnnamed.py:3610:        logger = logging.getLogger('MemoryScanner')\nUnnamed.py:4839:class MalwareScanner:\nUnnamed.py:4846:        self.scanner = MalwareScanner()\nUnnamed.py:4853:            filename='scanner.log',\nUnnamed.py:4857:        return logging.getLogger('MalwareScanner')\nUnnamed.py:5019:class MemoryScanner:\nUnnamed.py:5061:        if not MemoryScanner._initialized:\nUnnamed.py:5062:            self.gui = ScannerGui\nUnnamed.py:5064:            MemoryScanner._initialized = True\nUnnamed.py:5066:            logging.info(\"MemoryScanner\")\nUnnamed.py:5070:        self.logger.info(\"MemoryScanner\")\nUnnamed.py:5071:        self.scanner = None\nUnnamed.py:5077:        self.logging = self.setup_scanner_logging()\nUnnamed.py:5078:        self.gui = ScannerGui\nUnnamed.py:5082:        logging.debug(\"MemoryScanner Initialization ===\")\nUnnamed.py:5083:        logging.info(\"MemoryScanner\")\nUnnamed.py:5107:            self.quarantine_dir = os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\nUnnamed.py:5165:        # Log scanner setup\nUnnamed.py:5167:        logging.debug(\"MemoryScanner Components:\")\nUnnamed.py:5172:        logging.debug(\"MemoryScanner Initialization Complete ===\\n\")\nUnnamed.py:5271:    def setup_scanner_logging(self):\nUnnamed.py:5272:        \"\"\"Set up enhanced logging for the scanner\"\"\"\nUnnamed.py:5281:        logger = logging.getLogger('ScannerLogger')\nUnnamed.py:5288:            file_path = log_dir / 'scanner_debug.log'\nUnnamed.py:5308:            logger.info(\"Scanner logging initialized\")\nUnnamed.py:5348:            filename='memory_scanner.log',\nUnnamed.py:5352:        return logging.getLogger('memory_scanner')\nUnnamed.py:6889:                        logging.error(f\"self._get_process_info_winapi is not a scanner object! Type: {type(self._get_process_info_winapi)}, Value: {self._get_process_info_winapi}\")\nUnnamed.py:6976:        # Add more scanners with similar detection formatting...\nUnnamed.py:8392:                self.config_dir = os.path.join(os.path.expanduser(\"~\"), \".memory_scanner\")\nUnnamed.py:9028:                    logging.error(f\"self._get_process_info_winapi is not a scanner object! Type: {type(self._get_process_info_winapi)}, Value: {self._get_process_info_winapi}\")\nUnnamed.py:9125:                    logging.error(f\"self._get_process_info_winapi is not a scanner object! Type: {type(self._get_process_info_winapi)}, Value: {self._get_process_info_winapi}\")\nUnnamed.py:11268:                                if hasattr(self.scanner, 'get_extended_process_info'):\nUnnamed.py:17018:        self.scanner = MemoryScanner()\nUnnamed.py:17085:        self.quarantine_dir = quarantine_dir or os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\nUnnamed.py:17251:        self.scanner = MemoryScanner()\nUnnamed.py:17577:        self.scanner = MemoryScanner()\nUnnamed.py:21299:        file_handler = logging.FileHandler(str(log_dir / 'scanner.log'))\nUnnamed.py:21354:            logging.debug(\"Initializing ScannerGUI\")\nUnnamed.py:21356:            logging.debug(\"Creating ScannerGUI instance\")\nUnnamed.py:21357:            app = ScannerGui(root)\nWeapons_Systems.py:9:# Removed incorrect import - force_read_memory_region is a method of MemoryScanner\nWeapons_Systems.py:11:class MalwareScanner:\nWeapons_Systems.py:24:            filename='scanner.log',\nWeapons_Systems.py:28:        return logging.getLogger('MalwareScanner')\nWraithEngine.py:3:Integrated module for OFSP (Orbital Station File Scanner Protection)\n\"YARA-Rules\\342\\200\\223OFSP.md\":104:A warning is logged in scanner.log\nBinary file __pycache__/HadesAI.cpython-313.pyc matches\nBinary file __pycache__/Memory.cpython-313 (2).pyc matches\nBinary file __pycache__/Memory.cpython-313.pyc matches\nBinary file __pycache__/OrbitalStationUI_Complete.cpython-313.pyc matches\nBinary file __pycache__/ScannerGui.cpython-313.pyc matches\nBinary file __pycache__/ShellCodeMagic.cpython-313.pyc matches\nBinary file __pycache__/Weapons_Systems.cpython-313.pyc matches\nBinary file __pycache__/WraithEngine.cpython-313.pyc matches\nBinary file __pycache__/main.cpython-313.pyc matches\nBinary file __pycache__/shared_constants.cpython-313.pyc matches\ndebug_app.py:5:# Test 1: Memory Scanner in Tome\ndebug_app.py:6:print(\"\\n1. Testing Memory Scanner in Tome...\")\ndebug_app.py:21:    print(f\"   [ERROR] Error in tome memory scanner: {e}\")\nfinal_test.py:6:# Test 1: Memory Scanner\nfinal_test.py:7:print(\"\\n1. Testing Memory Scanner...\")\nfinal_test.py:9:    from Memory import MemoryScanner\nfinal_test.py:10:    scanner = MemoryScanner()\nfinal_test.py:11:    print(\"   [OK] MemoryScanner created successfully\")\nfinal_test.py:13:    print(f\"   [ERROR] MemoryScanner failed: {e}\")\nlogs/scanner_debug.log:1:2025-12-31 22:51:40,818 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:3:2025-12-31 22:55:14,501 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:5:2026-02-06 04:20:27,550 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:7:2026-02-06 04:25:13,649 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:9:2026-03-29 22:10:52,549 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:11:2026-03-29 22:15:42,826 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:13:2026-03-29 22:21:01,228 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:15:2026-03-29 23:00:38,313 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:17:2026-03-29 23:06:14,491 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:19:2026-03-29 23:10:49,069 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:21:2026-03-29 23:15:13,460 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:23:2026-03-30 02:11:57,476 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:25:2026-03-30 03:12:35,359 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:27:2026-03-31 18:57:58,129 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:29:2026-03-31 19:04:25,581 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:31:2026-03-31 19:08:03,596 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:33:2026-03-31 19:08:26,066 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:35:2026-03-31 19:11:54,352 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:37:2026-03-31 19:13:31,719 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:39:2026-03-31 21:22:41,991 - INFO - Memory.py:367 - Scanner logging initialized\nlogs/scanner_debug.log:41:2026-03-31 21:26:24,690 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:43:2026-03-31 21:31:51,803 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:45:2026-03-31 21:35:50,234 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:47:2026-03-31 21:36:15,045 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:49:2026-03-31 21:42:01,439 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:51:2026-03-31 21:43:40,463 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:53:2026-04-01 12:07:11,331 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:55:2026-04-01 12:10:44,711 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:57:2026-04-01 12:17:48,496 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:59:2026-04-01 18:58:24,949 - INFO - Memory.py:370 - Scanner logging initialized\nlogs/scanner_debug.log:61:2026-04-01 19:15:18,266 - INFO - Memory.py:370 - Scanner logging initialized\nmain.py:61:            # Fallback to tkinter - try ScannerGui first\nmain.py:64:                from ScannerGui import ScannerGui\nmain.py:66:                logger.info(\"Initializing original ScannerGui (tkinter)\")\nmain.py:68:                root.title(\"Orbital Station: Memory Protection Scanner\")\nmain.py:71:                # Initialize the original scanner GUI\nmain.py:72:                app = ScannerGui(root)\nmain.py:74:                logger.info(\"Starting ScannerGui event loop\")\nmain.py:79:                logger.warning(f\"ScannerGui not available: {e2}\")\nmain.py:106:                        status_text += \"✓ Memory Scanner\\n\"\nmain.py:108:                        status_text += \"✗ Memory Scanner\\n\"\nquarantine/quarantine_log.json:6:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:12:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:18:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:24:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:30:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:36:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:42:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:48:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:54:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:60:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:66:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:72:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:78:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:84:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:90:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:96:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:102:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:108:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:114:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:120:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:126:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:132:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:138:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:144:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:150:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:156:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:162:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:168:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:174:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:180:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:186:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:192:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:198:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:204:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:210:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:216:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:222:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:228:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:234:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:240:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:246:    \"source\": \"Orbital Station Scanner\"\nquarantine/quarantine_log.json:252:    \"source\": \"Orbital Station Scanner\"\nshared_constants.py:271:    file_handler = logging.FileHandler(str(log_dir / 'scanner.log'))\ntest_all_scanners.py:3:print(\"=== COMPREHENSIVE SCANNER TEST ===\")\ntest_all_scanners.py:99:print(\"\\n=== SCANNER TEST COMPLETE ===\")\ntest_all_scanners.py:100:print(\"If all tests show [OK], your Tome and Soul scanners are working!\")\ntest_hades_import.py:18:    print(f\"  - BrowserScanner: {hasattr(HadesAI, 'BrowserScanner')}\")\ntest_memory.py:35:    print(\"8. Creating MemoryScanner...\")\ntest_memory.py:36:    scanner = Memory.MemoryScanner()\ntest_memory.py:37:    print(\"   MemoryScanner created successfully!\")\ntest_ui_startup.py:48:                self.memory_scanner = None\ntest_ui_startup.py:56:                self.malware_scanner = None\nyara_rules/custom_rules/neo23x0_apt_lazarus_dec20.yar:3:rule HvS_APT37_smb_scanner {\nyara_rules/custom_rules/neo23x0_apt_lazarus_dec20.yar:5:      description = \"Unknown smb login scanner used by APT37\"\nyara_rules/custom_rules/neo23x0_configured_vulns_ext_vars.yar:5:        External variables are used so they only work with YARA scanners, that pass them on (e.g. Thor, Loki and Spyre)\nyara_rules/custom_rules/neo23x0_gen_impacket_tools.yar:237:      $s3 = \"json.scanner(\" ascii\nyara_rules/injection_rules/neo23x0_gen_armitage.yar:10:   This is a subset of the Armitage rule set included in THOR APT Scanner\nyara_rules/malware_rules/neo23x0_gen_unsigned_thor.yar:7:      description = \"Detects unsigned version of THOR scanner, which could be a backdoored / modified version of the scanner\"\nyara_rules/malware_rules/neo23x0_gen_unsigned_thor.yar:14:      $s1 = \"THOR APT Scanner\" wide fullword\nyara_rules/malware_rules/neo23x0_mal_ransom_esxi_attacks_feb23.yar:4:   More rules are included in the FULL THOR Scanner\nyara_rules/memory_rules/neo23x0_airbnb_binaryalert.yar:337:        description = \"masscan is a performant port scanner, it produces results similar to nmap\"\nyara_rules/memory_rules/neo23x0_apt_barracuda_esg_unc4841_jun23.yar:104:rule SUSP_FScan_Port_Scanner_Output_Jun23 : SCRIPT {\nyara_rules/memory_rules/neo23x0_apt_barracuda_esg_unc4841_jun23.yar:106:      description = \"Detects output generated by the command line port scanner FScan\"\nyara_rules/memory_rules/neo23x0_apt_deeppanda.yar:13:           $s0 = \"Command line port scanner\" fullword wide\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:644:      $s2 = \"print \\\"java -jar jscanner.jar$scanth$list\\\\n\\\";\" fullword ascii\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:835:rule EquationGroup_scanner {\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:837:      description = \"Equation Group hack tool leaked by ShadowBrokers- file scanner\"\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:874:rule EquationGroup__scanner_scanner_v2_1_2 {\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:876:      description = \"Equation Group hack tool leaked by ShadowBrokers- from files scanner, scanner.v2.1.2\"\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:2145:      $x4 = \"-useage: <scanner> \\\"<cmdline args>\\\"\" fullword ascii\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:2150:rule EquationGroup_Toolset_Apr17_scanner {\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:2671:rule EquationGroup_Toolset_Apr17_GrDo_FileScanner_Implant {\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:3610:rule EquationGroup_scanner_output {\nyara_rules/memory_rules/neo23x0_apt_eqgrp_apr17.yar:3612:      description = \"Detects output generated by EQGRP scanner.exe\"\nyara_rules/memory_rules/neo23x0_apt_oilrig_chafer_mar18.yar:46:rule Chafer_Portscanner {\nyara_rules/memory_rules/neo23x0_apt_oilrig_chafer_mar18.yar:48:      description = \"Detects Custom Portscanner used by Oilrig\"\nyara_rules/memory_rules/neo23x0_apt_oilrig_chafer_mar18.yar:56:      $x2 = \"PortScanner /ip:google.com  /port:80 /t:500 /tout:2\" fullword ascii\nyara_rules/memory_rules/neo23x0_cn_pentestset_tools.yar:1119:rule CN_Honker_WordpressScanner {\nyara_rules/memory_rules/neo23x0_cn_pentestset_tools.yar:1121:           description = \"Sample from CN Honker Pentest Toolset - file WordpressScanner.exe\"\nyara_rules/memory_rules/neo23x0_cn_pentestset_tools.yar:1264:rule CN_Honker_T00ls_scanner {\nyara_rules/memory_rules/neo23x0_cn_pentestset_tools.yar:1266:           description = \"Sample from CN Honker Pentest Toolset - file T00ls_scanner.exe\"\nyara_rules/memory_rules/neo23x0_cn_pentestset_tools.yar:2032:           $s1 = \"Created By WebCruiser - Web Vulnerability Scanner http://sec4app.com\" fullword wide /* PEStudio Blacklist: strings */\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:786:rule S_MultiFunction_Scanners_s {\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1013:rule HTTPSCANNER {\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1015:              description = \"Chinese Hacktool Set - file HTTPSCANNER.EXE\"\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1023:              $s1 = \"HttpScanner.exe\" fullword wide\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1024:              $s2 = \"HttpScanner\" fullword wide\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1274:rule IISPutScanner {\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1276:              description = \"Chinese Hacktool Set - file IISPutScanner.exe\"\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1557:              $s3 = \"%s - command line port scanner\" fullword ascii\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:1985:              $s2 = \"========RealVNC <= 4.1.1 Bypass Authentication Scanner=======\" fullword ascii\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:2189:rule HKTL_Portscanner_533_NET_Jun15 {\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:2191:              description = \"Chinese Hacktool Set - file portscanner.exe\"\nyara_rules/memory_rules/neo23x0_gen_cn_hacktools.yar:2195:              old_rule_name = \"portscanner\"\nyara_rules/memory_rules/neo23x0_gen_empire.yar:158:rule Empire_Invoke_SmbScanner {\nyara_rules/memory_rules/neo23x0_gen_empire.yar:160:      description = \"Detects Empire component - file Invoke-SmbScanner.ps1\"\nyara_rules/memory_rules/neo23x0_gen_github_net_redteam_tools_names.yar:123:rule HKTL_NET_NAME_MagentoScanner {\nyara_rules/memory_rules/neo23x0_gen_github_net_redteam_tools_names.yar:126:        reference = \"https://github.com/soufianetahiri/MagentoScanner\"\nyara_rules/memory_rules/neo23x0_gen_github_net_redteam_tools_names.yar:132:        $name = \"MagentoScanner\" ascii wide\nyara_rules/memory_rules/neo23x0_react_pocs_indicators_dec25.yar:75:      reference = \"https://github.com/Malayke/Next.js-RSC-RCE-Scanner-CVE-2025-66478\"\nyara_rules/memory_rules/neo23x0_spy_regin_fiveeyes.yar:18:              author = \"@Malwrsignatures - included in APT Scanner THOR\"\nyara_rules/memory_rules/neo23x0_spy_regin_fiveeyes.yar:47:              author = \"@Malwrsignatures - included in APT Scanner THOR\"\nyara_rules/memory_rules/neo23x0_spy_regin_fiveeyes.yar:100:             author = \"@Malwrsignatures - included in APT Scanner THOR\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:4:   THOR APT Scanner - Hack Tool Extract\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:6:   APT Scanner THOR - the full featured APT scanner.\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:74:      description = \"PScan - Port Scanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:128:      description = \"This signature detects the Fierce2 domain scanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:166:rule HKTL_PortScanner_Simple_Jan14 {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:168:      description = \"Auto-generated rule on file PortScanner.exe\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:171:      old_rule_name = \"PortScanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:199:rule HKTL_MooreR_Port_Scanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:201:      description = \"Auto-generated rule on file MooreR Port Scanner.exe\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:214:rule NetBIOS_Name_Scanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:216:      description = \"Auto-generated rule on file NetBIOS Name Scanner.exe\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:223:      $s4 = \"NBTScanner!y&\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:228:rule FeliksPack3___Scanners_ipscan {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:392:rule StealthWasp_s_Basic_PortScanner_v1_2 {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:394:      description = \"Auto-generated rule on file StealthWasp's Basic PortScanner v1.2.exe\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:399:      $s1 = \"Basic PortScanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:444:rule Angry_IP_Scanner_v2_08_ipscan {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:471:rule CN_GUI_Scanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:473:      description = \"Detects an unknown GUI scanner tool - CN background\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:490:rule CN_Packed_Scanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:510:      description = \"Tiny tool with suspicious function imports. (Rule based on WinEggDrop Scanner samples)\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:615:rule CN_Hacktool_SSPort_Portscanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:617:      description = \"Detects a chinese Portscanner named SSPort\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:631:rule CN_Hacktool_ScanPort_Portscanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:633:      description = \"Detects a chinese Portscanner named ScanPort\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:647:rule CN_Hacktool_S_EXE_Portscanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:649:      description = \"Detects a chinese Portscanner named s.exe\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:665:      description = \"Detects a chinese Portscanner named MilkT - shipped BAT\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:678:rule CN_Hacktool_MilkT_Scanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:680:      description = \"Detects a chinese Portscanner named MilkT\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:698:rule CN_Hacktool_1433_Scanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:700:      description = \"Detects a chinese MSSQL scanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:717:rule CN_Hacktool_1433_Scanner_Comp2 {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:719:      description = \"Detects a chinese MSSQL scanner - component 2\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2446:      $s11 = \"<CENTER><H1>Cerberus Internet Scanner</H1>\" fullword ascii\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2674:      $s0 = \"\\\\scanner.ini\" ascii\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2675:      $s1 = \"\\\\scanner.exe\" ascii\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2676:      $s2 = \"\\\\scanner.lst\" ascii\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2720:      $s0 = \"FScan v1.12 - Command line port scanner.\" fullword ascii\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2895:      $s1 = \"echo -e \\\"${BLU}Private Scanner By Raphaello , DeMMoNN , tzepelush & DraC\\\\n\\\\r\" ascii\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:2924:      description = \"CN Port Scanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:3193:      description = \"Detects Linux Port Scanner Shark\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:3212:      description = \"Detects Linux Port Scanner Shark\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:3439:rule Fscan_Portscanner {\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:3441:      description = \"Fscan port scanner scan output / strings\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:4631:      description = \"Detects Pnscan port scanner\"\nyara_rules/memory_rules/neo23x0_thor-hacktools.yar:4639:      $x2 = \"This program implements a multithreaded TCP port scanner.\" ascii wide\nyara_rules/memory_rules/neo23x0_thor-webshells.yar:4:   THOR APT Scanner - Web Shells Extract\nyara_rules/memory_rules/neo23x0_thor-webshells.yar:6:   APT Scanner THOR - the full featured APT scanner\nyara_rules/memory_rules/neo23x0_thor-webshells.yar:8230:                $s2 = \"Shared Components\\\\On Access Scanner\\\\BehaviourBlo\"\nyara_rules/memory_rules/neo23x0_thor_inverse_matches.yar:389:           description = \"Looks like a cloaked SuperScan Port Scanner. This may be APT group activity.\"\nyara_rules/memory_rules/neo23x0_thor_inverse_matches.yar:405:           description = \"Looks like a cloaked ScanLine Port Scanner. This may be APT group activity.\"\nyara_rules/memory_rules/neo23x0_thor_inverse_matches.yar:413:           $s1 = \"Command line port scanner\" wide fullword\nyara_rules/memory_rules/neo23x0_yara_mixed_ext_vars.yar:4:      They work with scanners that support the use of external variables, like\nyara_rules/memory_rules/neo23x0_yara_mixed_ext_vars.yar:6:      https://www.nextron-systems.com/compare-our-scanners/\n",
+              "truncation": {
+                "prefixLinesOmitted": 636
+              },
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 5,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_oGgPysKYUIezY41ncQtfHjas",
+          "name": "shell_command",
+          "input": {
+            "command": "ls",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 122,
+        "cacheCreationInputTokens": 13500,
+        "cacheReadInputTokens": 10112,
+        "totalInputTokens": 23612,
+        "timestamp": "2026-04-03T07:54:01.919Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 6,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_oGgPysKYUIezY41ncQtfHjas",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "AICorePortable.py\nAdditions\nAiReconCore.py\nContributing.md\nDevintitherus.py\nFIXES_APPLIED.md\nGhostMemory.py\nHAdes\nHadesAI.py\nHadesAIInterpreter.txt\nHadesupgraded.py\nLicense.md\nMemory.py\nOperator.py\nOrbitalStationUI_Complete.py\nReadMe.md\nScannerGui.py\nShellCodeMagic.py\nUN-altered source code\nUnnamed.py\nWeapons_Systems.py\nWraithEngine.py\nYARA-Rules–OFSP.md\nYaraRuleManager.py\n__PY__.py\n__pycache__\nai_dashboard.py\napi_key.json\nchimera.py\ndebug_app.py\nfinal_test.py\nhades_knowledge.db\nknowledge_base.py\nlogs\nmain.py\nmemory_quarantine\noperations\nquarantine\nred_team_toolkit_module.py\nshared_constants.py\ntarget_ingest.py\ntest_all_scanners.py\ntest_hades_import.py\ntest_memory.py\ntest_shellcode.py\ntest_tome_detailed.py\ntest_tome_memory.py\ntest_tome_shellcode.py\ntest_ui_startup.py\ntest_yara_loading.py\nyara_rules\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 7,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_nw50F7I41d0mCp7LPCBw0AeD",
+          "name": "shell_command",
+          "input": {
+            "command": "find .. -name AGENTS.md -print",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 37,
+        "cacheCreationInputTokens": 494,
+        "cacheReadInputTokens": 23424,
+        "totalInputTokens": 23918,
+        "timestamp": "2026-04-03T07:54:03.327Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 8,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_nw50F7I41d0mCp7LPCBw0AeD",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 9,
+      "content": [
+        {
+          "type": "text",
+          "text": "I found the memory-scanner codepaths (`Memory.py`, `ScannerGui.py`, and integration points), but your request is a bit broad. I’ll check the project docs/notes for any existing “memory scanner update” target and then make the update against that target."
+        },
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_X35p0ISj03B9OZH0eQPzfcxn",
+          "name": "shell_command",
+          "input": {
+            "command": "git grep -n -i \"TODO\\|memory scanner\\|scanner update\\|update.*scanner\\|tome\\|soul\" ReadMe.md FIXES_APPLIED.md Contributing.md",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "commentary"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 394,
+        "cacheCreationInputTokens": 166,
+        "cacheReadInputTokens": 23808,
+        "totalInputTokens": 23974,
+        "timestamp": "2026-04-03T07:54:42.644Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 10,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_X35p0ISj03B9OZH0eQPzfcxn",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "",
+              "exitCode": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 11,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_CsvNe86QFhf2cVYxXA0tQbey",
+          "name": "shell_command",
+          "input": {
+            "command": "sed -n '1,260p' Memory.py",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 186,
+        "cacheCreationInputTokens": 316,
+        "cacheReadInputTokens": 23808,
+        "totalInputTokens": 24124,
+        "timestamp": "2026-04-03T07:54:46.401Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 12,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_CsvNe86QFhf2cVYxXA0tQbey",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "from argparse import OPTIONAL\nimport ctypes\nfrom ctypes import Structure, c_void_p, c_size_t, c_ulong, c_ulonglong, POINTER, byref, sizeof, wintypes\nfrom ctypes.wintypes import HANDLE, DWORD, LPVOID, LPWSTR, ULONG, WIN32_FIND_DATAA, BOOL, HMODULE, WORD\nLPCVOID = ctypes.c_void_p\nfrom ctypes import c_size_t as SIZE_T\nimport logging\nimport time\nfrom typing import Dict, Any\nfrom pathlib import Path\nimport os\nimport psutil\nimport math\nimport YaraRuleManager\nimport win32api\nimport win32process\nimport win32con\nimport win32security\n# from ShellCodeMagic import calculate_entropy  # Moved to function level to avoid circular import\n# import ShellCodeMagic  # Import when needed to avoid circular dependency\nimport hashlib\nimport re\nfrom shared_constants import IMAGE_DOS_HEADER, IMAGE_NT_HEADERS, MIB_TCPROW_OWNER_PID, PROCESSENTRY32, WINTRUST_FILE_INFO\nimport wmi\nimport shared_constants\nimport winreg\nimport json\nimport shutil\nimport datetime\ntry:\n    import pefile\nexcept ImportError:\n    pefile = None\nimport traceback\n# import ShellCodeMagic  # Import when needed to avoid circular dependency\nimport struct\nimport sys\nimport pythoncom\nimport uuid\nimport pywintypes\nimport subprocess\n# Import shared constants and structures\nfrom shared_constants import (MEMORY_BASIC_INFORMATION, MEM_COMMIT, PAGE_EXECUTE_READWRITE,PROTECTED_PROCESSES, setup_application_logging\n)\n\n# Import required modules with fallbacks\ntry:\n    from YaraRuleManager import YaraRuleManager\nexcept ImportError:\n    YaraRuleManager = None\n\ntry:\n    from ShellCodeMagic import CodeDisassembler, ThreatQuarantine\nexcept ImportError:\n    CodeDisassembler = None\n    ThreatQuarantine = None\n\nSIZE_T = c_size_t\nclass MemoryScanner:\n    _instance = None\n    _initialized = True\n    shared_yara_manager = None  # Class variable to share YARA manager across instances\n    kernel32 = ctypes.windll.kernel32\n    kernel32: ctypes.WinDLL = ctypes.WinDLL('kernel32')\n    VirtualQueryEx = kernel32.VirtualQueryEx\n    VirtualQueryEx.argtypes = [\n        HANDLE,  # hProcess\n        LPCVOID, # lpAddress\n        ctypes.POINTER(MEMORY_BASIC_INFORMATION), # lpBuffer\n        SIZE_T   # dwLength\n    ]\n    # Use constants from shared_constants\n    MEM_COMMIT = MEM_COMMIT\n    PAGE_EXECUTE_READWRITE = PAGE_EXECUTE_READWRITE\n    @classmethod\n    def __new__(cls, *args, **kwargs):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n            cls._instance._initialized = False\n        return cls._instance\n    def __init__(self, root=None):\n        self.root = None\n        self.enable_debug_privilege()\n\n        if not MemoryScanner._initialized:\n            self.gui = self.update_gui_detections()\n            MemoryScanner._initialized = True\n            self.enable_debug_privilege()\n            logging.info(\"MemoryScanner\")\n\n        # Use shared YARA manager if available, otherwise create one\n        self.yara_manager = None\n        if MemoryScanner.shared_yara_manager:\n            self.yara_manager = MemoryScanner.shared_yara_manager\n            logging.info(\"Using shared YaraRuleManager instance\")\n        elif YaraRuleManager and getattr(self, 'yara_manager', None) is None:\n            self.yara_manager = YaraRuleManager()\n            logging.info(\"Created new YaraRuleManager instance\")\n\n        self._initialized = True\n        self.executable_found = False\n        self.logger = logging.getLogger(__name__)\n        self.logger.info(\"MemoryScanner\")\n        self.scanner = None\n        self.detection_methods = []\n        self.logger = logging.getLogger(__name__)\n        self.logging = self.setup_scanner_logging()\n        self.gui = None  # GUI reference not needed in memory scanner\n        self._process_hollowing_stack = set()\n        if CodeDisassembler:\n            self.disasembler = CodeDisassembler()\n        else:\n            self.disasembler = None\n\n        logging.debug(\"MemoryScanner Initialization ===\")\n        logging.info(\"MemoryScanner\")\n        if not self.yara_manager:\n            logging.debug(\"Initializing YaraRuleManager\")\n        if self.yara_manager and hasattr(self.yara_manager, 'compile_combined_rules'):\n            try:\n                # Compile YARA rules only when a manager instance is available.\n                self.combined_rules = self.yara_manager.compile_combined_rules()\n            except Exception as e:\n                self.logger.error(f\"Error loading YARA rules: {str(e)}\")\n                print(f\"Error loading YARA rules: {str(e)}\")\n                self.combined_rules = None\n        else:\n            self.combined_rules = None\n            self.logger.warning(\"YARA manager unavailable during MemoryScanner initialization\")\n        self.memory_info_dict = {\n            \"BaseAddress\": 0,\n            \"AllocationBase\": 0,\n            \"AllocationProtect\": 0,\n            \"RegionSize\": 0,\n            \"State\": 0,\n            \"Protect\": 0,\n            \"Type\": 0\n        }\n        self.quarantine_enabled = False  # Start disabled by default\n        self.quarantine_threshold = 75\n\n        # Set up quarantine directory\n        try:\n            self.quarantine_dir = os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\n            if not os.path.exists(self.quarantine_dir):\n                os.makedirs(self.quarantine_dir)\n        except Exception as e:\n            logging.error(f\"Failed to initialize quarantine directory: {str(e)}\")\n            self.quarantine_dir = None\n            self.quarantine_enabled = False  # Disable if dir creation fails\n\n        # Set up logger\n        self.logger = logging.getLogger(__name__)\n        if ThreatQuarantine:\n            self.quarantine = ThreatQuarantine()\n        else:\n            self.quarantine = None\n        self.PROTECTED_PROCESSES = [\n        \"Registry\",  # Registry process\n        \"smss.exe\",  # Session Manager Subsystem\n        \"csrss.exe\",  # Client Server Runtime Process\n        \"wininit.exe\",  # Windows Initialization Process\n        \"services.exe\",  # Services Control Manager\n        \"lsass.exe\",  # Local Security Authority Subsystem Service\n        \"winlogon.exe\",  # Windows Logon Process\n        \"System\",  # Windows System Process (PID 4)\n        \"System Idle Process\"  # System Idle Process (PID 0)\n        ]\n\n        self.signature_db = set()\n        logging.debug(\"YaraRuleManager instance attached\")\n        # Log memory constants\n        logging.debug(\"Memory Protection Constants:\")\n        logging.debug(f\"MEM_COMMIT: {self.MEM_COMMIT}\")\n        logging.debug(f\"PAGE_EXECUTE_READWRITE: {self.PAGE_EXECUTE_READWRITE}\")\n        self.injection_patterns = {\n            'shellcode': rb'\\x55\\x8B\\xEC|\\x90{4,}',\n            'script_injection': rb'(eval|exec|system|subprocess.run)',\n            'memory_manipulation': rb'(VirtualAlloc|WriteProcessMemory)',\n            'dll_injection': rb'(LoadLibrary|GetProcAddress)',\n            'code_execution': rb'(WScript.Shell|cmd.exe|powershell.exe)',\n            'encoded_commands': rb'([A-Za-z0-9+/]{40,}={0,2})'\n        }\n         # Define memory quarantine structure\n        self.memory_quarantine = {\n            'active': {},  # Currently quarantined processes\n            'history': {},  # Historical quarantine records\n            'metadata': {}  # Additional quarantine information\n        }\n        self.kernel32 = ctypes.windll.kernel32\n        VirtualQueryEx = self.kernel32.VirtualQueryEx\n        VirtualQueryEx.argtypes = [\n            wintypes.HANDLE,  # hProcess\n            wintypes.LPCVOID, # lpAddress\n            ctypes.POINTER(MEMORY_BASIC_INFORMATION), # lpBuffer\n            ctypes.c_size_t   # dwLength\n        ]\n        VirtualQueryEx.restype = ctypes.c_size_t\n        # Log injection patterns\n        logging.debug(\"Initialized Injection Patterns:\")\n        for pattern_name in self.injection_patterns.keys():\n            logging.debug(f\"- {pattern_name}\")\n        self.quarantine_dir = Path(\"memory_quarantine\")\n        self.quarantine_dir.mkdir(exist_ok=True)\n        # Log scanner setup\n\n        logging.debug(\"MemoryScanner Components:\")\n        logging.debug(f\"Quarantine Directory: {self.quarantine_dir}\")\n        logging.debug(f\"Rules Loaded: {bool(self.load_local_rules())}\")\n        logging.debug(f\"Signature DB Size: {len(self.signature_db)}\")\n\n        logging.debug(\"MemoryScanner Initialization Complete ===\\n\")\n        self.root = root\n\n        self.rules = self.load_local_rules()\n        self.quarantine_dir = Path(\"memory_quarantine\")\n        self.quarantine_dir.mkdir(exist_ok=True)\n        self.verify_system_modules = True\n        if self.yara_manager:\n            self.yara_manager.load_yara_rules()\n            logging.debug(\"YaraRuleManager instance attached\")\n        else:\n            logging.debug(\"YaraRuleManager not available\")\n        class IMAGE_EXPORT_DIRECTORY(ctypes.Structure):\n            _fields_ = [\n                (\"Characteristics\", DWORD),\n                (\"TimeDateStamp\", DWORD),\n                (\"MajorVersion\", WORD),\n                (\"MinorVersion\", WORD),\n                (\"Name\", LPWSTR),\n                (\"Base\", DWORD),\n                (\"Size\", DWORD),\n                (\"NumberOfFunctions\", DWORD),\n                (\"NumberOfNames\", DWORD),\n                (\"AddressOfFunctions\", DWORD),\n                (\"AddressOfNames\", DWORD),\n                (\"AddressOfNameOrdinals\", DWORD)\n            ]\n    def enable_debug_privilege(self):\n        \"\"\"Enable SeDebugPrivilege to access more processes\"\"\"\n        try:\n            import win32security\n            import win32api\n            import ntsecuritycon\n\n            logging.debug(\"Attempting to enable SeDebugPrivilege\")\n\n            # Get the process token\n            hToken = win32security.OpenProcessToken(\n                win32api.GetCurrentProcess(),\n                win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY\n            )\n\n            # Enable SeDebugPrivilege\n            privilege_id = win32security.LookupPrivilegeValue(\n                None, ntsecuritycon.SE_DEBUG_NAME\n            )\n\n            win32security.AdjustTokenPrivileges(\n                hToken, 0, [(privilege_id, win32security.SE_PRIVILEGE_ENABLED)]\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 13,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_hTI3bmbP7hEoyCiEnYfECMtQ",
+          "name": "shell_command",
+          "input": {
+            "command": "sed -n '5000,5185p' Unnamed.py",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 263,
+        "cacheCreationInputTokens": 2702,
+        "cacheReadInputTokens": 23936,
+        "totalInputTokens": 26638,
+        "timestamp": "2026-04-03T07:54:51.551Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 14,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_hTI3bmbP7hEoyCiEnYfECMtQ",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "    def quarantine_file(self, filepath: str) -> bool:\n        try:\n            self.quarantine_dir.mkdir(exist_ok=True)\n            filename = Path(filepath).name\n            quarantine_path = self.quarantine_dir / f\"{filename}.quarantine\"\n            shutil.move(filepath, quarantine_path)\n            logging.info(f\"Quarantined {filepath} to {quarantine_path}\")\n            return True\n        except Exception as e:\n            logging.error(f\"Quarantine failed for {filepath}: {str(e)}\")\n            return False\n    def remove_file(self, filepath: str) -> bool:\n        try:\n            os.remove(filepath)\n            logging.info(f\"Removed infected file: {filepath}\")\n            return True\n        except Exception as e:\n            logging.error(f\"Removal failed for {filepath}: {str(e)}\")\n            return False\nclass MemoryScanner:\n    _instance = None\n    _initialized = True\n    kernel32 = ctypes.windll.kernel32\n    kernel32: ctypes.WinDLL = ctypes.WinDLL('kernel32')\n    VirtualQueryEx = kernel32.VirtualQueryEx\n    VirtualQueryEx.argtypes = [\n        wintypes.HANDLE,  # hProcess\n        wintypes.LPCVOID, # lpAddress\n        ctypes.POINTER(MEMORY_BASIC_INFORMATION), # lpBuffer\n        ctypes.c_size_t   # dwLength\n    ]\n    MEM_COMMIT = 0x1000\n    MEM_RESERVE = 0x2000\n    MEM_RELEASE = 0x8000\n    PAGE_NOACCESS = 0x01\n    PAGE_READONLY = 0x02\n    PAGE_READWRITE = 0x04\n    PAGE_WRITECOPY = 0x08\n    PAGE_EXECUTE = 0x10\n    PAGE_EXECUTE_READ = 0x20\n    PAGE_EXECUTE_READWRITE = 0x40\n    PAGE_EXECUTE_WRITECOPY = 0x80\n    PAGE_GUARD = 0x100\n    PAGE_NOCACHE = 0x200\n    PAGE_WRITECOMBINE = 0x400\n    DEFAULT_PAGE_SIZE = 4096\n    TH32CS_SNAPTHREAD = 0x00000002\n    pmmap_ext_size = ()\n    SystemProcessInformation = 5\n    SystemModuleInformation = 11\n    STATUS_INFO_LENGTH_MISMATCH = 0xC0000004\n    @classmethod\n    def __new__(cls, *args, **kwargs):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n            cls._instance._initialized = False\n        return cls._instance\n    def __init__(self, root=None):\n        self.root = None\n        self.enable_debug_privilege()\n\n        if not MemoryScanner._initialized:\n            self.gui = ScannerGui\n            self.yara_manager = YaraRuleManager()\n            MemoryScanner._initialized = True\n            self.enable_debug_privilege()\n            logging.info(\"MemoryScanner\")\n        self._initialized = True\n        self.executable_found = False\n        self.logger = logging.getLogger(__name__)\n        self.logger.info(\"MemoryScanner\")\n        self.scanner = None\n        self.detection_methods = []\n        # Initialize YaraRuleManager directly\n        self.yara_manager = YaraRuleManager()\n        self.yara_manager.fetch_all_rules()\n        self.logger = logging.getLogger(__name__)\n        self.logging = self.setup_scanner_logging()\n        self.gui = ScannerGui\n        self._process_hollowing_stack = set()\n        self.disasembler = CodeDisassembler()\n\n        logging.debug(\"MemoryScanner Initialization ===\")\n        logging.info(\"MemoryScanner\")\n        if not self.yara_manager:\n            logging.debug(\"Initializing YaraRuleManager\")\n        try:\n            # Call compile_combined_rules() directly on yara_manager, not through another attribute\n            self.combined_rules = self.yara_manager.compile_combined_rules()\n        except Exception as e:\n            self.logger.error(f\"Error loading YARA rules: {str(e)}\")\n            print(f\"Error loading YARA rules: {str(e)}\")\n            self.combined_rules = None\n        self.memory_info_dict = {\n            \"BaseAddress\": 0,\n            \"AllocationBase\": 0,\n            \"AllocationProtect\": 0,\n            \"RegionSize\": 0,\n            \"State\": 0,\n            \"Protect\": 0,\n            \"Type\": 0\n        }\n        self.quarantine_enabled = False  # Start disabled by default\n        self.quarantine_threshold = 75\n\n        # Set up quarantine directory\n        try:\n            self.quarantine_dir = os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\n            if not os.path.exists(self.quarantine_dir):\n                os.makedirs(self.quarantine_dir)\n        except Exception as e:\n            logging.error(f\"Failed to initialize quarantine directory: {str(e)}\")\n            self.quarantine_dir = None\n            self.quarantine_enabled = False  # Disable if dir creation fails\n\n        # Set up logger\n        self.logger = logging.getLogger(__name__)\n        self.quarantine = ThreatQuarantine()\n        PROTECTED_PROCESSES = [\n        \"Registry\",  # Registry process\n        \"smss.exe\",  # Session Manager Subsystem\n        \"csrss.exe\",  # Client Server Runtime Process\n        \"wininit.exe\",  # Windows Initialization Process\n        \"services.exe\",  # Services Control Manager\n        \"lsass.exe\",  # Local Security Authority Subsystem Service\n        \"winlogon.exe\",  # Windows Logon Process\n        \"System\",  # Windows System Process (PID 4)\n        \"System Idle Process\"  # System Idle Process (PID 0)\n        ]\n\n        self.signature_db = set()\n        logging.debug(\"YaraRuleManager instance attached\")\n        # Log memory constants\n        logging.debug(\"Memory Protection Constants:\")\n        logging.debug(f\"MEM_COMMIT: {self.MEM_COMMIT}\")\n        logging.debug(f\"PAGE_EXECUTE_READWRITE: {self.PAGE_EXECUTE_READWRITE}\")\n        self.injection_patterns = {\n            'shellcode': rb'\\x55\\x8B\\xEC|\\x90{4,}',\n            'script_injection': rb'(eval|exec|system|subprocess.run)',\n            'memory_manipulation': rb'(VirtualAlloc|WriteProcessMemory)',\n            'dll_injection': rb'(LoadLibrary|GetProcAddress)',\n            'code_execution': rb'(WScript.Shell|cmd.exe|powershell.exe)',\n            'encoded_commands': rb'([A-Za-z0-9+/]{40,}={0,2})'\n        }\n         # Define memory quarantine structure\n        self.memory_quarantine = {\n            'active': {},  # Currently quarantined processes\n            'history': {},  # Historical quarantine records\n            'metadata': {}  # Additional quarantine information\n        }\n        self.kernel32 = ctypes.windll.kernel32\n        VirtualQueryEx = self.kernel32.VirtualQueryEx\n        VirtualQueryEx.argtypes = [\n            wintypes.HANDLE,  # hProcess\n            wintypes.LPCVOID, # lpAddress\n            ctypes.POINTER(MEMORY_BASIC_INFORMATION), # lpBuffer\n            ctypes.c_size_t   # dwLength\n        ]\n        VirtualQueryEx.restype = ctypes.c_size_t\n        # Log injection patterns\n        logging.debug(\"Initialized Injection Patterns:\")\n        for pattern_name in self.injection_patterns.keys():\n            logging.debug(f\"- {pattern_name}\")\n        self.quarantine_dir = Path(\"memory_quarantine\")\n        self.quarantine_dir.mkdir(exist_ok=True)\n        # Log scanner setup\n\n        logging.debug(\"MemoryScanner Components:\")\n        logging.debug(f\"Quarantine Directory: {self.quarantine_dir}\")\n        logging.debug(f\"Rules Loaded: {bool(self.load_local_rules())}\")\n        logging.debug(f\"Signature DB Size: {len(self.signature_db)}\")\n\n        logging.debug(\"MemoryScanner Initialization Complete ===\\n\")\n        self.root = root\n\n        self.rules = self.load_local_rules()\n        self.quarantine_dir = Path(\"memory_quarantine\")\n        self.quarantine_dir.mkdir(exist_ok=True)\n        self.verify_system_modules = True\n        self.yara_manager.load_yara_rules()\n        logging.debug(\"YaraRuleManager instance attached\")\n    def enable_debug_privilege(self):\n        \"\"\"Enable SeDebugPrivilege to access more processes\"\"\"\n        try:\n            import win32security\n            import win32api\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 15,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_5V5m0IJ9NRle7B2QB2jb17ge",
+          "name": "shell_command",
+          "input": {
+            "command": "sed -n '1,220p' ScannerGui.py",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 314,
+        "cacheCreationInputTokens": 2137,
+        "cacheReadInputTokens": 26496,
+        "totalInputTokens": 28633,
+        "timestamp": "2026-04-03T07:54:59.027Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 16,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_5V5m0IJ9NRle7B2QB2jb17ge",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "\"\"\"\nScannerGui - The original tkinter-based GUI from Unnamed.py\nThis provides the complete scanning interface with process monitoring, memory analysis, etc.\n\"\"\"\n\nimport tkinter as tk\nfrom tkinter import ttk, messagebox\nimport threading\nimport time\nfrom datetime import datetime\nimport logging\nfrom pathlib import Path\nimport psutil\nimport Memory\n# Removed incorrect import - force_read_memory_region is a method of MemoryScanner\n# Import from our modules\nfrom shared_constants import *\ntry:\n    from YaraRuleManager import YaraRuleManager\nexcept ImportError:\n    YaraRuleManager = None\n\ntry:\n    from Memory import MemoryScanner\nexcept ImportError:\n    MemoryScanner = None\n\ntry:\n    from Weapons_Systems import MalwareScanner\nexcept ImportError:\n    MalwareScanner = None\n\ntry:\n    from ShellCodeMagic import ShellcodeDetector, ShellCodeTome, ThreatQuarantine, CodeDisassembler\nexcept ImportError:\n    ShellcodeDetector = None\n    ShellCodeTome = None\n    ThreatQuarantine = None\n    CodeDisassembler = None\n\nclass ScannerGui:\n    _instance = None\n\n    def __new__(cls, root=None):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n            cls._instance._initialized = False\n        return cls._instance\n\n    def __init__(self, root=None):\n        # Prevent double initialization\n        if hasattr(self, '_initialized') and self._initialized:\n            return\n\n        self.root = root if root else tk.Tk()\n        self.root.title(\"Memory Protection Scanner\")\n        self.root.geometry(\"800x600\")\n\n        # Initialize variables\n        self.signature_db = set()\n        self.total_processes_scanned = 0\n        self._initialized = True\n        self.critical_processes = {\n            'explorer.exe', 'svchost.exe', 'lsass.exe',\n            'winlogon.exe', 'csrss.exe', 'services.exe'\n        }\n        self.monitoring_active = False\n        self.quarantine_dir = Path(\"quarantine\")\n        self.injection_patterns = {\n            'shellcode': rb'\\x55\\x8B\\xEC|\\x90{4,}',\n            'script_injection': rb'(eval|exec|system|subprocess.run)',\n            'memory_manipulation': rb'(VirtualAlloc|WriteProcessMemory)',\n            'dll_injection': rb'(LoadLibrary|GetProcAddress)',\n            'code_execution': rb'(WScript.Shell|cmd.exe|powershell.exe)',\n            'encoded_commands': rb'([A-Za-z0-9+/]{40,}={0,2})'\n        }\n        self.process_handle = None\n        self.detections = []\n        self.signature_status = True\n        self.scanning = False\n        self.detections_list = None\n\n        # Initialize backend components\n        self._setup_logging()\n        logging.info(\"ScannerGui initialized\")\n\n        # Initialize YARA and detection components\n        if YaraRuleManager:\n            self.yara_manager = YaraRuleManager()\n            self.yara_manager.create_repo_directories()\n\n            # Verify rules are properly loaded\n            report = self.yara_manager.verify_rules_loaded()\n            print(\"\\n=== YARA Rules Loading Status ===\")\n            print(f\"Directories exist: {report['directories_exist']}\")\n            print(f\"Rule files exist: {report['rule_files_exist']}\")\n            print(f\"Rule files count: {report['rule_files_count']}\")\n            print(f\"Compilation success: {report['compilation_success']}\")\n\n            if not report[\"compilation_success\"]:\n                print(\"Trying to create basic rules directly...\")\n                self.yara_manager.create_basic_rules()\n\n        # Initialize detection components\n        if ShellcodeDetector:\n            self.Detector = ShellcodeDetector()\n        if CodeDisassembler:\n            self.disassembler = CodeDisassembler()\n        if ShellCodeTome:\n            self.tome = ShellCodeTome()\n        if MemoryScanner:\n            self.scanner = MemoryScanner()\n\n        # Initialize GUI variables\n        self.quarantine_var = tk.BooleanVar(value=True)\n        self.threshold_var = tk.IntVar(value=75)\n\n        # Create utility functions\n        self.create_utility_functions()\n\n        # Setup GUI after all initialization is complete\n        if not hasattr(self, 'notebook'):  # Only setup GUI once\n            self.setup_gui()\n\n        self.scanner = MemoryScanner()\n        # Start protection\n        self.initial_protection()\n\n    def _setup_logging(self):\n        \"\"\"Setup logging for the scanner GUI\"\"\"\n        self.logger = logging.getLogger('ScannerGui')\n\n    def create_utility_functions(self):\n        \"\"\"Create utility functions and aliases\"\"\"\n        # Tree utility functions will be created after the tree widget exists\n        self.additem = None\n        self.clear = None\n\n    def setup_gui(self):\n        \"\"\"Setup the GUI using only grid geometry manager\"\"\"\n        # Configure root window\n        self.root.columnconfigure(0, weight=1)\n        self.root.rowconfigure(0, weight=1)\n\n        # Main container frame\n        main_container = ttk.Frame(self.root)\n        main_container.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5, pady=5)\n        main_container.columnconfigure(0, weight=1)\n        main_container.rowconfigure(2, weight=1)  # Make the notebook expand\n\n        # Status Panel at top (row 0)\n        status_frame = ttk.LabelFrame(main_container, text=\"System Status\", padding=\"5\")\n        status_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))\n        status_frame.columnconfigure(1, weight=1)\n\n        self.status_label = ttk.Label(status_frame, text=\"Protected\", foreground=\"green\")\n        self.status_label.grid(row=0, column=0, padx=5)\n\n        # Scan Progress Panel\n        scan_frame = ttk.Frame(status_frame)\n        scan_frame.grid(row=0, column=1, padx=5, sticky=(tk.W, tk.E))\n        scan_frame.columnconfigure(0, weight=1)\n\n        self.scan_progress = ttk.Progressbar(scan_frame, mode='determinate', length=200)\n        self.scan_progress.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))\n\n        self.processes_scanned_label = ttk.Label(scan_frame, text=\"Processes: 0\")\n        self.processes_scanned_label.grid(row=0, column=1, padx=5)\n\n        self.threats_found_label = ttk.Label(scan_frame, text=\"Threats: 0\")\n        self.threats_found_label.grid(row=0, column=2, padx=5)\n\n        # Control Panel (row 1)\n        control_panel = ttk.LabelFrame(main_container, text=\"Controls\", padding=\"5\")\n        control_panel.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)\n\n        # Scan Controls\n        scan_buttons = ttk.Frame(control_panel)\n        scan_buttons.grid(row=0, column=0, sticky=(tk.W, tk.E))\n\n        self.start_quick_scan_button = ttk.Button(scan_buttons, text=\"Quick Scan\", command=self.start_quick_scan)\n        self.start_quick_scan_button.grid(row=0, column=0, padx=2)\n\n        self.start_deep_scan_button = ttk.Button(scan_buttons, text=\"Deep Scan\", command=self.start_deep_scan)\n        self.start_deep_scan_button.grid(row=0, column=1, padx=2)\n\n        self.stop_scan_button = ttk.Button(scan_buttons, text=\"Stop Scan\", command=self.stop_scan)\n        self.stop_scan_button.grid(row=0, column=2, padx=2)\n\n        # Settings in control panel\n        settings_controls = ttk.Frame(control_panel)\n        settings_controls.grid(row=0, column=1, padx=10, sticky=(tk.W, tk.E))\n\n        # Quarantine checkbox\n        self.quarantine_checkbox = ttk.Checkbutton(\n            settings_controls,\n            text=\"Auto Quarantine\",\n            variable=self.quarantine_var,\n            command=self.update_quarantine_settings\n        )\n        self.quarantine_checkbox.grid(row=0, column=0, padx=5)\n\n        # Threshold controls\n        threshold_frame = ttk.Frame(settings_controls)\n        threshold_frame.grid(row=0, column=1, padx=5, sticky=(tk.W, tk.E))\n\n        ttk.Label(threshold_frame, text=\"Threshold:\").grid(row=0, column=0)\n        self.threshold_slider = ttk.Scale(\n            threshold_frame,\n            from_=0, to=100,\n            orient=\"horizontal\",\n            variable=self.threshold_var,\n            length=100,\n            command=lambda _: self.update_quarantine_settings()\n        )\n        self.threshold_slider.grid(row=0, column=1, padx=5, sticky=(tk.W, tk.E))\n        ttk.Label(threshold_frame, textvariable=self.threshold_var).grid(row=0, column=2)\n\n        # Detection count\n        self.detection_count_label = ttk.Label(control_panel, text=\"Detections: 0\")\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 17,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_Z0yc9V1CQenyOtp8q52wkWUs",
+          "name": "shell_command",
+          "input": {
+            "command": "git grep -n \"MemoryScanner\\._initialized\\|_initialized\" Memory.py | head -n 40",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 421,
+        "cacheCreationInputTokens": 2280,
+        "cacheReadInputTokens": 28544,
+        "totalInputTokens": 30824,
+        "timestamp": "2026-04-03T07:55:09.471Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 18,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_Z0yc9V1CQenyOtp8q52wkWUs",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "Memory.py:61:    _initialized = True\nMemory.py:79:            cls._instance._initialized = False\nMemory.py:85:        if not MemoryScanner._initialized:\nMemory.py:87:            MemoryScanner._initialized = True\nMemory.py:100:        self._initialized = True\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 19,
+      "content": [
+        {
+          "type": "text",
+          "text": "I found a concrete issue to “update” in the memory scanner: singleton initialization is currently misconfigured (`_initialized = True` at class level), which skips first-run setup logic. I’m going to patch `Memory.py` to fix initialization and keep scanner startup consistent, then run the memory scanner tests."
+        },
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_87zjrIgTfPjhiWQcIIuATrSO",
+          "name": "shell_command",
+          "input": {
+            "command": "sed -n '1,170p' Memory.py",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "commentary"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 196,
+        "cacheCreationInputTokens": 239,
+        "cacheReadInputTokens": 30720,
+        "totalInputTokens": 30959,
+        "timestamp": "2026-04-03T07:55:18.951Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 20,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_87zjrIgTfPjhiWQcIIuATrSO",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "from argparse import OPTIONAL\nimport ctypes\nfrom ctypes import Structure, c_void_p, c_size_t, c_ulong, c_ulonglong, POINTER, byref, sizeof, wintypes\nfrom ctypes.wintypes import HANDLE, DWORD, LPVOID, LPWSTR, ULONG, WIN32_FIND_DATAA, BOOL, HMODULE, WORD\nLPCVOID = ctypes.c_void_p\nfrom ctypes import c_size_t as SIZE_T\nimport logging\nimport time\nfrom typing import Dict, Any\nfrom pathlib import Path\nimport os\nimport psutil\nimport math\nimport YaraRuleManager\nimport win32api\nimport win32process\nimport win32con\nimport win32security\n# from ShellCodeMagic import calculate_entropy  # Moved to function level to avoid circular import\n# import ShellCodeMagic  # Import when needed to avoid circular dependency\nimport hashlib\nimport re\nfrom shared_constants import IMAGE_DOS_HEADER, IMAGE_NT_HEADERS, MIB_TCPROW_OWNER_PID, PROCESSENTRY32, WINTRUST_FILE_INFO\nimport wmi\nimport shared_constants\nimport winreg\nimport json\nimport shutil\nimport datetime\ntry:\n    import pefile\nexcept ImportError:\n    pefile = None\nimport traceback\n# import ShellCodeMagic  # Import when needed to avoid circular dependency\nimport struct\nimport sys\nimport pythoncom\nimport uuid\nimport pywintypes\nimport subprocess\n# Import shared constants and structures\nfrom shared_constants import (MEMORY_BASIC_INFORMATION, MEM_COMMIT, PAGE_EXECUTE_READWRITE,PROTECTED_PROCESSES, setup_application_logging\n)\n\n# Import required modules with fallbacks\ntry:\n    from YaraRuleManager import YaraRuleManager\nexcept ImportError:\n    YaraRuleManager = None\n\ntry:\n    from ShellCodeMagic import CodeDisassembler, ThreatQuarantine\nexcept ImportError:\n    CodeDisassembler = None\n    ThreatQuarantine = None\n\nSIZE_T = c_size_t\nclass MemoryScanner:\n    _instance = None\n    _initialized = True\n    shared_yara_manager = None  # Class variable to share YARA manager across instances\n    kernel32 = ctypes.windll.kernel32\n    kernel32: ctypes.WinDLL = ctypes.WinDLL('kernel32')\n    VirtualQueryEx = kernel32.VirtualQueryEx\n    VirtualQueryEx.argtypes = [\n        HANDLE,  # hProcess\n        LPCVOID, # lpAddress\n        ctypes.POINTER(MEMORY_BASIC_INFORMATION), # lpBuffer\n        SIZE_T   # dwLength\n    ]\n    # Use constants from shared_constants\n    MEM_COMMIT = MEM_COMMIT\n    PAGE_EXECUTE_READWRITE = PAGE_EXECUTE_READWRITE\n    @classmethod\n    def __new__(cls, *args, **kwargs):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n            cls._instance._initialized = False\n        return cls._instance\n    def __init__(self, root=None):\n        self.root = None\n        self.enable_debug_privilege()\n\n        if not MemoryScanner._initialized:\n            self.gui = self.update_gui_detections()\n            MemoryScanner._initialized = True\n            self.enable_debug_privilege()\n            logging.info(\"MemoryScanner\")\n\n        # Use shared YARA manager if available, otherwise create one\n        self.yara_manager = None\n        if MemoryScanner.shared_yara_manager:\n            self.yara_manager = MemoryScanner.shared_yara_manager\n            logging.info(\"Using shared YaraRuleManager instance\")\n        elif YaraRuleManager and getattr(self, 'yara_manager', None) is None:\n            self.yara_manager = YaraRuleManager()\n            logging.info(\"Created new YaraRuleManager instance\")\n\n        self._initialized = True\n        self.executable_found = False\n        self.logger = logging.getLogger(__name__)\n        self.logger.info(\"MemoryScanner\")\n        self.scanner = None\n        self.detection_methods = []\n        self.logger = logging.getLogger(__name__)\n        self.logging = self.setup_scanner_logging()\n        self.gui = None  # GUI reference not needed in memory scanner\n        self._process_hollowing_stack = set()\n        if CodeDisassembler:\n            self.disasembler = CodeDisassembler()\n        else:\n            self.disasembler = None\n\n        logging.debug(\"MemoryScanner Initialization ===\")\n        logging.info(\"MemoryScanner\")\n        if not self.yara_manager:\n            logging.debug(\"Initializing YaraRuleManager\")\n        if self.yara_manager and hasattr(self.yara_manager, 'compile_combined_rules'):\n            try:\n                # Compile YARA rules only when a manager instance is available.\n                self.combined_rules = self.yara_manager.compile_combined_rules()\n            except Exception as e:\n                self.logger.error(f\"Error loading YARA rules: {str(e)}\")\n                print(f\"Error loading YARA rules: {str(e)}\")\n                self.combined_rules = None\n        else:\n            self.combined_rules = None\n            self.logger.warning(\"YARA manager unavailable during MemoryScanner initialization\")\n        self.memory_info_dict = {\n            \"BaseAddress\": 0,\n            \"AllocationBase\": 0,\n            \"AllocationProtect\": 0,\n            \"RegionSize\": 0,\n            \"State\": 0,\n            \"Protect\": 0,\n            \"Type\": 0\n        }\n        self.quarantine_enabled = False  # Start disabled by default\n        self.quarantine_threshold = 75\n\n        # Set up quarantine directory\n        try:\n            self.quarantine_dir = os.path.join(os.path.expanduser(\"~\"), \"scanner_quarantine\")\n            if not os.path.exists(self.quarantine_dir):\n                os.makedirs(self.quarantine_dir)\n        except Exception as e:\n            logging.error(f\"Failed to initialize quarantine directory: {str(e)}\")\n            self.quarantine_dir = None\n            self.quarantine_enabled = False  # Disable if dir creation fails\n\n        # Set up logger\n        self.logger = logging.getLogger(__name__)\n        if ThreatQuarantine:\n            self.quarantine = ThreatQuarantine()\n        else:\n            self.quarantine = None\n        self.PROTECTED_PROCESSES = [\n        \"Registry\",  # Registry process\n        \"smss.exe\",  # Session Manager Subsystem\n        \"csrss.exe\",  # Client Server Runtime Process\n        \"wininit.exe\",  # Windows Initialization Process\n        \"services.exe\",  # Services Control Manager\n        \"lsass.exe\",  # Local Security Authority Subsystem Service\n        \"winlogon.exe\",  # Windows Logon Process\n        \"System\",  # Windows System Process (PID 4)\n        \"System Idle Process\"  # System Idle Process (PID 0)\n        ]\n\n        self.signature_db = set()\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 21,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_8om3WdcH8YmVMMnv2njuDGFl",
+          "name": "shell_command",
+          "input": {
+            "command": "git grep -n \"def update_gui_detections\\|update_gui_detections\" Memory.py",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 195,
+        "cacheCreationInputTokens": 1747,
+        "cacheReadInputTokens": 30848,
+        "totalInputTokens": 32595,
+        "timestamp": "2026-04-03T07:55:22.951Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 22,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_8om3WdcH8YmVMMnv2njuDGFl",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "Memory.py:86:            self.gui = self.update_gui_detections()\nMemory.py:329:    def update_gui_detections(self, detections):\nMemory.py:2087:        self.update_gui_detections(detections)\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 23,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_k5aWy7plG9qyzKTePZtdhApz",
+          "name": "shell_command",
+          "input": {
+            "command": "sed -n '300,365p' Memory.py",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 91,
+        "cacheCreationInputTokens": 206,
+        "cacheReadInputTokens": 32512,
+        "totalInputTokens": 32718,
+        "timestamp": "2026-04-03T07:55:26.107Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 24,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_k5aWy7plG9qyzKTePZtdhApz",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "\n                        # Convert to bytes and store\n                        self.ntdll_original_bytes[func_name] = bytes(buf)\n                        logging.debug(f\"Recorded original bytes for {func_name}\")\n                    else:\n                        logging.debug(f\"Could not find address for {func_name}\")\n                except Exception as func_err:\n                    logging.debug(f\"Error recording bytes for {func_name}: {str(func_err)}\")\n\n            # Free the library\n            win32api.FreeLibrary(ntdll_handle)\n\n            logging.info(f\"Initialized NTDLL database with {len(self.ntdll_original_bytes)} functions\")\n\n        except Exception as e:\n            logging.error(f\"Error initializing NTDLL database: {str(e)}\")\n    def _suspend_process(self, process_handle):\n        \"\"\"Suspend a process using NtSuspendProcess from ntdll.dll\"\"\"\n        try:\n            ntdll = ctypes.windll.ntdll\n            NtSuspendProcess = ntdll.NtSuspendProcess\n            NtSuspendProcess(process_handle)\n            return True\n        except Exception as e:\n            if hasattr(self, 'logger'):\n                self.logger.error(f\"Failed to suspend process: {str(e)}\")\n            else:\n                logging.error(f\"Failed to suspend process: {str(e)}\")\n            return False\n    def update_gui_detections(self, detections):\n        self.gui.update_detections(detections)\n        return True\n\n    def setup_scanner_logging(self):\n        \"\"\"Set up enhanced logging for the scanner\"\"\"\n        import logging\n        from pathlib import Path\n\n        # Create logs directory if it doesn't exist\n        log_dir = Path('logs')\n        log_dir.mkdir(exist_ok=True)\n\n        # Get logger\n        logger = logging.getLogger('ScannerLogger')\n\n        # Only set up handlers if they don't exist already\n        if not logger.handlers:\n            logger.setLevel(logging.DEBUG)  # Set logger level\n\n            # File handler for detailed logging\n            file_path = log_dir / 'scanner_debug.log'\n            file_handler = logging.FileHandler(str(file_path))\n            file_handler.setLevel(logging.DEBUG)\n\n            # Console handler for info messages\n            console_handler = logging.StreamHandler()\n            console_handler.setLevel(logging.INFO)\n\n            # Create formatters\n            detailed_fmt = '%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'\n            simple_fmt = '%(levelname)s: %(message)s'\n\n            file_handler.setFormatter(logging.Formatter(detailed_fmt))\n            console_handler.setFormatter(logging.Formatter(simple_fmt))\n\n            # Add handlers to logger\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 25,
+      "content": [
+        {
+          "type": "text",
+          "text": "I’m applying a small targeted fix in `Memory.py` to correct the memory scanner’s initialization state and remove the invalid first-run GUI call that can crash startup. After that I’ll run the memory test script."
+        },
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_AIO6h19rnJVuBk3eSeZCnSEq",
+          "name": "apply_patch",
+          "input": {
+            "patchText": "*** Begin Patch\n*** Update File: d:/X12/OFSP/Memory.py\n@@\n class MemoryScanner:\n     _instance = None\n-    _initialized = True\n+    _initialized = False\n@@\n     def __init__(self, root=None):\n         self.root = None\n         self.enable_debug_privilege()\n \n         if not MemoryScanner._initialized:\n-            self.gui = self.update_gui_detections()\n+            self.gui = None\n             MemoryScanner._initialized = True\n             self.enable_debug_privilege()\n             logging.info(\"MemoryScanner\")\n*** End Patch"
+          }
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "commentary"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 444,
+        "cacheCreationInputTokens": 736,
+        "cacheReadInputTokens": 32640,
+        "totalInputTokens": 33376,
+        "timestamp": "2026-04-03T07:55:34.504Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 26,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_AIO6h19rnJVuBk3eSeZCnSEq",
+          "run": {
+            "status": "done",
+            "progress": {},
+            "result": {
+              "summary": "update: Memory.py (+2/-2)",
+              "files": [
+                {
+                  "path": "Memory.py",
+                  "uri": "file:///d%3A/X12/OFSP/Memory.py",
+                  "type": "update",
+                  "additions": 2,
+                  "deletions": 2,
+                  "diff": "Index: d:/X12/OFSP/Memory.py\n===================================================================\n--- d:/X12/OFSP/Memory.py\n+++ d:/X12/OFSP/Memory.py\n@@ -57,9 +57,9 @@\n \n SIZE_T = c_size_t\n class MemoryScanner:\n     _instance = None\n-    _initialized = True\n+    _initialized = False\n     shared_yara_manager = None  # Class variable to share YARA manager across instances\n     kernel32 = ctypes.windll.kernel32\n     kernel32: ctypes.WinDLL = ctypes.WinDLL('kernel32')\n     VirtualQueryEx = kernel32.VirtualQueryEx\n@@ -82,9 +82,9 @@\n         self.root = None\n         self.enable_debug_privilege()\n         \n         if not MemoryScanner._initialized:\n-            self.gui = self.update_gui_detections()\n+            self.gui = None\n             MemoryScanner._initialized = True\n             self.enable_debug_privilege()\n             logging.info(\"MemoryScanner\")\n         \n"
+                }
+              ]
+            },
+            "trackFiles": [
+              "file:///d%3A/X12/OFSP/Memory.py"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 27,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_42gfviZdB1HLBxv8NTD1YodX",
+          "name": "shell_command",
+          "input": {
+            "command": "python test_memory.py",
+            "workdir": "d:/X12/OFSP",
+            "timeout_ms": 120000
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 38,
+        "cacheCreationInputTokens": 597,
+        "cacheReadInputTokens": 33280,
+        "totalInputTokens": 33877,
+        "timestamp": "2026-04-03T07:55:36.015Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 28,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_42gfviZdB1HLBxv8NTD1YodX",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPDNS_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPDNS_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPGOPHER_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPGOPHER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPNATIVEZIPPER_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPNATIVEZIPPER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPNFS_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPNFS_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPPATCHCHECK_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPPATCHCHECK_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPSQLCLIENT_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPSQLCLIENT_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPTEMPLATE_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPTEMPLATE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPWEBCRAWLER_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPWEBCRAWLER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPZIPLIBZIPPER_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPZIPLIBZIPPER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_CredTheft_MSIL_CredSnatcher_1 (yara_rules\\custom_rules\\fireeye_CredTheft_MSIL_CredSnatcher_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_CredTheft_MSIL_WCMDump_1 (yara_rules\\custom_rules\\fireeye_CredTheft_MSIL_WCMDump_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Loader_MSIL_RuralBishop_3 (yara_rules\\custom_rules\\fireeye_Loader_MSIL_RuralBishop_3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_CredTheft_MSIL_TitoSpecial_2 (yara_rules\\custom_rules\\fireeye_CredTheft_MSIL_TitoSpecial_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Methodology_OLE_CHARENCODING_2 (yara_rules\\custom_rules\\fireeye_Methodology_OLE_CHARENCODING_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Builder_MSIL_SinfulOffice_1 (yara_rules\\custom_rules\\fireeye_Builder_MSIL_SinfulOffice_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SHARPZEROLOGON_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SHARPZEROLOGON_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Loader_MSIL_SharPy_1 (yara_rules\\custom_rules\\fireeye_Loader_MSIL_SharPy_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Tool_MSIL_CSharpUtils_1 (yara_rules\\custom_rules\\fireeye_Tool_MSIL_CSharpUtils_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPSTOMP_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPSTOMP_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPSTOMP_2 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPSTOMP_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharpStomp_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharpStomp_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharpSchtask_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharpSchtask_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_SHARPSACK_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_SHARPSACK_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Tool_MSIL_SharpGrep_1 (yara_rules\\custom_rules\\fireeye_Tool_MSIL_SharpGrep_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharPivot_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharPivot_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharPivot_2 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharPivot_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharPivot_3 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharPivot_3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharPivot_4 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharPivot_4.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Builder_MSIL_SharpGenerator_1 (yara_rules\\custom_rules\\fireeye_Builder_MSIL_SharpGenerator_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharPersist_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharPersist_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharPersist_2 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharPersist_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SAFETYKATZ_4 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SAFETYKATZ_4.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_Rubeus_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_Rubeus_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_REVOLVER_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_REVOLVER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Builder_PY_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Builder_PY_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Builder_PY_REDFLARE_2 (yara_rules\\custom_rules\\fireeye_APT_Builder_PY_REDFLARE_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Controller_Linux_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Controller_Linux_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Downloader_Win32_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Downloader_Win32_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Downloader_Win64_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Downloader_Win64_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Keylogger_Win32_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Keylogger_Win32_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Keylogger_Win64_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Keylogger_Win64_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Raw32_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Raw32_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Raw64_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Raw64_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win64_REDFLARE_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win64_REDFLARE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_PXELOOT_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_PXELOOT_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_PXELOOT_2 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_PXELOOT_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_PuppyHound_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_PuppyHound_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SharpHound_3 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SharpHound_3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_MSIL_PGF_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_MSIL_PGF_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_MSIL_PGF_2 (yara_rules\\custom_rules\\fireeye_APT_Loader_MSIL_PGF_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_PGF_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_PGF_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_PGF_2 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_PGF_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_PGF_3 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_PGF_3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_PGF_4 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_PGF_4.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_PGF_5 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_PGF_5.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win64_PGF_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win64_PGF_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win64_PGF_2 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win64_PGF_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win64_PGF_3 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win64_PGF_3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win64_PGF_4 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win64_PGF_4.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win64_PGF_5 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win64_PGF_5.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win_PGF_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win_PGF_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_NOAMCI_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_NOAMCI_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Builder_PY_MATRYOSHKA_1 (yara_rules\\custom_rules\\fireeye_APT_Builder_PY_MATRYOSHKA_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Dropper_Win64_MATRYOSHKA_1 (yara_rules\\custom_rules\\fireeye_APT_Dropper_Win64_MATRYOSHKA_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_LUALOADER_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_LUALOADER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_MSIL_LUALOADER_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_MSIL_LUALOADER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_MSIL_LUALOADER_2 (yara_rules\\custom_rules\\fireeye_APT_Loader_MSIL_LUALOADER_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Hunting_LNK_Win_GenericLauncher (yara_rules\\custom_rules\\fireeye_Hunting_LNK_Win_GenericLauncher.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Dropper_LNK_LNKSmasher_1 (yara_rules\\custom_rules\\fireeye_Dropper_LNK_LNKSmasher_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_KeePersist_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_KeePersist_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_KeeFarce_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_KeeFarce_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_JUSTASK_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_JUSTASK_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_INVEIGHZERO_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_INVEIGHZERO_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_PY_ImpacketObfuscation_2 (yara_rules\\custom_rules\\fireeye_HackTool_PY_ImpacketObfuscation_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_PY_ImpacketObfuscation_1 (yara_rules\\custom_rules\\fireeye_HackTool_PY_ImpacketObfuscation_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_GPOHUNT_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_GPOHUNT_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_GETDOMAINPASSWORDPOLICY_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_GETDOMAINPASSWORDPOLICY_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Builder_MSIL_G2JS_1 (yara_rules\\custom_rules\\fireeye_Builder_MSIL_G2JS_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Hunting_GadgetToJScript_1 (yara_rules\\custom_rules\\fireeye_Hunting_GadgetToJScript_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_FLUFFY_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_FLUFFY_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_FLUFFY_2 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_FLUFFY_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_Win64_EXCAVATOR_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_Win64_EXCAVATOR_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_Win64_EXCAVATOR_2 (yara_rules\\custom_rules\\fireeye_APT_HackTool_Win64_EXCAVATOR_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_CredTheft_Win_EXCAVATOR_2 (yara_rules\\custom_rules\\fireeye_CredTheft_Win_EXCAVATOR_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_HOLSTER_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_HOLSTER_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Loader_MSIL_DUEDLLIGENCE_2 (yara_rules\\custom_rules\\fireeye_Loader_MSIL_DUEDLLIGENCE_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_MSIL_Launcher_DUEDLLIGENCE_1 (yara_rules\\custom_rules\\fireeye_MSIL_Launcher_DUEDLLIGENCE_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_DTRIM_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_DTRIM_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_DShell_1 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_DShell_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_DShell_2 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_DShell_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_Loader_Win32_DShell_3 (yara_rules\\custom_rules\\fireeye_APT_Loader_Win32_DShell_3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_CoreHound_1 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_CoreHound_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_HackTool_MSIL_SEATBELT_2 (yara_rules\\custom_rules\\fireeye_HackTool_MSIL_SEATBELT_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Loader_Win_Generic_17 (yara_rules\\custom_rules\\fireeye_Loader_Win_Generic_17.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Loader_Win_Generic_18 (yara_rules\\custom_rules\\fireeye_Loader_Win_Generic_18.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_Loader_MSIL_AllTheThings_1 (yara_rules\\custom_rules\\fireeye_Loader_MSIL_AllTheThings_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_ADPassHunt_1 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_ADPassHunt_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_APT_HackTool_MSIL_ADPassHunt_2 (yara_rules\\custom_rules\\fireeye_APT_HackTool_MSIL_ADPassHunt_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_CredTheft_MSIL_ADPassHunt_1 (yara_rules\\custom_rules\\fireeye_CredTheft_MSIL_ADPassHunt_1.yar)\n  - Rule compiles successfully\nTesting rule file: custom_fireeye_CredTheft_MSIL_ADPassHunt_2 (yara_rules\\custom_rules\\fireeye_CredTheft_MSIL_ADPassHunt_2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_agent_btz (yara_rules\\custom_rules\\neo23x0_apt_agent_btz.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_area1_phishing_diplomacy (yara_rules\\custom_rules\\neo23x0_apt_area1_phishing_diplomacy.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_aus_parl_compromise (yara_rules\\custom_rules\\neo23x0_apt_aus_parl_compromise.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_backspace (yara_rules\\custom_rules\\neo23x0_apt_backspace.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_beepservice (yara_rules\\custom_rules\\neo23x0_apt_beepservice.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_between-hk-and-burma (yara_rules\\custom_rules\\neo23x0_apt_between-hk-and-burma.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_blackenergy_installer (yara_rules\\custom_rules\\neo23x0_apt_blackenergy_installer.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_buckeye (yara_rules\\custom_rules\\neo23x0_apt_buckeye.yar)\n  - Contains external variables: drive\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_cloudatlas (yara_rules\\custom_rules\\neo23x0_apt_cloudatlas.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_cn_netfilter (yara_rules\\custom_rules\\neo23x0_apt_cn_netfilter.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_cobaltstrike_evasive (yara_rules\\custom_rules\\neo23x0_apt_cobaltstrike_evasive.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_dubnium (yara_rules\\custom_rules\\neo23x0_apt_dubnium.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_duqu1_5_modules (yara_rules\\custom_rules\\neo23x0_apt_duqu1_5_modules.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_eqgrp_sparc_sbz_apr23 (yara_rules\\custom_rules\\neo23x0_apt_eqgrp_sparc_sbz_apr23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_eqgrp_triangulation_jun23 (yara_rules\\custom_rules\\neo23x0_apt_eqgrp_triangulation_jun23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_exile_rat (yara_rules\\custom_rules\\neo23x0_apt_exile_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_fancybear_computrace_agent (yara_rules\\custom_rules\\neo23x0_apt_fancybear_computrace_agent.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_fancybear_dnc (yara_rules\\custom_rules\\neo23x0_apt_fancybear_dnc.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_fancybear_osxagent (yara_rules\\custom_rules\\neo23x0_apt_fancybear_osxagent.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_flame2_orchestrator (yara_rules\\custom_rules\\neo23x0_apt_flame2_orchestrator.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_fujinama_rat (yara_rules\\custom_rules\\neo23x0_apt_fujinama_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_ghostdragon_gh0st_rat (yara_rules\\custom_rules\\neo23x0_apt_ghostdragon_gh0st_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_hellsing_kaspersky (yara_rules\\custom_rules\\neo23x0_apt_hellsing_kaspersky.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_hiddencobra_wiper (yara_rules\\custom_rules\\neo23x0_apt_hiddencobra_wiper.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_keylogger_cn (yara_rules\\custom_rules\\neo23x0_apt_keylogger_cn.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_korplug_fast (yara_rules\\custom_rules\\neo23x0_apt_korplug_fast.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_kwampirs (yara_rules\\custom_rules\\neo23x0_apt_kwampirs.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_lazarus_dec20 (yara_rules\\custom_rules\\neo23x0_apt_lazarus_dec20.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_lazarus_jun18 (yara_rules\\custom_rules\\neo23x0_apt_lazarus_jun18.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_lazarus_vhd_ransomware (yara_rules\\custom_rules\\neo23x0_apt_lazarus_vhd_ransomware.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_lnx_linadoor_rootkit (yara_rules\\custom_rules\\neo23x0_apt_lnx_linadoor_rootkit.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_mal_ilo_board_elf (yara_rules\\custom_rules\\neo23x0_apt_mal_ilo_board_elf.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_muddywater (yara_rules\\custom_rules\\neo23x0_apt_muddywater.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_nazar (yara_rules\\custom_rules\\neo23x0_apt_nazar.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_netwire_rat (yara_rules\\custom_rules\\neo23x0_apt_netwire_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_nobellium_rdp_phish (yara_rules\\custom_rules\\neo23x0_apt_nobellium_rdp_phish.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_onhat_proxy (yara_rules\\custom_rules\\neo23x0_apt_onhat_proxy.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_plead_downloader (yara_rules\\custom_rules\\neo23x0_apt_plead_downloader.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_poisonivy_gen3 (yara_rules\\custom_rules\\neo23x0_apt_poisonivy_gen3.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_royalroad (yara_rules\\custom_rules\\neo23x0_apt_royalroad.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_shadowpad (yara_rules\\custom_rules\\neo23x0_apt_shadowpad.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_shamoon2 (yara_rules\\custom_rules\\neo23x0_apt_shamoon2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_shellcrew_streamex (yara_rules\\custom_rules\\neo23x0_apt_shellcrew_streamex.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_sidewinder (yara_rules\\custom_rules\\neo23x0_apt_sidewinder.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_solarwinds_susp_sunburst (yara_rules\\custom_rules\\neo23x0_apt_solarwinds_susp_sunburst.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_stealer_cisa_ar22_277a (yara_rules\\custom_rules\\neo23x0_apt_stealer_cisa_ar22_277a.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_stuxshop (yara_rules\\custom_rules\\neo23x0_apt_stuxshop.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_sysscan (yara_rules\\custom_rules\\neo23x0_apt_sysscan.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_ta17_318A (yara_rules\\custom_rules\\neo23x0_apt_ta17_318A.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_ta397_dec24 (yara_rules\\custom_rules\\neo23x0_apt_ta397_dec24.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_tetris (yara_rules\\custom_rules\\neo23x0_apt_tetris.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_tick_weaponized_usb (yara_rules\\custom_rules\\neo23x0_apt_tick_weaponized_usb.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_turla_png_dropper_nov18 (yara_rules\\custom_rules\\neo23x0_apt_turla_png_dropper_nov18.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_uboat_rat (yara_rules\\custom_rules\\neo23x0_apt_uboat_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_unc1151_ua (yara_rules\\custom_rules\\neo23x0_apt_unc1151_ua.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_volttyphoon_versamem (yara_rules\\custom_rules\\neo23x0_apt_volttyphoon_versamem.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_webshell_chinachopper (yara_rules\\custom_rules\\neo23x0_apt_webshell_chinachopper.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_winnti_br (yara_rules\\custom_rules\\neo23x0_apt_winnti_br.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_winnti_linux (yara_rules\\custom_rules\\neo23x0_apt_winnti_linux.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_apt_winnti_ms_report_201701 (yara_rules\\custom_rules\\neo23x0_apt_winnti_ms_report_201701.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_configured_vulns_ext_vars (yara_rules\\custom_rules\\neo23x0_configured_vulns_ext_vars.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_andromeda_jun17 (yara_rules\\custom_rules\\neo23x0_crime_andromeda_jun17.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_bad_patch (yara_rules\\custom_rules\\neo23x0_crime_bad_patch.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_cmstar (yara_rules\\custom_rules\\neo23x0_crime_cmstar.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_cobalt_gang_pdf (yara_rules\\custom_rules\\neo23x0_crime_cobalt_gang_pdf.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_corkow_dll (yara_rules\\custom_rules\\neo23x0_crime_corkow_dll.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_covid_ransom (yara_rules\\custom_rules\\neo23x0_crime_covid_ransom.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_crypto_miner (yara_rules\\custom_rules\\neo23x0_crime_crypto_miner.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_dearcry_ransom (yara_rules\\custom_rules\\neo23x0_crime_dearcry_ransom.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_gamaredon (yara_rules\\custom_rules\\neo23x0_crime_gamaredon.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_goldeneye (yara_rules\\custom_rules\\neo23x0_crime_goldeneye.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_gozi_crypter (yara_rules\\custom_rules\\neo23x0_crime_gozi_crypter.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_hermes_ransom (yara_rules\\custom_rules\\neo23x0_crime_hermes_ransom.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_icedid (yara_rules\\custom_rules\\neo23x0_crime_icedid.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_locky (yara_rules\\custom_rules\\neo23x0_crime_locky.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_loki_bot (yara_rules\\custom_rules\\neo23x0_crime_loki_bot.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_mal_ransom_wadharma (yara_rules\\custom_rules\\neo23x0_crime_mal_ransom_wadharma.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_maze_ransomware (yara_rules\\custom_rules\\neo23x0_crime_maze_ransomware.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_mywscript_dropper (yara_rules\\custom_rules\\neo23x0_crime_mywscript_dropper.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ole_loadswf_cve_2018_4878 (yara_rules\\custom_rules\\neo23x0_crime_ole_loadswf_cve_2018_4878.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_conti (yara_rules\\custom_rules\\neo23x0_crime_ransom_conti.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_generic (yara_rules\\custom_rules\\neo23x0_crime_ransom_generic.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_lockergoga (yara_rules\\custom_rules\\neo23x0_crime_ransom_lockergoga.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_ragna_locker (yara_rules\\custom_rules\\neo23x0_crime_ransom_ragna_locker.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_revil (yara_rules\\custom_rules\\neo23x0_crime_ransom_revil.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_robinhood (yara_rules\\custom_rules\\neo23x0_crime_ransom_robinhood.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_stealbit_lockbit (yara_rules\\custom_rules\\neo23x0_crime_ransom_stealbit_lockbit.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ransom_venus (yara_rules\\custom_rules\\neo23x0_crime_ransom_venus.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_rombertik_carbongrabber (yara_rules\\custom_rules\\neo23x0_crime_rombertik_carbongrabber.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_ryuk_ransomware (yara_rules\\custom_rules\\neo23x0_crime_ryuk_ransomware.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_snarasite (yara_rules\\custom_rules\\neo23x0_crime_snarasite.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_socgholish (yara_rules\\custom_rules\\neo23x0_crime_socgholish.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_stealer_exfil_zip (yara_rules\\custom_rules\\neo23x0_crime_stealer_exfil_zip.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_crime_zloader_maldocs (yara_rules\\custom_rules\\neo23x0_crime_zloader_maldocs.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_exploit_cve_2018_16858 (yara_rules\\custom_rules\\neo23x0_exploit_cve_2018_16858.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_exploit_cve_2023_38146 (yara_rules\\custom_rules\\neo23x0_exploit_cve_2023_38146.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_ace_with_exe (yara_rules\\custom_rules\\neo23x0_gen_ace_with_exe.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_anomalies_keyword_combos (yara_rules\\custom_rules\\neo23x0_gen_anomalies_keyword_combos.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_anydesk_compromised_cert_feb23 (yara_rules\\custom_rules\\neo23x0_gen_anydesk_compromised_cert_feb23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_b374k_extra (yara_rules\\custom_rules\\neo23x0_gen_b374k_extra.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_bad_pdf (yara_rules\\custom_rules\\neo23x0_gen_bad_pdf.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_brooxml_dec24 (yara_rules\\custom_rules\\neo23x0_gen_brooxml_dec24.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_case_anomalies (yara_rules\\custom_rules\\neo23x0_gen_case_anomalies.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_cert_payloads (yara_rules\\custom_rules\\neo23x0_gen_cert_payloads.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_chaos_payload (yara_rules\\custom_rules\\neo23x0_gen_chaos_payload.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_cmd_script_obfuscated (yara_rules\\custom_rules\\neo23x0_gen_cmd_script_obfuscated.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_cn_hacktool_scripts (yara_rules\\custom_rules\\neo23x0_gen_cn_hacktool_scripts.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_crime_bitpaymer (yara_rules\\custom_rules\\neo23x0_gen_crime_bitpaymer.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_crunchrat (yara_rules\\custom_rules\\neo23x0_gen_crunchrat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_dde_in_office_docs (yara_rules\\custom_rules\\neo23x0_gen_dde_in_office_docs.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_dropper_pdb (yara_rules\\custom_rules\\neo23x0_gen_dropper_pdb.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_elf_file_anomalies (yara_rules\\custom_rules\\neo23x0_gen_elf_file_anomalies.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_excel_xor_obfuscation_velvetsweatshop (yara_rules\\custom_rules\\neo23x0_gen_excel_xor_obfuscation_velvetsweatshop.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_faked_versions (yara_rules\\custom_rules\\neo23x0_gen_faked_versions.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_file_anomalies (yara_rules\\custom_rules\\neo23x0_gen_file_anomalies.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_frp_proxy (yara_rules\\custom_rules\\neo23x0_gen_frp_proxy.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_gcti_sliver (yara_rules\\custom_rules\\neo23x0_gen_gcti_sliver.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_github_repo_compromise_myjino_ru (yara_rules\\custom_rules\\neo23x0_gen_github_repo_compromise_myjino_ru.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_gobfuscate (yara_rules\\custom_rules\\neo23x0_gen_gobfuscate.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_google_anomaly (yara_rules\\custom_rules\\neo23x0_gen_google_anomaly.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_gpp_cpassword (yara_rules\\custom_rules\\neo23x0_gen_gpp_cpassword.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_hawkeye (yara_rules\\custom_rules\\neo23x0_gen_hawkeye.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_hktl_koh_tokenstealer (yara_rules\\custom_rules\\neo23x0_gen_hktl_koh_tokenstealer.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_hktl_roothelper (yara_rules\\custom_rules\\neo23x0_gen_hktl_roothelper.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_hta_anomalies (yara_rules\\custom_rules\\neo23x0_gen_hta_anomalies.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_hunting_susp_rar (yara_rules\\custom_rules\\neo23x0_gen_hunting_susp_rar.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_icon_anomalies (yara_rules\\custom_rules\\neo23x0_gen_icon_anomalies.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_impacket_tools (yara_rules\\custom_rules\\neo23x0_gen_impacket_tools.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_invoke_psimage (yara_rules\\custom_rules\\neo23x0_gen_invoke_psimage.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_kerberoast (yara_rules\\custom_rules\\neo23x0_gen_kerberoast.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_kirbi_mimkatz (yara_rules\\custom_rules\\neo23x0_gen_kirbi_mimkatz.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_macro_ShellExecute_action (yara_rules\\custom_rules\\neo23x0_gen_macro_ShellExecute_action.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_macro_builders (yara_rules\\custom_rules\\neo23x0_gen_macro_builders.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_macro_staroffice_suspicious (yara_rules\\custom_rules\\neo23x0_gen_macro_staroffice_suspicious.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_mal_link (yara_rules\\custom_rules\\neo23x0_gen_mal_link.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_maldoc (yara_rules\\custom_rules\\neo23x0_gen_maldoc.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_merlin_agent (yara_rules\\custom_rules\\neo23x0_gen_merlin_agent.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_metasploit_loader_rsmudge (yara_rules\\custom_rules\\neo23x0_gen_metasploit_loader_rsmudge.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_net_xorstrings (yara_rules\\custom_rules\\neo23x0_gen_net_xorstrings.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_nighthawk_c2 (yara_rules\\custom_rules\\neo23x0_gen_nighthawk_c2.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_nimpackt (yara_rules\\custom_rules\\neo23x0_gen_nimpackt.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_nopowershell (yara_rules\\custom_rules\\neo23x0_gen_nopowershell.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_nvidia_leaked_cert (yara_rules\\custom_rules\\neo23x0_gen_nvidia_leaked_cert.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_onenote_phish (yara_rules\\custom_rules\\neo23x0_gen_onenote_phish.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_osx_pyagent_persistence (yara_rules\\custom_rules\\neo23x0_gen_osx_pyagent_persistence.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_phish_attachments (yara_rules\\custom_rules\\neo23x0_gen_phish_attachments.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_powershdll (yara_rules\\custom_rules\\neo23x0_gen_powershdll.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_powershell_invocation (yara_rules\\custom_rules\\neo23x0_gen_powershell_invocation.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_powershell_obfuscation (yara_rules\\custom_rules\\neo23x0_gen_powershell_obfuscation.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_powersploit_dropper (yara_rules\\custom_rules\\neo23x0_gen_powersploit_dropper.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_ps_empire_eval (yara_rules\\custom_rules\\neo23x0_gen_ps_empire_eval.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_pua (yara_rules\\custom_rules\\neo23x0_gen_pua.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_python_encoded_adware (yara_rules\\custom_rules\\neo23x0_gen_python_encoded_adware.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_python_pty_shell (yara_rules\\custom_rules\\neo23x0_gen_python_pty_shell.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_rar_exfil (yara_rules\\custom_rules\\neo23x0_gen_rar_exfil.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_redmimicry (yara_rules\\custom_rules\\neo23x0_gen_redmimicry.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_regsrv32_issue (yara_rules\\custom_rules\\neo23x0_gen_regsrv32_issue.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_remote_potato0 (yara_rules\\custom_rules\\neo23x0_gen_remote_potato0.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_rottenpotato (yara_rules\\custom_rules\\neo23x0_gen_rottenpotato.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_sfx_with_microsoft_copyright (yara_rules\\custom_rules\\neo23x0_gen_sfx_with_microsoft_copyright.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_sharpcat (yara_rules\\custom_rules\\neo23x0_gen_sharpcat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_shikataganai (yara_rules\\custom_rules\\neo23x0_gen_shikataganai.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_bat2exe (yara_rules\\custom_rules\\neo23x0_gen_susp_bat2exe.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_bat_aux (yara_rules\\custom_rules\\neo23x0_gen_susp_bat_aux.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_cmd_var_expansion (yara_rules\\custom_rules\\neo23x0_gen_susp_cmd_var_expansion.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_indicators (yara_rules\\custom_rules\\neo23x0_gen_susp_indicators.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_js_obfuscatorio (yara_rules\\custom_rules\\neo23x0_gen_susp_js_obfuscatorio.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_lnk (yara_rules\\custom_rules\\neo23x0_gen_susp_lnk.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_lnk_files (yara_rules\\custom_rules\\neo23x0_gen_susp_lnk_files.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_obfuscation (yara_rules\\custom_rules\\neo23x0_gen_susp_obfuscation.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_ps_jab (yara_rules\\custom_rules\\neo23x0_gen_susp_ps_jab.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_sfx (yara_rules\\custom_rules\\neo23x0_gen_susp_sfx.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_strings_in_ole (yara_rules\\custom_rules\\neo23x0_gen_susp_strings_in_ole.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_svg_js_phish_mar25 (yara_rules\\custom_rules\\neo23x0_gen_susp_svg_js_phish_mar25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_susp_xor (yara_rules\\custom_rules\\neo23x0_gen_susp_xor.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_sysinternals_anomaly (yara_rules\\custom_rules\\neo23x0_gen_sysinternals_anomaly.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_thumbs_cloaking (yara_rules\\custom_rules\\neo23x0_gen_thumbs_cloaking.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_unicorn_obfuscated_powershell (yara_rules\\custom_rules\\neo23x0_gen_unicorn_obfuscated_powershell.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_vhd_anomaly (yara_rules\\custom_rules\\neo23x0_gen_vhd_anomaly.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_webshell_csharp (yara_rules\\custom_rules\\neo23x0_gen_webshell_csharp.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_webshells_ext_vars (yara_rules\\custom_rules\\neo23x0_gen_webshells_ext_vars.yar)\n  - Contains external variables: variables\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_win_privesc (yara_rules\\custom_rules\\neo23x0_gen_win_privesc.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_winpayloads (yara_rules\\custom_rules\\neo23x0_gen_winpayloads.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_winshells (yara_rules\\custom_rules\\neo23x0_gen_winshells.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_xor_hunting (yara_rules\\custom_rules\\neo23x0_gen_xor_hunting.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_xored_pe (yara_rules\\custom_rules\\neo23x0_gen_xored_pe.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_xtreme_rat (yara_rules\\custom_rules\\neo23x0_gen_xtreme_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_zoho_rcef_logs (yara_rules\\custom_rules\\neo23x0_gen_zoho_rcef_logs.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_general_cloaking (yara_rules\\custom_rules\\neo23x0_general_cloaking.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_general_officemacros (yara_rules\\custom_rules\\neo23x0_general_officemacros.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_generic_exe2hex_payload (yara_rules\\custom_rules\\neo23x0_generic_exe2hex_payload.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_hktl_HvS_nfs_security_tooling (yara_rules\\custom_rules\\neo23x0_hktl_HvS_nfs_security_tooling.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_hktl_bruteratel_c4_badger (yara_rules\\custom_rules\\neo23x0_hktl_bruteratel_c4_badger.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_hktl_natbypass (yara_rules\\custom_rules\\neo23x0_hktl_natbypass.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_log_teamviewer_keyboard_layouts (yara_rules\\custom_rules\\neo23x0_log_teamviewer_keyboard_layouts.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_avemaria_rat (yara_rules\\custom_rules\\neo23x0_mal_avemaria_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_bibi_wiper_oct23 (yara_rules\\custom_rules\\neo23x0_mal_bibi_wiper_oct23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_codecov_hack (yara_rules\\custom_rules\\neo23x0_mal_codecov_hack.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_coralwave_remcos_dropper (yara_rules\\custom_rules\\neo23x0_mal_coralwave_remcos_dropper.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_crime_unknown (yara_rules\\custom_rules\\neo23x0_mal_crime_unknown.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_cryp_rat (yara_rules\\custom_rules\\neo23x0_mal_cryp_rat.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_ducktail_compromised_certs_jun23 (yara_rules\\custom_rules\\neo23x0_mal_ducktail_compromised_certs_jun23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_etoroloro_nodepackage_dec25 (yara_rules\\custom_rules\\neo23x0_mal_etoroloro_nodepackage_dec25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_inc_ransomware (yara_rules\\custom_rules\\neo23x0_mal_inc_ransomware.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_katz_stealer (yara_rules\\custom_rules\\neo23x0_mal_katz_stealer.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_lockbit4_hashing_alg_win_feb24 (yara_rules\\custom_rules\\neo23x0_mal_lockbit4_hashing_alg_win_feb24.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_lockbit4_packed_win_feb24 (yara_rules\\custom_rules\\neo23x0_mal_lockbit4_packed_win_feb24.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_lockbit4_rc4_win_feb24 (yara_rules\\custom_rules\\neo23x0_mal_lockbit4_rc4_win_feb24.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_lockbit_lnx_macos_apr23 (yara_rules\\custom_rules\\neo23x0_mal_lockbit_lnx_macos_apr23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_npm_supply_chain_sep25 (yara_rules\\custom_rules\\neo23x0_mal_npm_supply_chain_sep25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_octowave_loader_mar25 (yara_rules\\custom_rules\\neo23x0_mal_octowave_loader_mar25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_qbot_feb23 (yara_rules\\custom_rules\\neo23x0_mal_qbot_feb23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_qbot_payloads (yara_rules\\custom_rules\\neo23x0_mal_qbot_payloads.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_ralordv1_win_ap25 (yara_rules\\custom_rules\\neo23x0_mal_ralordv1_win_ap25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_soupdealer_java_aug25 (yara_rules\\custom_rules\\neo23x0_mal_soupdealer_java_aug25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_win_akira_apr25 (yara_rules\\custom_rules\\neo23x0_mal_win_akira_apr25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_win_amadey_jun25 (yara_rules\\custom_rules\\neo23x0_mal_win_amadey_jun25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_win_megazord_apr25 (yara_rules\\custom_rules\\neo23x0_mal_win_megazord_apr25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mal_wipers_jun25 (yara_rules\\custom_rules\\neo23x0_mal_wipers_jun25.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_mixed_open_source_export (yara_rules\\custom_rules\\neo23x0_mixed_open_source_export.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_pup_lightftp (yara_rules\\custom_rules\\neo23x0_pup_lightftp.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_susp_bat_obfusc_jul24 (yara_rules\\custom_rules\\neo23x0_susp_bat_obfusc_jul24.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_susp_claude_magic_strings (yara_rules\\custom_rules\\neo23x0_susp_claude_magic_strings.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_susp_email_redirection_spoofing (yara_rules\\custom_rules\\neo23x0_susp_email_redirection_spoofing.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_susp_vulndriver_hp_hardware_diagnostics_etdsupp_may23 (yara_rules\\custom_rules\\neo23x0_susp_vulndriver_hp_hardware_diagnostics_etdsupp_may23.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_threat_lenovo_superfish (yara_rules\\custom_rules\\neo23x0_threat_lenovo_superfish.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vul_cve_2020_0688 (yara_rules\\custom_rules\\neo23x0_vul_cve_2020_0688.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vul_cve_2020_1938 (yara_rules\\custom_rules\\neo23x0_vul_cve_2020_1938.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vul_cve_2021_3438_printdriver (yara_rules\\custom_rules\\neo23x0_vul_cve_2021_3438_printdriver.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vul_cve_2021_386471_omi (yara_rules\\custom_rules\\neo23x0_vul_cve_2021_386471_omi.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vul_dell_bios_upd_driver (yara_rules\\custom_rules\\neo23x0_vul_dell_bios_upd_driver.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vuln_erlang_otp_ssh_cve_2025_32433 (yara_rules\\custom_rules\\neo23x0_vuln_erlang_otp_ssh_cve_2025_32433.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vuln_gigabyte_driver (yara_rules\\custom_rules\\neo23x0_vuln_gigabyte_driver.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_vuln_keepass_brute_forcible (yara_rules\\custom_rules\\neo23x0_vuln_keepass_brute_forcible.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_webshell_regeorg (yara_rules\\custom_rules\\neo23x0_webshell_regeorg.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_webshell_xsl_transform (yara_rules\\custom_rules\\neo23x0_webshell_xsl_transform.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_yara-rules_mal_drivers (yara_rules\\custom_rules\\neo23x0_yara-rules_mal_drivers.yar)\n  - Rule compiles successfully\nTesting rule file: custom_neo23x0_gen_python_reverse_shell (yara_rules\\custom_rules\\neo23x0_gen_python_reverse_shell.yar)\n  - Rule compiles successfully\n\nRecompiling with 1048 valid rules...\nYARA rules compiled successfully!\n   MemoryScanner created successfully!\n",
+              "truncation": {
+                "prefixLinesOmitted": 5804
+              },
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 29,
+      "content": [
+        {
+          "type": "tool_use",
+          "complete": true,
+          "id": "call_LxrI2eQNnv97jWBY3HJAOC8E",
+          "name": "shell_command",
+          "input": {
+            "command": "nl -ba Memory.py | sed -n '52,98p'",
+            "workdir": "d:/X12/OFSP"
+          }
+        }
+      ],
+      "state": {
+        "type": "complete",
+        "stopReason": "tool_use"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 125,
+        "cacheCreationInputTokens": 16452,
+        "cacheReadInputTokens": 33792,
+        "totalInputTokens": 50244,
+        "timestamp": "2026-04-03T07:57:58.369Z"
+      }
+    },
+    {
+      "role": "user",
+      "messageId": 30,
+      "content": [
+        {
+          "type": "tool_result",
+          "toolUseID": "call_LxrI2eQNnv97jWBY3HJAOC8E",
+          "run": {
+            "status": "done",
+            "result": {
+              "output": "    52  try:\n    53      from ShellCodeMagic import CodeDisassembler, ThreatQuarantine\n    54  except ImportError:\n    55      CodeDisassembler = None\n    56      ThreatQuarantine = None\n    57\n    58  SIZE_T = c_size_t\n    59  class MemoryScanner:\n    60      _instance = None\n    61      _initialized = False\n    62      shared_yara_manager = None  # Class variable to share YARA manager across instances\n    63      kernel32 = ctypes.windll.kernel32\n    64      kernel32: ctypes.WinDLL = ctypes.WinDLL('kernel32')\n    65      VirtualQueryEx = kernel32.VirtualQueryEx\n    66      VirtualQueryEx.argtypes = [\n    67          HANDLE,  # hProcess\n    68          LPCVOID, # lpAddress\n    69          ctypes.POINTER(MEMORY_BASIC_INFORMATION), # lpBuffer\n    70          SIZE_T   # dwLength\n    71      ]\n    72      # Use constants from shared_constants\n    73      MEM_COMMIT = MEM_COMMIT\n    74      PAGE_EXECUTE_READWRITE = PAGE_EXECUTE_READWRITE\n    75      @classmethod\n    76      def __new__(cls, *args, **kwargs):\n    77          if cls._instance is None:\n    78              cls._instance = super().__new__(cls)\n    79              cls._instance._initialized = False\n    80          return cls._instance\n    81      def __init__(self, root=None):\n    82          self.root = None\n    83          self.enable_debug_privilege()\n    84\n    85          if not MemoryScanner._initialized:\n    86              self.gui = None\n    87              MemoryScanner._initialized = True\n    88              self.enable_debug_privilege()\n    89              logging.info(\"MemoryScanner\")\n    90\n    91          # Use shared YARA manager if available, otherwise create one\n    92          self.yara_manager = None\n    93          if MemoryScanner.shared_yara_manager:\n    94              self.yara_manager = MemoryScanner.shared_yara_manager\n    95              logging.info(\"Using shared YaraRuleManager instance\")\n    96          elif YaraRuleManager and getattr(self, 'yara_manager', None) is None:\n    97              self.yara_manager = YaraRuleManager()\n    98              logging.info(\"Created new YaraRuleManager instance\")\n",
+              "exitCode": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "messageId": 31,
+      "content": [
+        {
+          "type": "text",
+          "text": "Updated the memory scanner initialization so first-run setup is now valid and stable.\n\n1. Changed [`Memory.py`](file:///d:/X12/OFSP/Memory.py#L59-L89) to set `MemoryScanner._initialized = False` by default, so first initialization logic actually runs once.\n2. Replaced the invalid first-run call `self.update_gui_detections()` with `self.gui = None` in [`Memory.py`](file:///d:/X12/OFSP/Memory.py#L85-L87), avoiding a bad call signature during scanner startup.\n\nValidation:\n1. Ran `python test_memory.py` successfully; it completed YARA compilation and ended with `MemoryScanner created successfully!`.\n\nIf by “memoryt scanners” you meant a different file/module (for example `Unnamed.py` mirror class or GUI behavior), point me to it and I’ll update that too."
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "final_answer"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "end_turn"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 186,
+        "cacheCreationInputTokens": 705,
+        "cacheReadInputTokens": 50176,
+        "totalInputTokens": 50881,
+        "timestamp": "2026-04-03T07:58:02.920Z"
+      },
+      "turnElapsedMs": 256234
+    }
+  ],
+  "agentMode": "deep",
+  "nextMessageId": 32,
+  "meta": {
+    "traces": [
+      {
+        "name": "agent",
+        "id": "MIJfI",
+        "startTime": "2026-04-03T07:53:46.687Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:58:02.921Z"
+      },
+      {
+        "name": "inference",
+        "id": "nMmnK",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:53:46.690Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:53:51.312Z"
+      },
+      {
+        "name": "tools",
+        "id": "SWNEH",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:53:51.310Z",
+        "context": {
+          "messageId": 1
+        },
+        "endTime": "2026-04-03T07:53:51.577Z"
+      },
+      {
+        "name": "inference",
+        "id": "DFHff",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:53:51.577Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:53:54.173Z"
+      },
+      {
+        "name": "tools",
+        "id": "1U3vW",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:53:54.172Z",
+        "context": {
+          "messageId": 3
+        },
+        "endTime": "2026-04-03T07:53:58.680Z"
+      },
+      {
+        "name": "inference",
+        "id": "Pytq9",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:53:58.694Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:54:01.920Z"
+      },
+      {
+        "name": "tools",
+        "id": "ebe2a",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:01.919Z",
+        "context": {
+          "messageId": 5
+        },
+        "endTime": "2026-04-03T07:54:02.110Z"
+      },
+      {
+        "name": "inference",
+        "id": "1WWxI",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:02.111Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:54:03.338Z"
+      },
+      {
+        "name": "tools",
+        "id": "jAAi9",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:03.338Z",
+        "context": {
+          "messageId": 7
+        },
+        "endTime": "2026-04-03T07:54:34.797Z"
+      },
+      {
+        "name": "inference",
+        "id": "TmJnO",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:34.798Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:54:42.645Z"
+      },
+      {
+        "name": "tools",
+        "id": "fqRWN",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:42.645Z",
+        "context": {
+          "messageId": 9
+        },
+        "endTime": "2026-04-03T07:54:42.939Z"
+      },
+      {
+        "name": "inference",
+        "id": "VpFUt",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:42.940Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:54:46.407Z"
+      },
+      {
+        "name": "tools",
+        "id": "O8V8l",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:46.406Z",
+        "context": {
+          "messageId": 11
+        },
+        "endTime": "2026-04-03T07:54:46.644Z"
+      },
+      {
+        "name": "inference",
+        "id": "ufn8A",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:46.646Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:54:51.553Z"
+      },
+      {
+        "name": "tools",
+        "id": "YKJtL",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:51.553Z",
+        "context": {
+          "messageId": 13
+        },
+        "endTime": "2026-04-03T07:54:51.754Z"
+      },
+      {
+        "name": "inference",
+        "id": "FsCPV",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:51.756Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:54:59.028Z"
+      },
+      {
+        "name": "tools",
+        "id": "bdVWV",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:59.027Z",
+        "context": {
+          "messageId": 15
+        },
+        "endTime": "2026-04-03T07:54:59.245Z"
+      },
+      {
+        "name": "inference",
+        "id": "8TfVz",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:54:59.247Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:55:09.479Z"
+      },
+      {
+        "name": "tools",
+        "id": "cWRIV",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:09.479Z",
+        "context": {
+          "messageId": 17
+        },
+        "endTime": "2026-04-03T07:55:10.173Z"
+      },
+      {
+        "name": "inference",
+        "id": "tG624",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:10.174Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:55:18.958Z"
+      },
+      {
+        "name": "tools",
+        "id": "fbBf4",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:18.958Z",
+        "context": {
+          "messageId": 19
+        },
+        "endTime": "2026-04-03T07:55:19.184Z"
+      },
+      {
+        "name": "inference",
+        "id": "2yFz7",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:19.186Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:55:22.968Z"
+      },
+      {
+        "name": "tools",
+        "id": "IwKb6",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:22.967Z",
+        "context": {
+          "messageId": 21
+        },
+        "endTime": "2026-04-03T07:55:23.272Z"
+      },
+      {
+        "name": "inference",
+        "id": "cPFjG",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:23.273Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:55:26.111Z"
+      },
+      {
+        "name": "tools",
+        "id": "7YZQm",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:26.111Z",
+        "context": {
+          "messageId": 23
+        },
+        "endTime": "2026-04-03T07:55:26.398Z"
+      },
+      {
+        "name": "inference",
+        "id": "T60Fp",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:26.399Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:55:34.506Z"
+      },
+      {
+        "name": "tools",
+        "id": "tvSFi",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:34.506Z",
+        "context": {
+          "messageId": 25
+        },
+        "endTime": "2026-04-03T07:55:34.678Z"
+      },
+      {
+        "name": "inference",
+        "id": "CXeQd",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:34.680Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:55:36.031Z"
+      },
+      {
+        "name": "tools",
+        "id": "2DA9j",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:55:36.030Z",
+        "context": {
+          "messageId": 27
+        },
+        "endTime": "2026-04-03T07:57:54.364Z"
+      },
+      {
+        "name": "inference",
+        "id": "rStHi",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:57:54.374Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:57:58.377Z"
+      },
+      {
+        "name": "tools",
+        "id": "uzLLv",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:57:58.376Z",
+        "context": {
+          "messageId": 29
+        },
+        "endTime": "2026-04-03T07:57:59.078Z"
+      },
+      {
+        "name": "inference",
+        "id": "8KKsW",
+        "parent": "MIJfI",
+        "startTime": "2026-04-03T07:57:59.079Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-04-03T07:58:02.922Z"
+      }
+    ]
+  },
+  "env": {
+    "initial": {
+      "trees": [
+        {
+          "displayName": "OFSP",
+          "uri": "file:///d%3A/X12/OFSP",
+          "repository": {
+            "type": "git",
+            "url": "https://github.com/xosski/ofsp",
+            "ref": "refs/heads/main",
+            "sha": "f05f3c12ce44e50055bcbc5773d88f8e886f391f"
+          }
+        }
+      ],
+      "platform": {
+        "os": "windows",
+        "osVersion": "Microsoft Windows 11 Home Single Language 10.0.26100 N/A Build 26100",
+        "cpuArchitecture": "x64",
+        "webBrowser": false,
+        "client": "CLI",
+        "clientVersion": "0.0.1772755761-g627c2b",
+        "clientType": "cli",
+        "installationID": "8819158e-3869-407a-a12a-bc15f9d818fe",
+        "deviceFingerprint": "v1:fp_27d82d9b8fbc23e68ca4dab7d875d80ab12031a0d874d8cad4fdf2de6ee06e9c"
+      },
+      "tags": [
+        "model:gpt-5.3-codex"
+      ]
+    }
+  },
+  "title": "Update the memory scanners",
+  "~debug": {
+    "lastInferenceUsage": {
+      "model": "gpt-5.3-codex",
+      "maxInputTokens": 272000,
+      "inputTokens": 0,
+      "outputTokens": 444,
+      "cacheCreationInputTokens": 16452,
+      "cacheReadInputTokens": 50176,
+      "totalInputTokens": 50881,
+      "timestamp": "2026-04-03T07:58:02.920Z"
+    }
+  }
+}

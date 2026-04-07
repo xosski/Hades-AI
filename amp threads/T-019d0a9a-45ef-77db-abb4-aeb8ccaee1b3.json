@@ -1,0 +1,178 @@
+{
+  "v": 266,
+  "id": "T-019d0a9a-45ef-77db-abb4-aeb8ccaee1b3",
+  "created": 1773999375862,
+  "messages": [
+    {
+      "role": "user",
+      "messageId": 0,
+      "content": [
+        {
+          "type": "text",
+          "text": "test"
+        }
+      ],
+      "userState": {
+        "currentlyVisibleFiles": []
+      },
+      "agentMode": "deep",
+      "meta": {
+        "sentAt": 1773999416257
+      }
+    },
+    {
+      "role": "assistant",
+      "messageId": 1,
+      "content": [
+        {
+          "type": "text",
+          "text": "Ready when you are. Share what you want to test or build, and I’ll jump in."
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "final_answer"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "end_turn"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 46,
+        "cacheCreationInputTokens": 10029,
+        "cacheReadInputTokens": 0,
+        "totalInputTokens": 10029,
+        "timestamp": "2026-03-20T09:37:00.634Z"
+      },
+      "turnElapsedMs": 4374
+    },
+    {
+      "role": "user",
+      "messageId": 2,
+      "content": [
+        {
+          "type": "text",
+          "text": "is this free it doesnt let me switch to free in this git version of amp. its also all pixelated"
+        }
+      ],
+      "userState": {
+        "currentlyVisibleFiles": []
+      },
+      "agentMode": "deep",
+      "meta": {
+        "sentAt": 1773999467223
+      }
+    },
+    {
+      "role": "assistant",
+      "messageId": 3,
+      "content": [
+        {
+          "type": "text",
+          "text": "I can’t see your account/billing settings from here, so I can’t confirm your plan directly. In the Git/CLI version of Amp, “free vs paid” switching is usually controlled in your Amp account on the web, not inside the local repo.\n\nFor the pixelated look, that’s usually display/rendering (not plan-related). Quick things to try on Windows:\n\n1. Check terminal font and disable bitmap-like fonts (`Settings -> Profiles -> Appearance -> Font face` in Windows Terminal).\n2. Set Windows display scaling to a common value like `100%` or `125%`, then restart terminal.\n3. Disable GPU text rendering in the terminal (toggle hardware acceleration off/on, depending on terminal).\n4. If using tmux/SSH, make sure you’re not in a low-color mode (`TERM` should usually be `xterm-256color`).\n\nIf you want, I can walk you through exact steps for your setup (Windows Terminal vs VS Code terminal vs Git Bash) and help make it crisp."
+        }
+      ],
+      "meta": {
+        "openAIResponsePhase": "final_answer"
+      },
+      "state": {
+        "type": "complete",
+        "stopReason": "end_turn"
+      },
+      "usage": {
+        "model": "gpt-5.3-codex",
+        "maxInputTokens": 272000,
+        "inputTokens": 0,
+        "outputTokens": 258,
+        "cacheCreationInputTokens": 229,
+        "cacheReadInputTokens": 9856,
+        "totalInputTokens": 10085,
+        "timestamp": "2026-03-20T09:37:55.488Z"
+      },
+      "turnElapsedMs": 8266
+    }
+  ],
+  "agentMode": "deep",
+  "nextMessageId": 4,
+  "meta": {
+    "traces": [
+      {
+        "name": "agent",
+        "id": "syAXv",
+        "startTime": "2026-03-20T09:36:56.262Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-03-20T09:37:00.636Z"
+      },
+      {
+        "name": "inference",
+        "id": "wmrja",
+        "parent": "syAXv",
+        "startTime": "2026-03-20T09:36:56.264Z",
+        "context": {
+          "messageId": 0
+        },
+        "endTime": "2026-03-20T09:37:00.636Z"
+      },
+      {
+        "name": "agent",
+        "id": "CRqdL",
+        "startTime": "2026-03-20T09:37:47.224Z",
+        "context": {
+          "messageId": 2
+        },
+        "endTime": "2026-03-20T09:37:55.490Z"
+      },
+      {
+        "name": "inference",
+        "id": "jLIXi",
+        "parent": "CRqdL",
+        "startTime": "2026-03-20T09:37:47.225Z",
+        "context": {
+          "messageId": 2
+        },
+        "endTime": "2026-03-20T09:37:55.490Z"
+      }
+    ]
+  },
+  "env": {
+    "initial": {
+      "trees": [
+        {
+          "displayName": "ek930",
+          "uri": "file:///c%3A/Users/ek930"
+        }
+      ],
+      "platform": {
+        "os": "windows",
+        "osVersion": "Microsoft Windows 11 Home Single Language 10.0.26100 N/A Build 26100",
+        "cpuArchitecture": "x64",
+        "webBrowser": false,
+        "client": "CLI",
+        "clientVersion": "0.0.1772755761-g627c2b",
+        "clientType": "cli",
+        "installationID": "8819158e-3869-407a-a12a-bc15f9d818fe",
+        "deviceFingerprint": "v1:fp_27d82d9b8fbc23e68ca4dab7d875d80ab12031a0d874d8cad4fdf2de6ee06e9c"
+      },
+      "tags": [
+        "model:gpt-5.3-codex"
+      ]
+    }
+  },
+  "title": "Test",
+  "~debug": {
+    "lastInferenceUsage": {
+      "model": "gpt-5.3-codex",
+      "maxInputTokens": 272000,
+      "inputTokens": 0,
+      "outputTokens": 258,
+      "cacheCreationInputTokens": 10029,
+      "cacheReadInputTokens": 9856,
+      "totalInputTokens": 10085,
+      "timestamp": "2026-03-20T09:37:55.488Z"
+    }
+  }
+}
