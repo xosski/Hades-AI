@@ -26,6 +26,7 @@ import time
 import csv
 import socket
 import urllib.parse
+import html
 import concurrent.futures
 import urllib3
 import ast
@@ -1550,6 +1551,10 @@ class RequestInjector:
             baseline_status = 0
         
         for header, values in test_headers.items():
+            # Support both list-based fuzzing values and single static header values.
+            if isinstance(values, (str, int, float, bool)) or values is None:
+                values = [values]
+
             for value in values:
                 try:
                     headers = {header: value}
@@ -4174,6 +4179,7 @@ class HadesGUI(QMainWindow):
         self.tool_executor = None
         self.network_monitor = None
         self.autonomous_defense = None  # Autonomous defense engine
+        self.standalone_defense_mode = False
         self.brain = pcore.load_brain()
         
         # Initialize exploit sharing
@@ -4612,12 +4618,15 @@ please consider supporting its development.</p>
         self.defense_enable_btn.clicked.connect(self._toggle_defense_tab)
         self.defense_block_btn = QPushButton("Block IP")
         self.defense_block_btn.clicked.connect(self._block_ip_from_defense_tab)
+        self.defense_unblock_btn = QPushButton("Unblock IP")
+        self.defense_unblock_btn.clicked.connect(self._unblock_ip_from_defense_tab)
         self.defense_block_input = QLineEdit()
         self.defense_block_input.setPlaceholderText("IP address to block")
 
         control_layout.addWidget(self.defense_enable_btn)
         control_layout.addWidget(self.defense_block_input)
         control_layout.addWidget(self.defense_block_btn)
+        control_layout.addWidget(self.defense_unblock_btn)
         control_layout.addStretch()
 
         status_layout.addLayout(control_layout)
@@ -4629,16 +4638,19 @@ please consider supporting its development.</p>
         self.defense_tab_level_combo = QComboBox()
         self.defense_tab_level_combo.addItems(["PASSIVE", "REACTIVE", "PROACTIVE", "AGGRESSIVE"])
         self.defense_tab_level_combo.setCurrentText("REACTIVE")
+        self.defense_tab_level_combo.currentTextChanged.connect(self._on_active_defense_level_changed)
         config_layout.addRow("Defense Level:", self.defense_tab_level_combo)
 
         self.defense_auto_response_cb = QCheckBox("Auto-Response")
         self.defense_auto_response_cb.setChecked(True)
+        self.defense_auto_response_cb.toggled.connect(self._on_active_defense_auto_response_changed)
         config_layout.addRow("Auto-Response:", self.defense_auto_response_cb)
 
         self.defense_block_threshold = QDoubleSpinBox()
         self.defense_block_threshold.setRange(0.0, 1.0)
         self.defense_block_threshold.setValue(0.7)
         self.defense_block_threshold.setSingleStep(0.05)
+        self.defense_block_threshold.valueChanged.connect(self._on_active_defense_threshold_changed)
         config_layout.addRow("Block Threshold:", self.defense_block_threshold)
 
         layout.addWidget(config_group)
@@ -4655,9 +4667,38 @@ please consider supporting its development.</p>
         self.defense_blocked_ips.setMaximumHeight(100)
         layout.addWidget(self.defense_blocked_ips)
 
+        # Tab-specific event hooks
+        self.defense_tab_engine.on_action_taken = self._on_active_defense_action_taken
+        self.defense_tab_engine.on_threat_mitigated = self._on_active_defense_threat_mitigated
+        self._apply_active_defense_tab_config()
+        self._update_defense_blocked_ips_log()
+
         layout.addStretch()
         widget.setLayout(layout)
         return widget
+
+    def _apply_active_defense_tab_config(self):
+        """Apply UI configuration values to the defense engine."""
+        if not hasattr(self, 'defense_tab_engine'):
+            return
+
+        auto_response = self.defense_auto_response_cb.isChecked() if hasattr(self, 'defense_auto_response_cb') else True
+        threshold = self.defense_block_threshold.value() if hasattr(self, 'defense_block_threshold') else 0.7
+
+        # Auto-response toggle controls whether defense rules execute actions.
+        for rule in self.defense_tab_engine.defense_rules:
+            rule.enabled = auto_response
+
+        # Map UI threshold (0.0-1.0) to rate-limiter sensitivity.
+        # Lower value => stricter / blocks faster, higher => more lenient.
+        limiter = self.defense_tab_engine.rate_limiter
+        limiter.block_threshold = max(50, int(50 + (threshold * 450)))
+        limiter.connections_per_minute = max(20, int(limiter.block_threshold * 0.25))
+        limiter.connections_per_second = max(5, int(limiter.connections_per_minute / 12))
+
+    def _append_active_defense_log(self, message: str):
+        if hasattr(self, 'defense_threat_log'):
+            self.defense_threat_log.append(message)
         
     def _toggle_defense_tab(self):
         """Toggle defense tab engine state"""
@@ -4670,16 +4711,25 @@ please consider supporting its development.</p>
             self.defense_enable_btn.setText("Enable Defense")
             self.defense_status_label.setText("Status: Disabled")
             self.defense_status_label.setStyleSheet("color: #ff6b6b;")
+            self._append_active_defense_log("🛡️ Active Defense disabled")
         else:
             # Get selected defense level
             level_name = self.defense_tab_level_combo.currentText()
             from modules.autonomous_defense import DefenseLevel
             level = DefenseLevel[level_name]
-            
-            self.defense_tab_engine.enable(level)
-            self.defense_enable_btn.setText("Disable Defense")
-            self.defense_status_label.setText(f"Status: Enabled ({level_name})")
-            self.defense_status_label.setStyleSheet("color: #51cf66;")
+
+            self._apply_active_defense_tab_config()
+            enabled = self.defense_tab_engine.enable(level)
+            if enabled:
+                self.defense_enable_btn.setText("Disable Defense")
+                self.defense_status_label.setText(f"Status: Enabled ({level_name})")
+                self.defense_status_label.setStyleSheet("color: #51cf66;")
+                self._append_active_defense_log(f"🛡️ Active Defense enabled at level: {level_name}")
+            else:
+                self.defense_status_label.setText("Status: Enable failed")
+                self.defense_status_label.setStyleSheet("color: #ff6b6b;")
+
+        self._update_defense_blocked_ips_log()
         
     def _block_ip_from_defense_tab(self):
         """Block an IP address from the defense tab"""
@@ -4699,14 +4749,74 @@ please consider supporting its development.</p>
             return
         
         try:
-            self.defense_tab_engine.block_ip(ip)
-            
+            self.defense_tab_engine.rate_limiter.blocked_ips.add(ip)
+            self.defense_tab_engine._apply_firewall_block(ip, permanent=True)
+
             # Update blocked IPs display
             self._update_defense_blocked_ips_log()
+            self._append_active_defense_log(f"🚫 Manually blocked IP: {ip}")
             self.defense_block_input.clear()
             QMessageBox.information(self, "Success", f"IP {ip} has been blocked")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to block IP: {str(e)}")
+
+    def _unblock_ip_from_defense_tab(self):
+        """Unblock an IP address from the defense tab"""
+        if not hasattr(self, 'defense_tab_engine'):
+            QMessageBox.warning(self, "Error", "Autonomous defense module not initialized")
+            return
+
+        ip = self.defense_block_input.text().strip()
+        if not ip:
+            QMessageBox.warning(self, "Error", "Please enter an IP address")
+            return
+
+        parts = ip.split('.')
+        if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            QMessageBox.warning(self, "Error", "Invalid IP address format")
+            return
+
+        self.defense_tab_engine.rate_limiter.unblock(ip)
+        self._update_defense_blocked_ips_log()
+        self._append_active_defense_log(f"✅ Manually unblocked IP: {ip}")
+        self.defense_block_input.clear()
+
+    def _on_active_defense_level_changed(self, level_name: str):
+        """Apply defense level change live when defense is enabled."""
+        if not hasattr(self, 'defense_tab_engine') or not self.defense_tab_engine.enabled:
+            return
+
+        from modules.autonomous_defense import DefenseLevel
+        level = DefenseLevel[level_name]
+        self.defense_tab_engine.disable()
+        self._apply_active_defense_tab_config()
+        self.defense_tab_engine.enable(level)
+        self.defense_status_label.setText(f"Status: Enabled ({level_name})")
+        self._append_active_defense_log(f"🔄 Defense level updated to: {level_name}")
+
+    def _on_active_defense_auto_response_changed(self, _: bool):
+        self._apply_active_defense_tab_config()
+        mode = "enabled" if self.defense_auto_response_cb.isChecked() else "disabled"
+        self._append_active_defense_log(f"⚙️ Auto-response {mode}")
+
+    def _on_active_defense_threshold_changed(self, _: float):
+        self._apply_active_defense_tab_config()
+        self._append_active_defense_log(
+            f"⚙️ Block threshold set to {self.defense_block_threshold.value():.2f}"
+        )
+
+    def _on_active_defense_action_taken(self, action_data: dict):
+        ip = action_data.get('ip', 'Unknown')
+        actions = ', '.join(action_data.get('actions', [])) or 'logged'
+        self._append_active_defense_log(f"🤖 Action taken for {ip}: {actions}")
+        self._update_defense_blocked_ips_log()
+
+    def _on_active_defense_threat_mitigated(self, threat_data: dict, actions: list):
+        threat = threat_data.get('threat_type', 'Unknown')
+        ip = threat_data.get('remote_ip', 'Unknown')
+        action_names = [a.value if hasattr(a, 'value') else str(a) for a in actions]
+        self._append_active_defense_log(f"⚔️ Mitigated {threat} from {ip}: {', '.join(action_names)}")
+        self._update_defense_blocked_ips_log()
         
     def _update_defense_blocked_ips_log(self):
         """Update the blocked IPs log from defense tab engine"""
@@ -5161,8 +5271,8 @@ please consider supporting its development.</p>
         self.network_monitor.set_learning_mode(self.learning_mode_check.isChecked())
         
         # Initialize Autonomous Defense Engine
-        if HAS_AUTONOMOUS_DEFENSE and self.autonomous_defense_check.isChecked():
-            self._init_autonomous_defense()
+        if HAS_AUTONOMOUS_DEFENSE and (self.autonomous_defense_check.isChecked() or self.defense_mode_check.isChecked()):
+            self._init_autonomous_defense(use_network_monitor=True)
         
         self.network_monitor.start()
         
@@ -5174,28 +5284,35 @@ please consider supporting its development.</p>
         if self.network_monitor:
             self.network_monitor.stop()
             self.network_monitor.wait()
-        
-        # Stop Autonomous Defense
+            self.network_monitor = None
+
+        # Stop monitor-attached Autonomous Defense instance
         if self.autonomous_defense:
             self.autonomous_defense.disable()
             self.autonomous_defense = None
-            
+
+        # Keep defense available even when monitor is off if requested by user.
+        if HAS_AUTONOMOUS_DEFENSE and (self.autonomous_defense_check.isChecked() or self.defense_mode_check.isChecked()):
+            self._init_autonomous_defense(use_network_monitor=False)
+    
         self.monitor_start_btn.setEnabled(True)
         self.monitor_stop_btn.setEnabled(False)
         self.net_status_label.setText("🔴 Network Monitor STOPPED")
         self._add_chat_message("system", "🔴 Network Monitor stopped")
-    
-    def _init_autonomous_defense(self):
+
+    def _init_autonomous_defense(self, use_network_monitor: bool = True):
         """Initialize the autonomous defense engine"""
         if not HAS_AUTONOMOUS_DEFENSE:
             self._add_chat_message("system", "⚠️ Autonomous defense module not available")
             return
-        
+
         try:
-            self.autonomous_defense = integrate_with_network_monitor(
-                self.network_monitor, 
-                self.ai.kb
+            monitor_ref = self.network_monitor if use_network_monitor else None
+            self.autonomous_defense = AutonomousDefenseEngine(
+                kb=self.ai.kb,
+                network_monitor=monitor_ref
             )
+            self.standalone_defense_mode = not use_network_monitor
             
             # Set defense level from combo
             level_map = {
@@ -5213,8 +5330,9 @@ please consider supporting its development.</p>
             self.autonomous_defense.enable(defense_level)
             
             level_name = defense_level.name
-            self._add_chat_message("system", 
-                f"🤖 Autonomous Defense ENABLED at {level_name} level\n"
+            mode_name = "monitor-attached" if use_network_monitor else "standalone"
+            self._add_chat_message("system",
+                f"🤖 Autonomous Defense ENABLED ({mode_name}) at {level_name} level\n"
                 f"   • Honeypot deployment: {'Active' if defense_level.value >= 2 else 'Standby'}\n"
                 f"   • Rate limiting: Active\n"
                 f"   • Threat auto-response: Active\n"
@@ -5224,17 +5342,15 @@ please consider supporting its development.</p>
     
     def _toggle_autonomous_defense(self, enabled: bool):
         """Toggle autonomous defense on/off"""
-        if not self.network_monitor or not self.network_monitor.isRunning():
-            if enabled:
-                self._add_chat_message("system", "ℹ️ Autonomous defense will activate when Network Monitor starts")
-            return
-        
         if enabled:
-            self._init_autonomous_defense()
+            monitor_running = self.network_monitor and self.network_monitor.isRunning()
+            self._init_autonomous_defense(use_network_monitor=bool(monitor_running))
         else:
-            if self.autonomous_defense:
+            # Keep defense active if Active Defense toggle is still enabled.
+            if self.autonomous_defense and not self.defense_mode_check.isChecked():
                 self.autonomous_defense.disable()
                 self.autonomous_defense = None
+                self.standalone_defense_mode = False
                 self._add_chat_message("system", "🤖 Autonomous Defense DISABLED")
     
     def _on_defense_level_changed(self, index: int):
@@ -5250,9 +5366,10 @@ please consider supporting its development.</p>
         }
         new_level = level_map.get(index, DefenseLevel.REACTIVE)
         
-        # Reinitialize with new level
+        # Reinitialize with new level and preserve standalone/monitor mode.
+        use_network_monitor = bool(self.network_monitor and self.network_monitor.isRunning() and not self.standalone_defense_mode)
         self.autonomous_defense.disable()
-        self.autonomous_defense.enable(new_level)
+        self._init_autonomous_defense(use_network_monitor=use_network_monitor)
         self._add_chat_message("system", f"🤖 Defense level changed to: {new_level.name}")
     
     def _on_defense_action(self, action_data: dict):
@@ -5441,6 +5558,16 @@ please consider supporting its development.</p>
     def _toggle_defense_mode(self, enabled: bool):
         if self.network_monitor:
             self.network_monitor.set_defense_mode(enabled)
+
+        # Active Defense can run in standalone mode without monitor scanning.
+        monitor_running = self.network_monitor and self.network_monitor.isRunning()
+        if enabled and HAS_AUTONOMOUS_DEFENSE and not self.autonomous_defense:
+            self._init_autonomous_defense(use_network_monitor=bool(monitor_running))
+        elif not enabled and self.autonomous_defense and not self.autonomous_defense_check.isChecked():
+            self.autonomous_defense.disable()
+            self.autonomous_defense = None
+            self.standalone_defense_mode = False
+
         mode = "ENABLED" if enabled else "DISABLED"
         self._add_chat_message("system", f"⚔️ Active Defense Mode {mode}")
     def _display_recent_web_knowledge(self):
@@ -5544,6 +5671,12 @@ please consider supporting its development.</p>
         
         self.threat_table.scrollToBottom()
         
+        if self.autonomous_defense and self.autonomous_defense.enabled:
+            try:
+                self.autonomous_defense.process_threat(conn)
+            except Exception as e:
+                logger.warning(f"Autonomous defense threat processing failed: {e}")
+
         # Also add to chat
         self._add_chat_message("threat", f"⚠️ [{level}] {conn.get('threat_type')}: {conn.get('remote_addr')} - {details}")
         
@@ -5561,13 +5694,26 @@ please consider supporting its development.</p>
             self.network_monitor.block_ip(ip)
             self.block_ip_input.clear()
             self._add_chat_message("system", f"🚫 Manually blocked IP: {ip}")
-            
+            return
+
+        if ip and self.autonomous_defense:
+            self.autonomous_defense.rate_limiter.blocked_ips.add(ip)
+            self.autonomous_defense._apply_firewall_block(ip, permanent=True)
+            self.block_ip_input.clear()
+            self._add_chat_message("system", f"🚫 Manually blocked IP (defense engine): {ip}")
+
     def _manual_unblock_ip(self):
         ip = self.block_ip_input.text().strip()
         if ip and self.network_monitor:
             self.network_monitor.unblock_ip(ip)
             self.block_ip_input.clear()
             self._add_chat_message("system", f"✅ Unblocked IP: {ip}")
+            return
+
+        if ip and self.autonomous_defense:
+            self.autonomous_defense.rate_limiter.unblock(ip)
+            self.block_ip_input.clear()
+            self._add_chat_message("system", f"✅ Unblocked IP (defense engine): {ip}")
             
     def _clear_threat_log(self):
         self.threat_table.setRowCount(0)
@@ -5975,6 +6121,7 @@ please consider supporting its development.</p>
         type_layout.addWidget(QLabel("Injection Type:"))
         self.injection_type = QComboBox()
         self.injection_type.addItems(['Header Injection', 'JSON Injection', 'WAF Bypass'])
+        self.injection_type.currentTextChanged.connect(self._update_injection_type_ui)
         type_layout.addWidget(self.injection_type)
         
         self.json_payload_type = QComboBox()
@@ -5994,7 +6141,14 @@ please consider supporting its development.</p>
         self.injection_results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.injection_results)
         
+        self._update_injection_type_ui(self.injection_type.currentText())
+
         return widget
+
+    def _update_injection_type_ui(self, injection_type: str):
+        """Show JSON payload selector only when JSON injection is selected."""
+        is_json = injection_type == 'JSON Injection'
+        self.json_payload_type.setVisible(is_json)
         
     def _create_auth_bypass_tab(self) -> QWidget:
         widget = QWidget()
@@ -7746,13 +7900,17 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
         colors = {'user': '#4ec9b0', 'assistant': '#e94560', 'system': '#ffd700', 'tool': '#69db7c'}
         labels = {'user': 'YOU', 'assistant': 'HADES', 'system': 'SYSTEM', 'tool': 'TOOL'}
         
-        html = f'<p><span style="color: {colors.get(role, "#eee")}; font-weight: bold;">[{labels.get(role, role.upper())}]</span> '
-        html += message.replace('\n', '<br>').replace('```', '<code>').replace('**', '<b>')
-        html += '</p>'
-        
-        self.chat_display.append(html)
+        safe_message = html.escape(str(message))
+        safe_message = safe_message.replace('\n', '<br>')
+
+        html_msg = (
+            f'<p><span style="color: {colors.get(role, "#eee")}; font-weight: bold;">'
+            f'[{labels.get(role, role.upper())}]</span> {safe_message}</p>'
+        )
+
+        self.chat_display.append(html_msg)
         self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
-        
+
     def _send_chat(self):
         user_input = self.chat_input.text().strip()
         if not user_input:
@@ -7766,10 +7924,28 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             self.brain = pcore.update_emotion(self.brain, user_input)
             self.brain = pcore.update_topics(self.brain, user_input)
             
-            # Primary chat flow: route through core ChatProcessor for up-to-date
-            # command matching and action dispatch.
+            # Primary chat flow: route through core ChatProcessor for command matching.
             chat_result = self.ai.chat(user_input)
             response = chat_result.get('response', '') if isinstance(chat_result, dict) else str(chat_result)
+
+            # If this looks like a general conversation and no action is requested,
+            # use selected LLM provider for richer chat responses.
+            message_lower = user_input.lower().strip()
+            is_explicit_command = any(
+                trigger in message_lower
+                for triggers in ChatProcessor.COMMANDS.values()
+                for trigger in triggers
+            )
+
+            if isinstance(chat_result, dict) and not chat_result.get('action') and not is_explicit_command:
+                selected_provider = self.llm_provider_combo.currentText().strip() if hasattr(self, 'llm_provider_combo') else None
+                llm_response = self.ai.llm_chat(
+                    user_input,
+                    provider=selected_provider or None,
+                    system_prompt="You are HADES, an expert security and coding assistant. Keep replies concise and actionable."
+                )
+                if isinstance(llm_response, str) and llm_response.strip() and not llm_response.startswith("❌"):
+                    response = llm_response
 
             # Execute any structured action returned by ChatProcessor.
             if isinstance(chat_result, dict) and chat_result.get('action'):
@@ -8151,12 +8327,43 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
             
     # ========== Tool Methods ==========
     
+    def _normalize_tool_target(self, tool: str, raw_target: str) -> str:
+        """Normalize target format per selected tool."""
+        target = raw_target.strip()
+
+        if tool in ('port_scan', 'banner_grab', 'subdomain_enum'):
+            # Allow users to paste full URLs and still resolve host/domain tools correctly.
+            if '://' in target:
+                parsed = urllib.parse.urlparse(target)
+                target = parsed.hostname or target
+            else:
+                # Handle host/path form without scheme.
+                target = target.split('/')[0]
+
+        elif tool in ('dir_bruteforce', 'vuln_scan', 'web_learn'):
+            if not target.startswith(('http://', 'https://')):
+                target = f"https://{target}"
+
+        return target
+
+    def _validate_tool_target(self, tool: str, target: str) -> Optional[str]:
+        """Return validation error text, or None when target is valid."""
+        if not target:
+            return "Please enter a target"
+
+        if tool in ('port_scan', 'banner_grab', 'subdomain_enum') and any(c in target for c in ('/', '?', '#')):
+            return "Host/domain tools require an IP or domain (no path/query)"
+
+        if tool in ('dir_bruteforce', 'vuln_scan', 'web_learn'):
+            parsed = urllib.parse.urlparse(target)
+            if not parsed.scheme or not parsed.netloc:
+                return "Web tools require a valid URL"
+
+        return None
+
     def _run_tool(self):
         target = self.target_input.text().strip()
-        if not target:
-            QMessageBox.warning(self, "Error", "Please enter a target")
-            return
-            
+
         tool_map = {
             'Port Scan': 'port_scan',
             'Directory Bruteforce': 'dir_bruteforce',
@@ -8167,12 +8374,27 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         }
         
         tool = tool_map[self.tool_combo.currentText()]
-        
+        normalized_target = self._normalize_tool_target(tool, target)
+        validation_error = self._validate_tool_target(tool, normalized_target)
+        if validation_error:
+            QMessageBox.warning(self, "Error", validation_error)
+            return
+
+        # Keep the UI field in-sync with the actual target used.
+        self.target_input.setText(normalized_target)
+
         if tool == 'web_learn':
-            self._add_chat_message('tool', f"Learning from {target}...")
-            result = self.ai.learn_from_url(target)
-            self.tool_output.appendPlainText(f"Learned {result.get('exploits_learned', 0)} exploits")
-            self._refresh_learned()
+            self.tool_output.clear()
+            self.findings_table.setRowCount(0)
+            self._add_chat_message('tool', f"Learning from {normalized_target}...")
+            result = self.ai.learn_from_url(normalized_target)
+            if result.get('error'):
+                self.tool_output.appendPlainText(f"[!] Learning failed: {result.get('error')}")
+            else:
+                self.tool_output.appendPlainText(
+                    f"Learned {result.get('exploits_learned', 0)} exploits from {normalized_target}"
+                )
+                self._refresh_learned()
             return
             
         self.tool_output.clear()
@@ -8181,7 +8403,7 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         self.run_tool_btn.setEnabled(False)
         self.stop_tool_btn.setEnabled(True)
         
-        self.tool_executor = ToolExecutor(tool, target)
+        self.tool_executor = ToolExecutor(tool, normalized_target)
         self.tool_executor.output.connect(self._tool_output)
         self.tool_executor.progress.connect(self.tool_progress.setValue)
         self.tool_executor.finished_task.connect(self._tool_finished)
@@ -8190,6 +8412,8 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
     def _stop_tool(self):
         if self.tool_executor:
             self.tool_executor.stop()
+            self.stop_tool_btn.setEnabled(False)
+            self.tool_output.appendPlainText("[*] Stop requested, waiting for tool to finish current step...")
             
     def _tool_output(self, text: str):
         self.tool_output.appendPlainText(text)
@@ -8200,20 +8424,45 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         self.stop_tool_btn.setEnabled(False)
         self.tool_progress.setValue(100)
         
+        if result.get('error'):
+            self.tool_output.appendPlainText(f"[!] Tool error: {result['error']}")
+            self._add_chat_message('assistant', f"Tool failed: {result['error']}")
+            return
+
         findings = result.get('findings', [])
         self.findings_table.setRowCount(len(findings))
         
         for i, f in enumerate(findings):
             if isinstance(f, dict):
-                self.findings_table.setItem(i, 0, QTableWidgetItem(str(f.get('path', f.get('type', f)))))
-                self.findings_table.setItem(i, 1, QTableWidgetItem(str(f.get('status', f.get('name', '')))))
-                self.findings_table.setItem(i, 2, QTableWidgetItem("Found"))
+                finding_name = (
+                    f.get('path')
+                    or f.get('type')
+                    or f.get('name')
+                    or f.get('url')
+                    or f.get('port')
+                    or str(f)
+                )
+                details = (
+                    f.get('status')
+                    or f.get('banner')
+                    or f.get('url')
+                    or f.get('name')
+                    or ''
+                )
+                status = "Found"
+                self.findings_table.setItem(i, 0, QTableWidgetItem(str(finding_name)))
+                self.findings_table.setItem(i, 1, QTableWidgetItem(str(details)))
+                self.findings_table.setItem(i, 2, QTableWidgetItem(status))
             else:
                 self.findings_table.setItem(i, 0, QTableWidgetItem(str(f)))
                 self.findings_table.setItem(i, 1, QTableWidgetItem("Open" if isinstance(f, int) else "Found"))
                 self.findings_table.setItem(i, 2, QTableWidgetItem("✓"))
-                
-        self._add_chat_message('assistant', f"Tool finished. Found {len(findings)} results.")
+
+        if self.tool_executor and self.tool_executor._stop:
+            self.tool_output.appendPlainText(f"[*] Tool stopped. Collected {len(findings)} partial results.")
+            self._add_chat_message('assistant', f"Tool stopped. Collected {len(findings)} partial results.")
+        else:
+            self._add_chat_message('assistant', f"Tool finished. Found {len(findings)} results.")
         
     # ========== Cache Methods ==========
     
@@ -8520,15 +8769,20 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         self._add_chat_message('assistant', f"Fuzzing complete. Found {vuln_count} potential vulnerabilities!")
         
     def _run_injection(self):
-        url = self.injection_url.text()
+        url = self.injection_url.text().strip()
         if not url:
             QMessageBox.warning(self, "Error", "Enter target URL")
             return
             
+        if not url.startswith(('http://', 'https://')):
+            url = f"https://{url}"
+            self.injection_url.setText(url)
+        
         injection_type = self.injection_type.currentText()
-        
+
         self._add_chat_message('tool', f"Running {injection_type} on {url}...")
-        
+        self.injection_results.setRowCount(0)
+
         if injection_type == 'Header Injection':
             results = self.ai.request_injector.inject_headers(url)
         elif injection_type == 'JSON Injection':
@@ -8538,15 +8792,26 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
             results = self.ai.request_injector.inject_headers(
                 url, self.ai.request_injector.WAF_BYPASS_HEADERS.get('bypass_waf', {})
             )
-            
+
+        if not isinstance(results, list):
+            results = [{'error': f'Unexpected result type: {type(results).__name__}'}]
+
         self.injection_results.setRowCount(len(results))
         for i, r in enumerate(results):
-            self.injection_results.setItem(i, 0, QTableWidgetItem(r.get('header', r.get('payload', ''))[:30]))
-            self.injection_results.setItem(i, 1, QTableWidgetItem(str(r.get('value', ''))[:30]))
-            self.injection_results.setItem(i, 2, QTableWidgetItem(str(r.get('status', 'Error'))))
-            self.injection_results.setItem(i, 3, QTableWidgetItem(str(r.get('length', '-'))))
-            
-            interesting = r.get('interesting', False)
+            if not isinstance(r, dict):
+                r = {'error': str(r)}
+
+            item_name = str(r.get('header', r.get('payload', r.get('technique', ''))))[:60]
+            item_value = str(r.get('value', r.get('response_preview', r.get('error', ''))))[:80]
+            status_text = str(r.get('status', 'Error' if r.get('error') else '-'))
+            length_text = str(r.get('length', '-'))
+
+            self.injection_results.setItem(i, 0, QTableWidgetItem(item_name))
+            self.injection_results.setItem(i, 1, QTableWidgetItem(item_value))
+            self.injection_results.setItem(i, 2, QTableWidgetItem(status_text))
+            self.injection_results.setItem(i, 3, QTableWidgetItem(length_text))
+
+            interesting = bool(r.get('interesting', False)) or bool(r.get('success', False))
             int_item = QTableWidgetItem("⚠️ YES" if interesting else "-")
             int_item.setForeground(QColor("#ffa500" if interesting else "#666"))
             self.injection_results.setItem(i, 4, int_item)

@@ -496,7 +496,19 @@ class MalwareEngineTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.engine = get_malware_engine()
+        self._analysis_payload = ""
         self.setup_ui()
+        self.update_statistics()
+
+    def _get_selected_mutation_method(self) -> MutationMethod:
+        """Resolve selected mutation method from combo text safely."""
+        selected = self.mutation_method.currentText().strip().lower()
+
+        for method in MutationMethod:
+            if method.value == selected or method.name.lower() == selected:
+                return method
+
+        raise ValueError(f"Unknown mutation method: {selected}")
     
     def setup_ui(self):
         """Setup the UI layout"""
@@ -614,22 +626,30 @@ class MalwareEngineTab(QWidget):
                 QMessageBox.warning(self, "Input Error", "Please enter a payload")
                 return
             
-            method = MutationMethod[self.mutation_method.currentText().upper()]
+            method = self._get_selected_mutation_method()
             iterations = self.iterations.value()
             
             result = self.engine.mutate_payload(payload, method, iterations)
             
+            if result.get('status') == 'error':
+                raise RuntimeError(result.get('message', 'Unknown mutation error'))
+
             self.payload_output.setPlainText(result.get('final_payload', ''))
-            
+            self._analysis_payload = result.get('final_payload', '')
+
             # Show mutations info
-            mutations_info = f"Mutations Applied: {len(result['mutations'])}\n"
-            for i, m in enumerate(result['mutations'], 1):
-                mutations_info += f"  {i}. {m['method']}: {m['size']} bytes (+{m['size_change_percent']:.1f}%)\n"
-            
+            mutations = result.get('mutations', [])
+            mutations_info = f"Mutations Applied: {len(mutations)}\n"
+            for i, m in enumerate(mutations, 1):
+                method_name = m.get('method', 'unknown')
+                size = m.get('size', 0)
+                size_change = m.get('size_change_percent', 0.0)
+                mutations_info += f"  {i}. {method_name}: {size} bytes (+{size_change:.1f}%)\n"
+
             self.analysis_text.setText(
-                f"Original Size: {result['original_size']} bytes\n"
-                f"Final Size: {result['final_size']} bytes\n"
-                f"Total Size Increase: {result['size_increase_percent']:.1f}%\n\n"
+                f"Original Size: {result.get('original_size', 0)} bytes\n"
+                f"Final Size: {result.get('final_size', 0)} bytes\n"
+                f"Total Size Increase: {result.get('size_increase_percent', 0.0):.1f}%\n\n"
                 f"{mutations_info}"
             )
             
@@ -650,6 +670,13 @@ class MalwareEngineTab(QWidget):
             variants_count = self.variants_count.value()
             variants = self.engine.generate_polymorphic_payload(payload, variants_count)
             
+            if not variants:
+                self.payload_output.setPlainText("")
+                self._analysis_payload = ""
+                self.analysis_text.setText("No polymorphic variants were generated")
+                self.update_statistics()
+                return
+
             output = f"Generated {len(variants)} Polymorphic Variants:\n\n"
             for var in variants:
                 output += f"Variant {var['variation_id']}:\n"
@@ -658,6 +685,7 @@ class MalwareEngineTab(QWidget):
                 output += f"  Payload Preview: {var['payload'][:100]}...\n\n"
             
             self.payload_output.setPlainText(output)
+            self._analysis_payload = variants[0].get('payload', '')
             self.analysis_text.setText(f"✓ Generated {len(variants)} polymorphic variants")
             self.update_statistics()
             
@@ -674,7 +702,9 @@ class MalwareEngineTab(QWidget):
             
             result = self.engine.generate_anti_analysis_payload(payload)
             self.payload_output.setPlainText(result)
+            self._analysis_payload = result
             self.analysis_text.setText("✓ Anti-analysis techniques added:\n  • Debugger detection\n  • VM detection\n  • Conditional execution")
+            self.update_statistics()
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed: {str(e)}")
@@ -691,6 +721,7 @@ class MalwareEngineTab(QWidget):
             result = self.engine.generate_staged_payload(payload, stages)
             
             self.payload_output.setPlainText(result['first_stage'])
+            self._analysis_payload = result['first_stage']
             
             stage_info = f"Generated {result['total_stages']}-Stage Payload:\n\n"
             for stage in result['stages']:
@@ -705,7 +736,7 @@ class MalwareEngineTab(QWidget):
     def analyze_detection(self):
         """Analyze detection probability"""
         try:
-            payload = self.payload_output.toPlainText()
+            payload = self._analysis_payload or self.payload_output.toPlainText() or self.payload_input.toPlainText()
             if not payload:
                 QMessageBox.warning(self, "Input Error", "Generate a payload first")
                 return

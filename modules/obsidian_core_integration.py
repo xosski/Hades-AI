@@ -51,6 +51,8 @@ class ObsidianCoreIntegration:
                 logger.info("✓ Successfully imported AICore from ObsidianCore.py")
             except ImportError as e:
                 logger.warning(f"⚠️ Could not import full AICore: {str(e)}")
+                if 'pefile' in str(e).lower():
+                    logger.warning("⚠️ Missing optional dependency 'pefile'. Install with: pip install pefile")
                 logger.info("Using simplified integration mode")
                 self.AICore = None
         except Exception as e:
