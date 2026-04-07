@@ -17,7 +17,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor, QTextCursor
 
 from modules.obsidian_core_integration import get_obsidian_core
-from modules.ethical_control_integration import get_ethical_control
+from modules.ethical_control_integration import get_ethical_control, AuthorizationLevel
 from modules.malware_engine_integration import get_malware_engine, MutationMethod
 
 logger = logging.getLogger("Phase1GUI")
@@ -54,6 +54,7 @@ class ObsidianCoreTab(QWidget):
         self.status_text.setReadOnly(True)
         self.status_text.setMaximumHeight(100)
         status_layout.addRow("Status:", self.status_text)
+
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
         
@@ -186,6 +187,8 @@ class ObsidianCoreTab(QWidget):
                 return
             
             result = self.obsidian.execute_attack(attack_type, target)
+            if result.get('status') == 'error':
+                raise RuntimeError(result.get('message', 'Unknown attack error'))
             self.results_text.append(
                 f"[ATTACK EXECUTED]\n"
                 f"Type: {attack_type}\n"
@@ -204,6 +207,8 @@ class ObsidianCoreTab(QWidget):
             threshold = self.defense_threshold.value()
             
             result = self.obsidian.deploy_defense(defense_type, threshold=threshold/100)
+            if result.get('status') == 'error':
+                raise RuntimeError(result.get('message', 'Unknown defense deployment error'))
             self.results_text.append(
                 f"[DEFENSE DEPLOYED]\n"
                 f"Type: {defense_type}\n"
@@ -218,7 +223,9 @@ class ObsidianCoreTab(QWidget):
         try:
             payload_type = self.payload_type.currentText()
             result = self.obsidian.generate_payload(payload_type)
-            
+            if result.get('status') == 'error':
+                raise RuntimeError(result.get('message', 'Unknown payload generation error'))
+
             self.results_text.append(
                 f"[PAYLOAD GENERATED]\n"
                 f"Type: {payload_type}\n"
@@ -238,6 +245,8 @@ class ObsidianCoreTab(QWidget):
                 return
             
             result = self.obsidian.plan_lateral_movement(from_pos, to_pos)
+            if result.get('status') == 'error':
+                raise RuntimeError(result.get('message', 'Unknown movement planning error'))
             self.results_text.append(
                 f"[MOVEMENT PLANNED]\n"
                 f"From: {from_pos}\n"
@@ -282,6 +291,12 @@ class EthicalControlTab(QWidget):
         self.status_text.setReadOnly(True)
         self.status_text.setMaximumHeight(100)
         status_layout.addRow("Status:", self.status_text)
+
+        self.auth_level_combo = QComboBox()
+        self.auth_level_combo.addItems([level.name for level in AuthorizationLevel])
+        self.auth_level_combo.currentTextChanged.connect(self.set_authorization_level)
+        status_layout.addRow("Authorization Level:", self.auth_level_combo)
+
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
         
@@ -329,6 +344,13 @@ class EthicalControlTab(QWidget):
         self.targets_list.setMaximumHeight(100)
         whitelist_layout.addWidget(QLabel("Authorized Targets:"))
         whitelist_layout.addWidget(self.targets_list)
+
+        target_remove_layout = QHBoxLayout()
+        remove_target_btn = QPushButton("➖ Remove Selected Target")
+        remove_target_btn.clicked.connect(self.remove_selected_target)
+        target_remove_layout.addStretch()
+        target_remove_layout.addWidget(remove_target_btn)
+        whitelist_layout.addLayout(target_remove_layout)
         
         # Exploits
         exploit_layout = QHBoxLayout()
@@ -345,6 +367,13 @@ class EthicalControlTab(QWidget):
         self.exploits_list.setMaximumHeight(100)
         whitelist_layout.addWidget(QLabel("Authorized Exploits:"))
         whitelist_layout.addWidget(self.exploits_list)
+
+        exploit_remove_layout = QHBoxLayout()
+        remove_exploit_btn = QPushButton("➖ Remove Selected Exploit")
+        remove_exploit_btn.clicked.connect(self.remove_selected_exploit)
+        exploit_remove_layout.addStretch()
+        exploit_remove_layout.addWidget(remove_exploit_btn)
+        whitelist_layout.addLayout(exploit_remove_layout)
         
         whitelist_group.setLayout(whitelist_layout)
         layout.addWidget(whitelist_group)
@@ -394,6 +423,12 @@ class EthicalControlTab(QWidget):
             self.exploits_list.clear()
             for exploit in self.ec.get_authorized_exploits():
                 self.exploits_list.addItem(exploit)
+
+            if hasattr(self, 'auth_level_combo'):
+                level_name = status.get('authorization_level', AuthorizationLevel.READ_ONLY.name)
+                self.auth_level_combo.blockSignals(True)
+                self.auth_level_combo.setCurrentText(level_name)
+                self.auth_level_combo.blockSignals(False)
                 
         except Exception as e:
             self.status_text.setText(f"Error: {str(e)}")
@@ -484,6 +519,40 @@ class EthicalControlTab(QWidget):
                 )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Log retrieval failed: {str(e)}")
+
+    def set_authorization_level(self, level_name: str):
+        """Set Ethical Control authorization level from UI."""
+        try:
+            level = AuthorizationLevel[level_name]
+            self.ec.set_authorization_level(level)
+            self.results_text.append(f"✓ Authorization level set to: {level_name}")
+            self.update_status()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to set authorization level: {str(e)}")
+
+    def remove_selected_target(self):
+        """Remove selected target from authorized list."""
+        current = self.targets_list.currentItem()
+        if not current:
+            QMessageBox.warning(self, "Input Error", "Select a target to remove")
+            return
+
+        target = current.text().strip()
+        self.ec.remove_authorized_target(target)
+        self.results_text.append(f"✓ Target removed: {target}")
+        self.update_status()
+
+    def remove_selected_exploit(self):
+        """Remove selected exploit from authorized list."""
+        current = self.exploits_list.currentItem()
+        if not current:
+            QMessageBox.warning(self, "Input Error", "Select an exploit to remove")
+            return
+
+        exploit = current.text().strip()
+        self.ec.remove_authorized_exploit(exploit)
+        self.results_text.append(f"✓ Exploit removed: {exploit}")
+        self.update_status()
 
 
 # ============================================================================
