@@ -423,8 +423,19 @@ class FallbackProvider(LLMProviderBase):
             if key in prompt_lower:
                 return value
         
+        if any(token in prompt_lower for token in ["workdir", "working directory", "workspace"]):
+            return (
+                "I can help with workspace tasks, but in fallback mode I need an explicit path or command. "
+                "Try: set the workdir in the Self-Improvement tab, then use /files or /open <file>."
+            )
+
+        if any(token in prompt_lower for token in ["file", "open", "edit", "save", "code"]):
+            return (
+                "I can help. Share the target file path and what you want changed, and I'll give a concrete edit plan."
+            )
+
         # Default response
-        return f"Processing: {prompt[:100]}... I'm ready to help. Please provide more context."
+        return "I'm ready to help. Tell me your goal and the file or directory you want to work on."
     
     def generate_stream(self, prompt: str, **kwargs) -> Iterator[str]:
         response = self.generate(prompt, **kwargs)
