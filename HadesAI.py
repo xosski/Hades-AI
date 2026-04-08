@@ -32,6 +32,7 @@ import urllib3
 import ast
 import sys
 import traceback
+import difflib
 from io import StringIO
 import os
 import logging
@@ -358,15 +359,26 @@ def parse_command(command):
 def load_module(module_name):
     module_path = os.path.join(MODULE_DIR, f"{module_name}.py")
     if not os.path.isfile(module_path):
+        available_modules = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")] if os.path.isdir(MODULE_DIR) else []
+        suggestion = difflib.get_close_matches(module_name, available_modules, n=1)
+        if suggestion:
+            return f"Module '{module_name}' not found. Did you mean '{suggestion[0]}'?"
         return f"Module '{module_name}' not found."
 
     spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        return f"Failed to load module '{module_name}': invalid module specification"
+
     module = importlib.util.module_from_spec(spec)
     try:
+        # Required for decorators like @dataclass that resolve class context
+        # via sys.modules[cls.__module__].__dict__ during import time.
+        sys.modules[module_name] = module
         spec.loader.exec_module(module)
         loaded_modules[module_name] = module
         return f"Module '{module_name}' loaded."
     except Exception as e:
+        sys.modules.pop(module_name, None)
         return f"Failed to load module '{module_name}': {str(e)}"
 
 def list_modules():
@@ -374,6 +386,37 @@ def list_modules():
         os.makedirs(MODULE_DIR)
     files = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")]
     return files if files else ["No modules found."]
+
+def load_all_modules(skip_dunder: bool = True):
+    """Best-effort load of all modules from the modules folder."""
+    results = {
+        "loaded": [],
+        "failed": {},
+        "skipped": [],
+    }
+
+    if not os.path.isdir(MODULE_DIR):
+        os.makedirs(MODULE_DIR, exist_ok=True)
+        return results
+
+    module_files = sorted(
+        f for f in os.listdir(MODULE_DIR)
+        if f.endswith(".py") and (not skip_dunder or not f.startswith("__"))
+    )
+
+    for file_name in module_files:
+        module_name = file_name[:-3]
+        if module_name in loaded_modules:
+            results["skipped"].append(module_name)
+            continue
+
+        result = load_module(module_name)
+        if result.startswith("Module '") and result.endswith("' loaded."):
+            results["loaded"].append(module_name)
+        else:
+            results["failed"][module_name] = result
+
+    return results
 
 def execute_module(module_name):
     module = loaded_modules.get(module_name)
@@ -3082,6 +3125,21 @@ class HadesAI:
         self.files = {} # filename -> code str
         self.code_assistant = CodeEditorAssistant()
         self.amp_threads_folder = os.getenv('HADES_AMP_THREADS_DIR', 'amp threads')
+
+        # Auto-load modules from ./modules at startup (best-effort).
+        startup_module_results = load_all_modules()
+        if startup_module_results["loaded"]:
+            logger.info(
+                "Startup module load: loaded=%s skipped=%s failed=%s",
+                len(startup_module_results["loaded"]),
+                len(startup_module_results["skipped"]),
+                len(startup_module_results["failed"]),
+            )
+        if startup_module_results["failed"]:
+            logger.warning(
+                "Startup module load failures: %s",
+                ", ".join(sorted(startup_module_results["failed"].keys())),
+            )
 
         # Initialize static analysis engine (defensive analysis component)
         if HAS_STATIC_ANALYSIS_ENGINE:
