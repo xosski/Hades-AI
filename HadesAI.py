@@ -351,6 +351,7 @@ logger.info("Hades AI Core initialized...")
 
 MODULE_DIR = "modules"
 loaded_modules = {}
+_module_autoload_in_progress = False
 
 def parse_command(command):
     parts = command.strip().split(maxsplit=1)
@@ -387,36 +388,70 @@ def list_modules():
     files = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")]
     return files if files else ["No modules found."]
 
+def _is_startup_safe_module(module_path: str):
+    """Return (is_safe, reason) for startup autoload decisions."""
+    try:
+        with open(module_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except Exception as e:
+        return False, f"read error: {e}"
+
+    # Prevent recursive startup loops when a module imports HadesAI and
+    # instantiates HadesAI() at import time.
+    if re.search(r"\bfrom\s+HadesAI\s+import\b|\bimport\s+HadesAI\b", content):
+        return False, "imports HadesAI"
+    if re.search(r"\bHadesAI\s*\(", content):
+        return False, "instantiates HadesAI during import"
+
+    return True, ""
+
 def load_all_modules(skip_dunder: bool = True):
     """Best-effort load of all modules from the modules folder."""
+    global _module_autoload_in_progress
     results = {
         "loaded": [],
         "failed": {},
         "skipped": [],
+        "skipped_unsafe": {},
     }
 
-    if not os.path.isdir(MODULE_DIR):
-        os.makedirs(MODULE_DIR, exist_ok=True)
+    if _module_autoload_in_progress:
+        results["skipped"].append("reentrant_autoload")
         return results
 
-    module_files = sorted(
-        f for f in os.listdir(MODULE_DIR)
-        if f.endswith(".py") and (not skip_dunder or not f.startswith("__"))
-    )
+    _module_autoload_in_progress = True
 
-    for file_name in module_files:
-        module_name = file_name[:-3]
-        if module_name in loaded_modules:
-            results["skipped"].append(module_name)
-            continue
+    try:
+        if not os.path.isdir(MODULE_DIR):
+            os.makedirs(MODULE_DIR, exist_ok=True)
+            return results
 
-        result = load_module(module_name)
-        if result.startswith("Module '") and result.endswith("' loaded."):
-            results["loaded"].append(module_name)
-        else:
-            results["failed"][module_name] = result
+        module_files = sorted(
+            f for f in os.listdir(MODULE_DIR)
+            if f.endswith(".py") and (not skip_dunder or not f.startswith("__"))
+        )
 
-    return results
+        for file_name in module_files:
+            module_name = file_name[:-3]
+            if module_name in loaded_modules:
+                results["skipped"].append(module_name)
+                continue
+
+            module_path = os.path.join(MODULE_DIR, file_name)
+            is_safe, reason = _is_startup_safe_module(module_path)
+            if not is_safe:
+                results["skipped_unsafe"][module_name] = reason
+                continue
+
+            result = load_module(module_name)
+            if result.startswith("Module '") and result.endswith("' loaded."):
+                results["loaded"].append(module_name)
+            else:
+                results["failed"][module_name] = result
+
+        return results
+    finally:
+        _module_autoload_in_progress = False
 
 def execute_module(module_name):
     module = loaded_modules.get(module_name)
@@ -3139,6 +3174,11 @@ class HadesAI:
             logger.warning(
                 "Startup module load failures: %s",
                 ", ".join(sorted(startup_module_results["failed"].keys())),
+            )
+        if startup_module_results.get("skipped_unsafe"):
+            logger.warning(
+                "Startup module load skipped unsafe modules: %s",
+                ", ".join(sorted(startup_module_results["skipped_unsafe"].keys())),
             )
 
         # Initialize static analysis engine (defensive analysis component)
