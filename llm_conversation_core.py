@@ -18,6 +18,26 @@ from abc import ABC, abstractmethod
 
 logger = logging.getLogger("LLMConversation")
 
+
+def _load_hades_config() -> Dict[str, Any]:
+    """Load local HADES config if present."""
+    try:
+        config_path = Path(__file__).resolve().parent / ".hades_config.json"
+        if config_path.exists():
+            return json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.debug(f"Unable to load .hades_config.json: {e}")
+    return {}
+
+
+def _get_config_or_env(env_key: str, config_key: str) -> str:
+    """Prefer environment variable, then local config file."""
+    env_value = os.getenv(env_key, "").strip()
+    if env_value:
+        return env_value
+    config = _load_hades_config()
+    return str(config.get(config_key, "") or "").strip()
+
 # ============================================================================
 # DATA MODELS
 # ============================================================================
@@ -130,7 +150,7 @@ class OpenAIProvider(LLMProviderBase):
     
     def __init__(self):
         super().__init__("openai")
-        self.api_key = os.getenv("OPENAI_API_KEY", "")
+        self.api_key = _get_config_or_env("OPENAI_API_KEY", "openai_api_key")
         self.client = None
         self.available = False
         
@@ -188,7 +208,7 @@ class MistralProvider(LLMProviderBase):
     
     def __init__(self):
         super().__init__("mistral")
-        self.api_key = os.getenv("MISTRAL_API_KEY", "")
+        self.api_key = _get_config_or_env("MISTRAL_API_KEY", "mistral_api_key")
         self.client = None
         self.available = False
         
@@ -344,8 +364,8 @@ class AzureOpenAIProvider(LLMProviderBase):
     
     def __init__(self):
         super().__init__("azure")
-        self.api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+        self.api_key = _get_config_or_env("AZURE_OPENAI_API_KEY", "azure_api_key")
+        self.endpoint = _get_config_or_env("AZURE_OPENAI_ENDPOINT", "azure_endpoint")
         self.client = None
         self.available = False
         
@@ -484,11 +504,13 @@ class ConversationManager:
         return model_map.get(provider, "fallback")
 
     def _select_default_provider(self) -> str:
-        """Prefer free local LLM when cloud API keys are absent."""
-        if self.providers.get("ollama") and self.providers["ollama"].available:
-            return "ollama"
-        if self.providers.get("fallback") and self.providers["fallback"].available:
-            return "fallback"
+        """Select best default provider, keeping fallback as last resort."""
+        preferred_order = ["mistral", "openai", "azure", "ollama", "fallback"]
+        for name in preferred_order:
+            provider = self.providers.get(name)
+            if provider and provider.available:
+                return name
+
         for name, prov in self.providers.items():
             if prov.available:
                 return name

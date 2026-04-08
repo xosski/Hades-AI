@@ -2436,7 +2436,7 @@ class ChatProcessor:
         'status': ['status', 'stats', 'statistics', 'show stats'],
         'show_exploits': ['show exploits', 'show learned exploits', 'list exploits', 'learned exploits', 'view exploits'],
         'show_findings': ['show findings', 'show threats', 'list findings', 'threat findings', 'view findings'],
-        'greeting': ['hello', 'hi ', 'hey', 'how are you', 'whats up', "what's up"],
+        'greeting': ['hello', 'hi', 'hey', 'how are you', 'whats up', "what's up"],
     }
     
     def __init__(self, kb: KnowledgeBase):
@@ -2453,14 +2453,34 @@ class ChatProcessor:
         matched_len = 0
         for cmd, triggers in self.COMMANDS.items():
             for trigger in triggers:
-                if trigger in message_lower and len(trigger) > matched_len:
+                if self._trigger_matches(message_lower, trigger) and len(trigger.strip()) > matched_len:
                     matched_cmd = cmd
-                    matched_len = len(trigger)
+                    matched_len = len(trigger.strip())
         
         if matched_cmd:
             return self._handle_command(matched_cmd, message)
                 
         return self._generate_response(message)
+
+    def _trigger_matches(self, message_lower: str, trigger: str) -> bool:
+        """Match command triggers without accidental substring collisions."""
+        normalized_trigger = trigger.lower().strip()
+        if not normalized_trigger:
+            return False
+
+        # Keep help alias "?" as an explicit command, not a suffix on any question.
+        if normalized_trigger == '?':
+            return message_lower == '?'
+
+        # Use word-aware matching for natural language triggers to avoid matching
+        # fragments like "hi" inside "this".
+        if re.fullmatch(r"[a-z0-9' ]+", normalized_trigger):
+            pattern = rf"(?<![a-z0-9']){re.escape(normalized_trigger)}(?![a-z0-9'])"
+            return re.search(pattern, message_lower) is not None
+
+        # Keep literal substring matching for protocol/punctuation triggers like
+        # "scan https://".
+        return normalized_trigger in message_lower
         
     def _handle_command(self, cmd: str, message: str) -> Dict:
         url_match = re.search(r'https?://[^\s]+', message)
