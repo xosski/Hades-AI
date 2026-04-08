@@ -169,6 +169,14 @@ except ImportError as e:
     logger.warning(f"Phase 1 Integration failed: {str(e)}")
     HAS_PHASE1_INTEGRATION = False
 
+# Static Analysis Engine Integration
+try:
+    from modules.static_analysis_engine import StaticAnalysisEngine
+    HAS_STATIC_ANALYSIS_ENGINE = True
+except ImportError:
+    StaticAnalysisEngine = None
+    HAS_STATIC_ANALYSIS_ENGINE = False
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
@@ -3074,6 +3082,18 @@ class HadesAI:
         self.files = {} # filename -> code str
         self.code_assistant = CodeEditorAssistant()
         self.amp_threads_folder = os.getenv('HADES_AMP_THREADS_DIR', 'amp threads')
+
+        # Initialize static analysis engine (defensive analysis component)
+        if HAS_STATIC_ANALYSIS_ENGINE:
+            try:
+                self.static_analysis_engine = StaticAnalysisEngine()
+                logger.info("Static Analysis Engine initialized")
+            except Exception as e:
+                self.static_analysis_engine = None
+                logger.warning(f"Static Analysis Engine initialization failed: {str(e)}")
+        else:
+            self.static_analysis_engine = None
+            logger.warning("Static Analysis Engine not available")
         
         # Initialize LLM conversation manager
         if HAS_LLM_CORE:
@@ -3132,7 +3152,18 @@ class HadesAI:
         stats['amp_learning'] = self.kb.get_amp_learning_stats()
         if self.cognitive:
             stats['cognitive_memories'] = self.cognitive.get_memory_stats()
+        if self.static_analysis_engine:
+            rule_status = self.static_analysis_engine.get_rule_status()
+            stats['static_analysis_engine'] = {
+                'loaded': rule_status.loaded,
+                'compiled': rule_status.compiled,
+                'rule_count': rule_status.rule_count,
+            }
         return stats
+
+    def get_static_analysis_engine(self):
+        """Return static analysis engine instance when available."""
+        return self.static_analysis_engine
 
     # ========== Amp Thread Learning Methods ==========
     def _extract_text_fragments(self, node: Any) -> List[str]:
