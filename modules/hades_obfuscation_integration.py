@@ -6,7 +6,16 @@ Integrates obfuscation capabilities into Hades AI core systems
 import logging
 from typing import Dict, List, Optional, Any
 from enum import Enum
-from .obfuscation_engine import ClockworksObfuscator, obfuscate, deobfuscate
+
+# Support both package imports (modules.*) and direct file-style loading
+# used by HadesAI.load_module.
+try:
+    from .obfuscation_engine import ClockworksObfuscator, obfuscate, deobfuscate
+except ImportError:
+    try:
+        from modules.obfuscation_engine import ClockworksObfuscator, obfuscate, deobfuscate
+    except ImportError:
+        from obfuscation_engine import ClockworksObfuscator, obfuscate, deobfuscate
 
 logger = logging.getLogger(__name__)
 

