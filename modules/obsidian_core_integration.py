@@ -34,6 +34,14 @@ class ObsidianCoreIntegration:
         except Exception as e:
             logger.error(f"✗ Failed to initialize ObsidianCore: {str(e)}")
             self.ready = False
+
+    def _use_simulated_engines(self, engine_list: List[str]):
+        """Ensure integration remains operational with simulated engines."""
+        self.core = None
+        self.core_instance = None
+        for engine_name in engine_list:
+            self.engines[engine_name] = self._create_mock_engine(engine_name)
+            self.status[engine_name] = 'simulated'
     
     def _import_obsidian_core(self):
         """Import ObsidianCore from Current implementation folder"""
@@ -42,14 +50,16 @@ class ObsidianCoreIntegration:
             if not impl_path.exists():
                 raise FileNotFoundError(f"Current implementation folder not found at {impl_path.absolute()}")
             
-            sys.path.insert(0, str(impl_path.absolute()))
-            
+            impl_path_str = str(impl_path.absolute())
+            if impl_path_str not in sys.path:
+                sys.path.insert(0, impl_path_str)
+
             # Try to import the AICore class
             try:
                 from ObsidianCore import AICore
                 self.AICore = AICore
                 logger.info("✓ Successfully imported AICore from ObsidianCore.py")
-            except ImportError as e:
+            except Exception as e:
                 logger.warning(f"⚠️ Could not import full AICore: {str(e)}")
                 if 'pefile' in str(e).lower():
                     logger.warning("⚠️ Missing optional dependency 'pefile'. Install with: pip install pefile")
@@ -89,12 +99,11 @@ class ObsidianCoreIntegration:
                 self.core_instance = self.core
             except Exception as e:
                 logger.error(f"✗ Failed to instantiate AICore: {str(e)}")
-                self.core_instance = None
+                logger.warning("⚠️ Falling back to simulated engines")
+                self._use_simulated_engines(engine_list)
         else:
             logger.warning("⚠️ AICore not available, engines will be simulated")
-            for engine_name in engine_list:
-                self.engines[engine_name] = self._create_mock_engine(engine_name)
-                self.status[engine_name] = 'simulated'
+            self._use_simulated_engines(engine_list)
     
     def _create_mock_engine(self, engine_name: str) -> Dict[str, Any]:
         """Create mock engine for when AICore is not available"""
