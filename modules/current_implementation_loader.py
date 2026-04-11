@@ -1,10 +1,10 @@
 """
 Current Implementation Integration Module
-Safely loads and integrates components from the 'Current implementation' folder
-with proper error handling, validation, and ethical controls.
+Provides safe, non-executing discovery for implementation resources plus optional
+component loading for vetted Python modules.
 
-Version: 1.0
-Last Updated: 2026-03-03
+Version: 1.1
+Last Updated: 2026-04-10
 """
 
 import os
@@ -18,6 +18,67 @@ from functools import wraps
 # Setup logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+def resolve_implementation_folder(explicit_path: Optional[str] = None) -> Path:
+    """Resolve implementation folder path using known conventions."""
+    if explicit_path:
+        return Path(explicit_path)
+
+    project_root = Path(__file__).parent.parent
+    candidates = [
+        project_root / 'implement',
+        project_root / 'Current implementation',
+    ]
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+
+    # Prefer the modern folder name as default fallback.
+    return project_root / 'implement'
+
+
+class ImplementationCatalog:
+    """Read-only catalog for implementation resources (no code execution)."""
+
+    def __init__(self, base_path: str = None):
+        self.base_path = resolve_implementation_folder(base_path)
+        self._last_index: Dict[str, Any] = {}
+
+    def index(self, max_files: int = 10000) -> Dict[str, Any]:
+        """Index files recursively and return compact metadata."""
+        result: Dict[str, Any] = {
+            'base_path': str(self.base_path),
+            'exists': self.base_path.exists() and self.base_path.is_dir(),
+            'total_files': 0,
+            'by_extension': {},
+            'sample_files': [],
+        }
+
+        if not result['exists']:
+            self._last_index = result
+            return result
+
+        extension_counts: Dict[str, int] = {}
+        sample_files: List[str] = []
+
+        files = sorted(p for p in self.base_path.rglob('*') if p.is_file())[:max_files]
+        for path in files:
+            suffix = path.suffix.lower() or '<no_ext>'
+            extension_counts[suffix] = extension_counts.get(suffix, 0) + 1
+            if len(sample_files) < 25:
+                sample_files.append(str(path.relative_to(self.base_path)))
+
+        result['total_files'] = len(files)
+        result['by_extension'] = extension_counts
+        result['sample_files'] = sample_files
+        self._last_index = result
+        return result
+
+    def last_index(self) -> Dict[str, Any]:
+        """Return the last computed index result."""
+        return self._last_index
 
 class ComponentValidator:
     """Validates components before integration"""
@@ -87,7 +148,7 @@ class SafeComponentLoader:
     """Safely loads components with sandboxing and validation"""
     
     def __init__(self, base_path: str = None):
-        self.base_path = base_path or str(Path(__file__).parent.parent / 'Current implementation')
+        self.base_path = str(resolve_implementation_folder(base_path))
         self.loaded_components = {}
         self.failed_components = {}
         self.validator = ComponentValidator()
@@ -220,13 +281,17 @@ class CurrentImplementationIntegration:
     
     def __init__(self):
         self.loader = SafeComponentLoader()
+        self.catalog = ImplementationCatalog(self.loader.base_path)
         self.ethical_gateway = EthicalGateway()
         self.components = {}
-    
-    def initialize(self, auto_load: bool = True) -> Dict[str, Any]:
+        self.catalog_index: Dict[str, Any] = {}
+
+    def initialize(self, auto_load: bool = False) -> Dict[str, Any]:
         """Initialize the integration system"""
         logger.info("Initializing Current Implementation Integration")
-        
+
+        self.catalog_index = self.catalog.index()
+
         if auto_load:
             self.components = self.loader.load_all_components()
         
@@ -238,9 +303,16 @@ class CurrentImplementationIntegration:
         """Get current integration status"""
         return {
             'loader_status': self.loader.get_load_status(),
+            'catalog_status': self.catalog_index or self.catalog.last_index(),
             'ethical_gateway_enabled': self.ethical_gateway.authorization_required,
             'components_available': len(self.components)
         }
+
+    def get_catalog(self) -> Dict[str, Any]:
+        """Get implementation catalog metadata."""
+        if not self.catalog_index:
+            self.catalog_index = self.catalog.index()
+        return self.catalog_index
     
     def list_available_components(self) -> List[str]:
         """List available components"""
@@ -286,7 +358,7 @@ def get_integration() -> CurrentImplementationIntegration:
     global _integration_instance
     if _integration_instance is None:
         _integration_instance = CurrentImplementationIntegration()
-        _integration_instance.initialize()
+        _integration_instance.initialize(auto_load=False)
     return _integration_instance
 
 

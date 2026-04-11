@@ -32,7 +32,6 @@ import urllib3
 import ast
 import sys
 import traceback
-import difflib
 from io import StringIO
 import os
 import logging
@@ -159,6 +158,14 @@ except ImportError:
     ExploitGeneratorTab = None
     HAS_EXPLOIT_GEN = False
 
+# Current/Implement Folder Integration (defensive catalog only)
+try:
+    from modules.current_implementation_loader import get_integration as get_current_implementation_integration
+    HAS_IMPLEMENTATION_INTEGRATION = True
+except ImportError:
+    get_current_implementation_integration = None
+    HAS_IMPLEMENTATION_INTEGRATION = False
+
 # PHASE 1 INTEGRATION - Critical Systems
 try:
     from modules.obsidian_core_integration import get_obsidian_core
@@ -169,14 +176,6 @@ try:
 except ImportError as e:
     logger.warning(f"Phase 1 Integration failed: {str(e)}")
     HAS_PHASE1_INTEGRATION = False
-
-# Static Analysis Engine Integration
-try:
-    from modules.static_analysis_engine import StaticAnalysisEngine
-    HAS_STATIC_ANALYSIS_ENGINE = True
-except ImportError:
-    StaticAnalysisEngine = None
-    HAS_STATIC_ANALYSIS_ENGINE = False
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -351,7 +350,6 @@ logger.info("Hades AI Core initialized...")
 
 MODULE_DIR = "modules"
 loaded_modules = {}
-_module_autoload_in_progress = False
 
 def parse_command(command):
     parts = command.strip().split(maxsplit=1)
@@ -360,26 +358,15 @@ def parse_command(command):
 def load_module(module_name):
     module_path = os.path.join(MODULE_DIR, f"{module_name}.py")
     if not os.path.isfile(module_path):
-        available_modules = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")] if os.path.isdir(MODULE_DIR) else []
-        suggestion = difflib.get_close_matches(module_name, available_modules, n=1)
-        if suggestion:
-            return f"Module '{module_name}' not found. Did you mean '{suggestion[0]}'?"
         return f"Module '{module_name}' not found."
 
     spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        return f"Failed to load module '{module_name}': invalid module specification"
-
     module = importlib.util.module_from_spec(spec)
     try:
-        # Required for decorators like @dataclass that resolve class context
-        # via sys.modules[cls.__module__].__dict__ during import time.
-        sys.modules[module_name] = module
         spec.loader.exec_module(module)
         loaded_modules[module_name] = module
         return f"Module '{module_name}' loaded."
     except Exception as e:
-        sys.modules.pop(module_name, None)
         return f"Failed to load module '{module_name}': {str(e)}"
 
 def list_modules():
@@ -387,71 +374,6 @@ def list_modules():
         os.makedirs(MODULE_DIR)
     files = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")]
     return files if files else ["No modules found."]
-
-def _is_startup_safe_module(module_path: str):
-    """Return (is_safe, reason) for startup autoload decisions."""
-    try:
-        with open(module_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
-    except Exception as e:
-        return False, f"read error: {e}"
-
-    # Prevent recursive startup loops when a module imports HadesAI and
-    # instantiates HadesAI() at import time.
-    if re.search(r"\bfrom\s+HadesAI\s+import\b|\bimport\s+HadesAI\b", content):
-        return False, "imports HadesAI"
-    if re.search(r"\bHadesAI\s*\(", content):
-        return False, "instantiates HadesAI during import"
-
-    return True, ""
-
-def load_all_modules(skip_dunder: bool = True):
-    """Best-effort load of all modules from the modules folder."""
-    global _module_autoload_in_progress
-    results = {
-        "loaded": [],
-        "failed": {},
-        "skipped": [],
-        "skipped_unsafe": {},
-    }
-
-    if _module_autoload_in_progress:
-        results["skipped"].append("reentrant_autoload")
-        return results
-
-    _module_autoload_in_progress = True
-
-    try:
-        if not os.path.isdir(MODULE_DIR):
-            os.makedirs(MODULE_DIR, exist_ok=True)
-            return results
-
-        module_files = sorted(
-            f for f in os.listdir(MODULE_DIR)
-            if f.endswith(".py") and (not skip_dunder or not f.startswith("__"))
-        )
-
-        for file_name in module_files:
-            module_name = file_name[:-3]
-            if module_name in loaded_modules:
-                results["skipped"].append(module_name)
-                continue
-
-            module_path = os.path.join(MODULE_DIR, file_name)
-            is_safe, reason = _is_startup_safe_module(module_path)
-            if not is_safe:
-                results["skipped_unsafe"][module_name] = reason
-                continue
-
-            result = load_module(module_name)
-            if result.startswith("Module '") and result.endswith("' loaded."):
-                results["loaded"].append(module_name)
-            else:
-                results["failed"][module_name] = result
-
-        return results
-    finally:
-        _module_autoload_in_progress = False
 
 def execute_module(module_name):
     module = loaded_modules.get(module_name)
@@ -2522,7 +2444,7 @@ class ChatProcessor:
         'status': ['status', 'stats', 'statistics', 'show stats'],
         'show_exploits': ['show exploits', 'show learned exploits', 'list exploits', 'learned exploits', 'view exploits'],
         'show_findings': ['show findings', 'show threats', 'list findings', 'threat findings', 'view findings'],
-        'greeting': ['hello', 'hi', 'hey', 'how are you', 'whats up', "what's up"],
+        'greeting': ['hello', 'hi ', 'hey', 'how are you', 'whats up', "what's up"],
     }
     
     def __init__(self, kb: KnowledgeBase):
@@ -2539,34 +2461,14 @@ class ChatProcessor:
         matched_len = 0
         for cmd, triggers in self.COMMANDS.items():
             for trigger in triggers:
-                if self._trigger_matches(message_lower, trigger) and len(trigger.strip()) > matched_len:
+                if trigger in message_lower and len(trigger) > matched_len:
                     matched_cmd = cmd
-                    matched_len = len(trigger.strip())
+                    matched_len = len(trigger)
         
         if matched_cmd:
             return self._handle_command(matched_cmd, message)
                 
         return self._generate_response(message)
-
-    def _trigger_matches(self, message_lower: str, trigger: str) -> bool:
-        """Match command triggers without accidental substring collisions."""
-        normalized_trigger = trigger.lower().strip()
-        if not normalized_trigger:
-            return False
-
-        # Keep help alias "?" as an explicit command, not a suffix on any question.
-        if normalized_trigger == '?':
-            return message_lower == '?'
-
-        # Use word-aware matching for natural language triggers to avoid matching
-        # fragments like "hi" inside "this".
-        if re.fullmatch(r"[a-z0-9' ]+", normalized_trigger):
-            pattern = rf"(?<![a-z0-9']){re.escape(normalized_trigger)}(?![a-z0-9'])"
-            return re.search(pattern, message_lower) is not None
-
-        # Keep literal substring matching for protocol/punctuation triggers like
-        # "scan https://".
-        return normalized_trigger in message_lower
         
     def _handle_command(self, cmd: str, message: str) -> Dict:
         url_match = re.search(r'https?://[^\s]+', message)
@@ -3160,38 +3062,8 @@ class HadesAI:
         self.files = {} # filename -> code str
         self.code_assistant = CodeEditorAssistant()
         self.amp_threads_folder = os.getenv('HADES_AMP_THREADS_DIR', 'amp threads')
-
-        # Auto-load modules from ./modules at startup (best-effort).
-        startup_module_results = load_all_modules()
-        if startup_module_results["loaded"]:
-            logger.info(
-                "Startup module load: loaded=%s skipped=%s failed=%s",
-                len(startup_module_results["loaded"]),
-                len(startup_module_results["skipped"]),
-                len(startup_module_results["failed"]),
-            )
-        if startup_module_results["failed"]:
-            logger.warning(
-                "Startup module load failures: %s",
-                ", ".join(sorted(startup_module_results["failed"].keys())),
-            )
-        if startup_module_results.get("skipped_unsafe"):
-            logger.warning(
-                "Startup module load skipped unsafe modules: %s",
-                ", ".join(sorted(startup_module_results["skipped_unsafe"].keys())),
-            )
-
-        # Initialize static analysis engine (defensive analysis component)
-        if HAS_STATIC_ANALYSIS_ENGINE:
-            try:
-                self.static_analysis_engine = StaticAnalysisEngine()
-                logger.info("Static Analysis Engine initialized")
-            except Exception as e:
-                self.static_analysis_engine = None
-                logger.warning(f"Static Analysis Engine initialization failed: {str(e)}")
-        else:
-            self.static_analysis_engine = None
-            logger.warning("Static Analysis Engine not available")
+        self.current_implementation_integration = None
+        self.current_implementation_catalog = {}
         
         # Initialize LLM conversation manager
         if HAS_LLM_CORE:
@@ -3226,6 +3098,23 @@ class HadesAI:
         except Exception as e:
             logger.warning(f"Amp threads startup import failed: {str(e)}")
 
+        # Initialize defensive implementation-folder catalog (non-executing).
+        if HAS_IMPLEMENTATION_INTEGRATION and get_current_implementation_integration:
+            try:
+                self.current_implementation_integration = get_current_implementation_integration()
+                if hasattr(self.current_implementation_integration, 'get_catalog'):
+                    self.current_implementation_catalog = self.current_implementation_integration.get_catalog()
+                else:
+                    self.current_implementation_catalog = {}
+
+                logger.info(
+                    "Implementation catalog initialized: folder=%s files=%s",
+                    self.current_implementation_catalog.get('base_path', 'n/a'),
+                    self.current_implementation_catalog.get('total_files', 0),
+                )
+            except Exception as e:
+                logger.warning(f"Implementation catalog initialization failed: {str(e)}")
+
         self._optimizer_thread = None
 
     def chat(self, message: str) -> Dict:
@@ -3248,20 +3137,29 @@ class HadesAI:
         for table in ['experiences', 'security_patterns', 'learned_exploits', 'threat_findings', 'cache_entries']:
             stats[table] = safe_count(table)
         stats['amp_learning'] = self.kb.get_amp_learning_stats()
+        stats['implementation_catalog'] = {
+            'base_path': self.current_implementation_catalog.get('base_path', ''),
+            'exists': self.current_implementation_catalog.get('exists', False),
+            'total_files': self.current_implementation_catalog.get('total_files', 0),
+            'by_extension': self.current_implementation_catalog.get('by_extension', {}),
+        }
         if self.cognitive:
             stats['cognitive_memories'] = self.cognitive.get_memory_stats()
-        if self.static_analysis_engine:
-            rule_status = self.static_analysis_engine.get_rule_status()
-            stats['static_analysis_engine'] = {
-                'loaded': rule_status.loaded,
-                'compiled': rule_status.compiled,
-                'rule_count': rule_status.rule_count,
-            }
         return stats
 
-    def get_static_analysis_engine(self):
-        """Return static analysis engine instance when available."""
-        return self.static_analysis_engine
+    def get_implementation_catalog(self, refresh: bool = False) -> Dict[str, Any]:
+        """Return defensive metadata for the implementation folder (no execution)."""
+        if not self.current_implementation_integration:
+            return dict(self.current_implementation_catalog)
+
+        if refresh and hasattr(self.current_implementation_integration, 'catalog'):
+            self.current_implementation_catalog = self.current_implementation_integration.catalog.index()
+            return self.current_implementation_catalog
+
+        if hasattr(self.current_implementation_integration, 'get_catalog'):
+            self.current_implementation_catalog = self.current_implementation_integration.get_catalog()
+
+        return dict(self.current_implementation_catalog)
 
     # ========== Amp Thread Learning Methods ==========
     def _extract_text_fragments(self, node: Any) -> List[str]:
@@ -7337,7 +7235,6 @@ please consider supporting its development.</p>
             "Amp-style coding helper. Commands:\n"
             "- /files\n"
             "- /open relative/path.py\n"
-            "- /create relative/path.py | what to build\n"
             "- /save\n"
             "- /edit relative/path.py | your instruction"
         )
@@ -7387,31 +7284,15 @@ please consider supporting its development.</p>
 
     def _si_extract_code_from_response(self, text: str) -> str:
         """Extract raw code from model output, stripping markdown if present."""
-        content = self._si_strip_thinking_markup(text)
-        if not content:
-            return ""
-
-        if "```" in content:
-            code_blocks = re.findall(r'```(?:[a-zA-Z0-9_+-]+)?\n?(.*?)```', content, re.DOTALL)
-            if code_blocks:
-                # Prefer the largest code block when multiple are present.
-                return max(code_blocks, key=len).strip()
-        return content
-
-    def _si_strip_thinking_markup(self, text: str) -> str:
-        """Remove chain-of-thought style HTML wrappers that break command/file flows."""
         content = (text or "").strip()
         if not content:
             return ""
 
-        # Remove details/summary wrappers often produced by "thinking process" formatters.
-        content = re.sub(r'<details[^>]*>.*?</details>', '', content, flags=re.IGNORECASE | re.DOTALL)
-        content = re.sub(r'<summary[^>]*>.*?</summary>', '', content, flags=re.IGNORECASE | re.DOTALL)
-
-        # If labels leaked without wrappers, trim leading label lines.
-        lines = content.splitlines()
-        filtered = [ln for ln in lines if 'thinking process' not in ln.lower()]
-        return '\n'.join(filtered).strip()
+        if "```" in content:
+            code_blocks = re.findall(r'```(?:python)?\n?(.*?)```', content, re.DOTALL)
+            if code_blocks:
+                return code_blocks[0].strip()
+        return content
 
     def _si_result_looks_like_code(self, text: str) -> bool:
         """Heuristic check to avoid writing status/error text as code."""
@@ -8494,11 +8375,6 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             self._si_append_chat("assistant", command_result)
             return
 
-        llm_intent_result = self._si_handle_chat_intent_with_ai(text)
-        if llm_intent_result is not None:
-            self._si_append_chat("assistant", llm_intent_result)
-            return
-
         quick_result = self._si_handle_chat_natural_request(text)
         if quick_result is not None:
             self._si_append_chat("assistant", quick_result)
@@ -8515,147 +8391,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             max_tokens=1800,
             temperature=0.25,
         )
-        clean_reply = self._si_strip_thinking_markup(reply) or reply
-        self._si_append_chat("assistant", clean_reply)
-
-        generated = self._si_extract_code_from_response(clean_reply)
-        if generated and self._si_result_looks_like_code(generated):
-            self._si_last_generated_code = generated
-            lower_text = text.lower()
-            if any(k in lower_text for k in ['edit', 'modify', 'change', 'update', 'add', 'create', 'refactor', 'fix']):
-                self.si_code_editor.setPlainText(generated)
-                self._si_update_line_count()
-                self._si_append_chat("assistant", "Loaded generated code into editor. Run `/save` to write it to file.")
-
-    def _si_handle_chat_intent_with_ai(self, text: str) -> Optional[str]:
-        """Use LLM intent parsing so natural chat can trigger workspace actions."""
-        if text.strip().startswith('/'):
-            return None
-
-        workdir = self._si_resolve_workdir()
-        if not (workdir.exists() and workdir.is_dir()):
-            return None
-
-        current_file = self.si_file_path.text().strip() if hasattr(self, 'si_file_path') else ''
-        system_prompt = (
-            "You are an intent parser for a coding assistant. "
-            "Return ONLY valid JSON with keys: action, path, instruction, pattern, reply. "
-            "Allowed action values: command, chat, none. "
-            "For command actions, convert user request into one command using this format: "
-            "`/files [pattern]`, `/open <path>`, `/save [path]`, `/create <path> | <instruction>`, `/edit <path> | <instruction>`. "
-            "Set `reply` to the exact command string. "
-            "If user is asking a normal question/discussion, set action=chat and put a concise reply in `reply`. "
-            "If uncertain, set action=none. No markdown."
-        )
-        user_prompt = (
-            f"Workdir: {workdir}\n"
-            f"Current file: {current_file or 'none'}\n"
-            f"User message: {text}"
-        )
-
-        raw = self._si_call_ai(system_prompt, user_prompt, max_tokens=260, temperature=0)
-        lowered = (raw or '').lower()
-        if '<details>' in lowered or 'thinking process' in lowered:
-            return None
-        parsed = self._si_parse_json_object(raw)
-        if not isinstance(parsed, dict):
-            return None
-
-        action = str(parsed.get('action', '')).strip().lower()
-        reply = str(parsed.get('reply', '')).strip()
-        if action == 'command' and reply.startswith('/'):
-            return self._si_handle_chat_command(reply)
-        if action == 'chat' and reply:
-            return reply
-        return None
-
-    def _si_parse_json_object(self, text: str) -> Optional[dict]:
-        """Best-effort JSON object parser for model output."""
-        raw = (text or '').strip()
-        if not raw:
-            return None
-
-        try:
-            parsed = json.loads(raw)
-            return parsed if isinstance(parsed, dict) else None
-        except Exception:
-            pass
-
-        fenced = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw, re.DOTALL)
-        if fenced:
-            try:
-                parsed = json.loads(fenced.group(1))
-                return parsed if isinstance(parsed, dict) else None
-            except Exception:
-                pass
-
-        inline = re.search(r'(\{.*\})', raw, re.DOTALL)
-        if inline:
-            try:
-                parsed = json.loads(inline.group(1))
-                return parsed if isinstance(parsed, dict) else None
-            except Exception:
-                return None
-
-        return None
-
-    def _si_is_plausible_full_file(self, candidate: str, baseline: str = "", target: Optional[Path] = None) -> bool:
-        """Heuristic guard to avoid overwriting files with partial/snippet outputs."""
-        content = (candidate or '').strip()
-        if not content:
-            return False
-
-        lower = content.lower()
-        if lower.startswith('```') or lower.startswith('@@') or lower.startswith('diff --git'):
-            return False
-
-        if baseline.strip():
-            base_len = len(baseline.strip())
-            cand_len = len(content)
-            base_lines = len(baseline.splitlines())
-            cand_lines = len(content.splitlines())
-
-            # Prevent tiny snippets from replacing whole files.
-            if cand_len < max(120, int(base_len * 0.35)) and cand_lines < max(8, int(base_lines * 0.35)):
-                return False
-
-        if target and target.suffix.lower() == '.py':
-            try:
-                ast.parse(content)
-            except SyntaxError:
-                return False
-
-        return True
-
-    def _si_apply_structured_edits(self, source: str, edit_payload: str) -> Optional[str]:
-        """Apply model-provided targeted edits in JSON format to existing source."""
-        parsed = self._si_parse_json_object(edit_payload)
-        if not isinstance(parsed, dict):
-            return None
-
-        edits = parsed.get('edits')
-        if not isinstance(edits, list) or not edits:
-            return None
-
-        updated = source
-        applied = 0
-        for edit in edits:
-            if not isinstance(edit, dict):
-                continue
-
-            old = str(edit.get('old', ''))
-            new = str(edit.get('new', ''))
-            if not old:
-                continue
-            if old not in updated:
-                continue
-
-            updated = updated.replace(old, new, 1)
-            applied += 1
-
-        if applied == 0 or updated == source:
-            return None
-        return updated
+        self._si_append_chat("assistant", reply)
 
     def _si_handle_chat_natural_request(self, text: str) -> Optional[str]:
         """Handle common conversational workspace requests before sending to LLM."""
@@ -8668,7 +8404,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             if workdir.exists() and workdir.is_dir():
                 return (
                     f"Yes — current workdir is:\n{workdir}\n\n"
-                    "You can run `/files` to browse, `/open <file>` to load, `/create <file> | <instruction>` to create, `/edit <file> | <instruction>` to modify, and `/save` to write changes."
+                    "You can run `/files` to browse, `/open <file>` to load, `/edit <file> | <instruction>` to modify, and `/save` to write changes."
                 )
             return "I can't access a valid workdir yet. Set one with the Workdir field and click `Set`."
 
@@ -8677,41 +8413,6 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
         if message in {'help', 'commands'}:
             return self._si_handle_chat_command('/help')
-
-        natural_create = re.match(r'^(?:create|make|add)\s+(?:a\s+)?(?:file\s+)?(.+?)\s*\|\s*(.+)$', text.strip(), re.IGNORECASE)
-        if natural_create:
-            file_part = natural_create.group(1).strip()
-            instruction = natural_create.group(2).strip()
-            return self._si_handle_chat_command(f"/create {file_part} | {instruction}")
-
-        natural_edit = re.match(r'^(?:edit|update|modify)\s+(.+?)\s*\|\s*(.+)$', text.strip(), re.IGNORECASE)
-        if natural_edit:
-            file_part = natural_edit.group(1).strip()
-            instruction = natural_edit.group(2).strip()
-            return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
-
-        natural_edit_to = re.match(r'^(?:edit|update|modify|change)\s+(.+?)\s+(?:to|so that)\s+(.+)$', text.strip(), re.IGNORECASE)
-        if natural_edit_to:
-            file_part = natural_edit_to.group(1).strip()
-            instruction = natural_edit_to.group(2).strip()
-            return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
-
-        natural_file_edit = re.match(r'^.*?file\s+(.+?)\s+(?:to|so that)\s+(.+)$', text.strip(), re.IGNORECASE)
-        if natural_file_edit and any(k in message for k in {'edit', 'update', 'modify', 'change', 'add'}):
-            file_part = natural_file_edit.group(1).strip()
-            instruction = natural_file_edit.group(2).strip()
-            return self._si_handle_chat_command(f"/edit {file_part} | {instruction}")
-
-        natural_open = re.match(r'^(?:open|load|show)\s+(?:file\s+)?(.+)$', text.strip(), re.IGNORECASE)
-        if natural_open:
-            file_part = natural_open.group(1).strip()
-            return self._si_handle_chat_command(f"/open {file_part}")
-
-        natural_list = re.match(r'^(?:list|show)\s+(?:files\s+)?(?:in\s+)?(.+)$', text.strip(), re.IGNORECASE)
-        if natural_list:
-            target = natural_list.group(1).strip()
-            if target and target.lower() not in {'files', 'file'}:
-                return self._si_handle_chat_command(f"/files {target}")
 
         return None
 
@@ -8733,26 +8434,15 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
                 "/files [pattern] - list files in workdir\n"
                 "/open <relative_path> - load file into editor\n"
                 "/save [relative_path] - save editor code\n"
-                "/create <relative_path> | <instruction> - AI create file and save result\n"
                 "/edit <relative_path> | <instruction> - AI edit file and load result"
             )
 
         if cmd == '/files':
-            files: List[Path] = []
-            if arg:
-                candidate = (workdir / arg).resolve()
-                if (workdir in candidate.parents or candidate == workdir) and candidate.exists() and candidate.is_dir():
-                    files = sorted([p for p in candidate.rglob('*') if p.is_file()])[:120]
-                else:
-                    pattern = arg
-                    files = sorted([p for p in workdir.rglob(pattern) if p.is_file()])[:120]
-            else:
-                files = sorted([p for p in workdir.rglob('*') if p.is_file()])[:120]
-
+            pattern = arg if arg else '*.py'
+            files = sorted(workdir.rglob(pattern))
+            files = [p for p in files if p.is_file()][:80]
             if not files:
-                if arg:
-                    return f"No files matched '{arg}' in {workdir}."
-                return f"No files found in {workdir}."
+                return f"No files matched '{pattern}' in {workdir}."
             rels = [str(p.relative_to(workdir)) for p in files]
             return "Files:\n" + "\n".join(rels)
 
@@ -8788,96 +8478,12 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
                 return "Path escapes workdir; blocked."
 
             try:
-                content_to_save = self.si_code_editor.toPlainText()
-                used_suggested = False
-
-                last_generated = getattr(self, '_si_last_generated_code', '')
-                if isinstance(last_generated, str) and last_generated.strip() and self._si_result_looks_like_code(last_generated):
-                    if not self._si_is_plausible_full_file(last_generated, content_to_save, target):
-                        last_generated = ''
-
-                if isinstance(last_generated, str) and last_generated.strip() and self._si_result_looks_like_code(last_generated):
-                    if last_generated.strip() != content_to_save.strip():
-                        content_to_save = last_generated
-                        used_suggested = True
-                        self.si_code_editor.setPlainText(content_to_save)
-                        self._si_update_line_count()
-
-                if hasattr(self, 'si_result_display'):
-                    suggested = self._si_extract_code_from_response(self.si_result_display.toPlainText())
-                    if suggested and self._si_result_looks_like_code(suggested):
-                        if not self._si_is_plausible_full_file(suggested, content_to_save, target):
-                            suggested = ""
-
-                    if suggested and self._si_result_looks_like_code(suggested):
-                        if suggested.strip() != content_to_save.strip():
-                            content_to_save = suggested
-                            used_suggested = True
-                            # Keep editor aligned with what gets written to disk.
-                            self.si_code_editor.setPlainText(content_to_save)
-                            self._si_update_line_count()
-
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(content_to_save, encoding='utf-8')
+                target.write_text(self.si_code_editor.toPlainText(), encoding='utf-8')
                 self.si_file_path.setText(str(target))
-                suffix = " (applied latest suggested changes)" if used_suggested else ""
-                return f"Saved {target.relative_to(workdir)}{suffix}"
+                return f"Saved {target.relative_to(workdir)}"
             except Exception as e:
                 return f"Failed to save: {str(e)}"
-
-        if cmd == '/create':
-            if '|' not in arg:
-                return "Usage: /create <relative_path> | <instruction>"
-
-            file_part, instruction = [p.strip() for p in arg.split('|', 1)]
-            if not file_part or not instruction:
-                return "Usage: /create <relative_path> | <instruction>"
-
-            target = (workdir / file_part).resolve()
-            if workdir not in target.parents and target != workdir:
-                return "Path escapes workdir; blocked."
-            if target.exists() and target.is_dir():
-                return "Target path is a directory, not a file."
-
-            try:
-                existing = ""
-                if target.exists() and target.is_file():
-                    existing = target.read_text(encoding='utf-8', errors='ignore')
-
-                prompt = (
-                    "Generate file content for the requested path and instruction. "
-                    "Return only the file content, no markdown and no explanations.\n"
-                    f"Target path: {target.relative_to(workdir)}\n"
-                    f"Instruction: {instruction}\n"
-                )
-                if existing:
-                    prompt += f"\nExisting content to improve/replace:\n{existing[:12000]}"
-
-                created = self._si_call_ai(
-                    "You are an expert software engineer. Create complete, production-quality file contents from the user's instruction.",
-                    prompt,
-                    max_tokens=4500,
-                    temperature=0.2,
-                )
-                created_content = self._si_extract_code_from_response(created)
-                if not created_content.strip():
-                    return "AI returned empty output."
-
-                if target.suffix.lower() == '.py':
-                    try:
-                        ast.parse(created_content)
-                    except SyntaxError as e:
-                        return f"Generated Python has syntax errors; file not written: {str(e)}"
-
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(created_content, encoding='utf-8')
-                self._si_last_generated_code = created_content
-                self.si_code_editor.setPlainText(created_content)
-                self.si_file_path.setText(str(target))
-                self._si_update_line_count()
-                return f"Created and saved {target.relative_to(workdir)}"
-            except Exception as e:
-                return f"Create failed: {str(e)}"
 
         if cmd == '/edit':
             if '|' not in arg:
@@ -8894,50 +8500,22 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
             try:
                 source = target.read_text(encoding='utf-8', errors='ignore')
-                structured_prompt = (
-                    "Apply the instruction using targeted edits and return ONLY JSON in this shape: "
-                    "{\"edits\":[{\"old\":\"exact existing text\",\"new\":\"replacement text\"}]}. "
-                    "Use exact `old` snippets copied from the source. Do not return markdown.\n"
+                prompt = (
+                    "Modify this code according to the instruction. Return only valid code, no markdown.\n"
                     f"Instruction: {instruction}\n\n"
-                    f"Source:\n{source[:12000]}"
+                    f"Code:\n{source[:12000]}"
                 )
-                edit_plan = self._si_call_ai(
-                    "You are a precise code transformation engine. Produce deterministic JSON patch operations only.",
-                    structured_prompt,
-                    max_tokens=3000,
-                    temperature=0,
+                edited = self._si_call_ai(
+                    "You are an expert software engineer. Apply requested edits safely and preserve behavior unless asked.",
+                    prompt,
+                    max_tokens=4000,
+                    temperature=0.2,
                 )
-
-                edited_code = self._si_apply_structured_edits(source, edit_plan)
-                if not edited_code:
-                    prompt = (
-                        "Modify this FULL file according to the instruction. Return the complete updated file content only, no markdown.\n"
-                        f"Instruction: {instruction}\n\n"
-                        f"Code:\n{source[:12000]}"
-                    )
-                    edited = self._si_call_ai(
-                        "You are an expert software engineer. Return the complete updated file content.",
-                        prompt,
-                        max_tokens=4000,
-                        temperature=0.2,
-                    )
-                    edited_code = self._si_extract_code_from_response(edited)
-
+                edited_code = self._si_extract_code_from_response(edited)
                 if not edited_code.strip():
                     return "AI returned empty output."
-                if not self._si_result_looks_like_code(edited_code):
-                    return "AI returned non-code output. Please retry with a more specific instruction."
-                if not self._si_is_plausible_full_file(edited_code, source, target):
-                    return "AI returned partial content; file not overwritten. Try a more specific instruction or use /edit with focused scope."
-
-                if target.suffix.lower() == '.py':
-                    try:
-                        ast.parse(edited_code)
-                    except SyntaxError as e:
-                        return f"Generated Python has syntax errors; file not written: {str(e)}"
 
                 target.write_text(edited_code, encoding='utf-8')
-                self._si_last_generated_code = edited_code
                 self.si_code_editor.setPlainText(edited_code)
                 self.si_file_path.setText(str(target))
                 self._si_update_line_count()
