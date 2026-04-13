@@ -174,6 +174,14 @@ except ImportError:
     run_endpoint_heuristics_scan = None
     HAS_ENDPOINT_HEURISTICS = False
 
+# OFSP-Inspired Machine Scanner (defensive host scan)
+try:
+    from modules.ofsp_machine_scanner import run_machine_scan as run_ofsp_machine_scan
+    HAS_OFSP_MACHINE_SCANNER = True
+except ImportError:
+    run_ofsp_machine_scan = None
+    HAS_OFSP_MACHINE_SCANNER = False
+
 # PHASE 1 INTEGRATION - Critical Systems
 try:
     from modules.obsidian_core_integration import get_obsidian_core
@@ -3073,6 +3081,8 @@ class HadesAI:
         self.current_implementation_integration = None
         self.current_implementation_catalog = {}
         self.endpoint_heuristics_available = HAS_ENDPOINT_HEURISTICS and run_endpoint_heuristics_scan is not None
+        self.ofsp_machine_scanner_available = HAS_OFSP_MACHINE_SCANNER and run_ofsp_machine_scan is not None
+        self.ofsp_reference_path = r"D:\x12\OFSP"
         
         # Initialize LLM conversation manager
         if HAS_LLM_CORE:
@@ -3155,6 +3165,11 @@ class HadesAI:
         stats['endpoint_heuristics'] = {
             'available': self.endpoint_heuristics_available,
         }
+        stats['ofsp_machine_scanner'] = {
+            'available': self.ofsp_machine_scanner_available,
+            'reference_path': self.ofsp_reference_path,
+            'reference_exists': os.path.isdir(self.ofsp_reference_path),
+        }
         if self.cognitive:
             stats['cognitive_memories'] = self.cognitive.get_memory_stats()
         return stats
@@ -3211,6 +3226,84 @@ class HadesAI:
                 'low': 0,
                 'findings': [],
             }
+
+    def run_ofsp_machine_scan(self, deep: bool = False) -> Dict[str, Any]:
+        """Run OFSP-inspired defensive machine scan."""
+        if not self.ofsp_machine_scanner_available or not run_ofsp_machine_scan:
+            return {
+                'error': 'OFSP machine scanner is not available',
+                'available': False,
+                'summary': {'total_findings': 0, 'high': 0, 'medium': 0, 'low': 0},
+                'findings': [],
+            }
+
+        try:
+            result = run_ofsp_machine_scan(deep=deep, ofsp_path=self.ofsp_reference_path)
+            if isinstance(result, dict):
+                result.setdefault('available', True)
+                return result
+            return {
+                'error': 'OFSP machine scanner returned invalid response',
+                'available': True,
+                'summary': {'total_findings': 0, 'high': 0, 'medium': 0, 'low': 0},
+                'findings': [],
+            }
+        except Exception as e:
+            logger.warning(f"OFSP machine scan failed: {str(e)}")
+            return {
+                'error': f'OFSP machine scan failed: {str(e)}',
+                'available': True,
+                'summary': {'total_findings': 0, 'high': 0, 'medium': 0, 'low': 0},
+                'findings': [],
+            }
+
+    def learn_from_machine_scan(self, scan_result: Dict[str, Any]) -> Dict[str, int]:
+        """Persist machine-scan findings into threat/exploit learning stores."""
+        findings = scan_result.get('findings', []) if isinstance(scan_result, dict) else []
+        stored_findings = 0
+        stored_exploits = 0
+
+        for item in findings:
+            try:
+                severity = str(item.get('severity', 'LOW')).upper()
+                source = str(item.get('source', 'machine_scan'))
+                process_name = str(item.get('process', 'unknown'))
+                pid = int(item.get('pid', 0) or 0)
+                score = int(item.get('score', 0) or 0)
+                exe = str(item.get('exe', ''))
+                cmdline = str(item.get('cmdline', ''))
+                reasons = item.get('reasons', []) or []
+                sha256 = str(item.get('sha256', ''))
+
+                finding = ThreatFinding(
+                    path=exe or f"Process:{process_name}",
+                    threat_type=f"machine_scan:{source}",
+                    pattern=f"process={process_name} pid={pid} score={score}",
+                    severity=severity,
+                    code_snippet=(cmdline or process_name)[:1000],
+                    browser='Machine Scanner',
+                    context=f"reasons={'; '.join(str(r) for r in reasons[:6])} sha256={sha256}",
+                )
+                self.kb.store_threat_finding(finding)
+                stored_findings += 1
+
+                if severity in {'HIGH', 'MEDIUM'}:
+                    exploit_type = f"machine_scan_{source}"
+                    description = f"Machine scan detection for {process_name} (score={score}, severity={severity})"
+                    self.kb.store_learned_exploit(
+                        source_url=f"machine://{source}/{process_name}",
+                        exploit_type=exploit_type,
+                        code=(cmdline or process_name)[:1000],
+                        description=description,
+                    )
+                    stored_exploits += 1
+            except Exception:
+                continue
+
+        return {
+            'findings_stored': stored_findings,
+            'exploits_learned': stored_exploits,
+        }
 
     # ========== Amp Thread Learning Methods ==========
     def _extract_text_fragments(self, node: Any) -> List[str]:
@@ -4637,6 +4730,7 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_active_defense_tab(), "🛡️ Active Defense")
         self.tabs.addTab(self._create_network_monitor_tab(), "🛡️ Network Monitor")
         self.tabs.addTab(self._create_web_knowledge_tab(), "🧠 Web Knowledge")
+        self.tabs.addTab(self._create_machine_scan_tab(), "🖥️ Machine Scan")
         self.tabs.addTab(self._create_tools_tab(), "🛠️ Tools & Targets")
         self.tabs.addTab(self._create_exploit_tab(), "⚔️ Active Exploit")
         self.tabs.addTab(self._create_injection_tab(), "💉 Request Injection")
@@ -6150,6 +6244,188 @@ please consider supporting its development.</p>
         layout.addWidget(self.autorecon_output)
 
         return widget        
+
+    def _create_machine_scan_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        title = QLabel("🖥️ OFSP-Inspired Local Machine Scanner")
+        title.setFont(QFont("Consolas", 13, QFont.Weight.Bold))
+        title.setStyleSheet("color: #e94560;")
+        layout.addWidget(title)
+
+        controls = QHBoxLayout()
+        self.machine_scan_quick_btn = QPushButton("⚡ Quick Scan")
+        self.machine_scan_quick_btn.clicked.connect(lambda: self._start_machine_scan(False))
+        controls.addWidget(self.machine_scan_quick_btn)
+
+        self.machine_scan_deep_btn = QPushButton("🔍 Deep Scan")
+        self.machine_scan_deep_btn.clicked.connect(lambda: self._start_machine_scan(True))
+        controls.addWidget(self.machine_scan_deep_btn)
+
+        self.machine_scan_auto_learn = QCheckBox("Auto-learn from findings")
+        self.machine_scan_auto_learn.setChecked(True)
+        controls.addWidget(self.machine_scan_auto_learn)
+
+        controls.addStretch()
+        layout.addLayout(controls)
+
+        self.machine_scan_progress = QProgressBar()
+        self.machine_scan_progress.setValue(0)
+        layout.addWidget(self.machine_scan_progress)
+
+        self.machine_scan_status = QLabel("Ready")
+        self.machine_scan_status.setStyleSheet("color: #69db7c;")
+        layout.addWidget(self.machine_scan_status)
+
+        self.machine_scan_summary = QLabel("No machine scan has been executed yet.")
+        self.machine_scan_summary.setStyleSheet("color: #4dabf7;")
+        layout.addWidget(self.machine_scan_summary)
+
+        self.machine_scan_table = QTableWidget()
+        self.machine_scan_table.setColumnCount(5)
+        self.machine_scan_table.setHorizontalHeaderLabels(["Severity", "Source", "Process", "PID", "Score"])
+        self.machine_scan_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.machine_scan_table.itemSelectionChanged.connect(self._show_machine_scan_selected)
+        layout.addWidget(self.machine_scan_table)
+
+        self.machine_scan_detail = QPlainTextEdit()
+        self.machine_scan_detail.setReadOnly(True)
+        self.machine_scan_detail.setFont(QFont("Consolas", 10))
+        layout.addWidget(self.machine_scan_detail)
+
+        self.machine_scan_raw = QPlainTextEdit()
+        self.machine_scan_raw.setReadOnly(True)
+        self.machine_scan_raw.setFont(QFont("Consolas", 10))
+        self.machine_scan_raw.setMaximumHeight(180)
+        layout.addWidget(self.machine_scan_raw)
+
+        self.machine_scan_result = None
+        self.machine_scan_findings = []
+        return widget
+
+    def _start_machine_scan(self, deep: bool):
+        if not getattr(self.ai, 'ofsp_machine_scanner_available', False):
+            self.machine_scan_status.setText("❌ Machine scanner module unavailable")
+            self.machine_scan_status.setStyleSheet("color: #ff6b6b;")
+            return
+
+        class MachineScanThread(QThread):
+            progress = pyqtSignal(int)
+            finished_scan = pyqtSignal(dict)
+
+            def __init__(self, ai_obj, is_deep: bool):
+                super().__init__()
+                self.ai_obj = ai_obj
+                self.is_deep = is_deep
+
+            def run(self):
+                try:
+                    if not run_ofsp_machine_scan:
+                        self.finished_scan.emit({'error': 'Scanner function unavailable', 'findings': []})
+                        return
+                    result = run_ofsp_machine_scan(
+                        deep=self.is_deep,
+                        ofsp_path=self.ai_obj.ofsp_reference_path,
+                        progress_callback=lambda pct: self.progress.emit(int(pct)),
+                    )
+                    self.finished_scan.emit(result)
+                except Exception as e:
+                    self.finished_scan.emit({'error': str(e), 'findings': []})
+
+        self.machine_scan_quick_btn.setEnabled(False)
+        self.machine_scan_deep_btn.setEnabled(False)
+        self.machine_scan_progress.setValue(0)
+        scan_mode = "deep" if deep else "quick"
+        self.machine_scan_status.setText(f"Running {scan_mode} machine scan...")
+        self.machine_scan_status.setStyleSheet("color: #4dabf7;")
+
+        self.machine_scan_thread = MachineScanThread(self.ai, deep)
+        self.machine_scan_thread.progress.connect(self.machine_scan_progress.setValue)
+        self.machine_scan_thread.finished_scan.connect(self._on_machine_scan_complete)
+        self.machine_scan_thread.start()
+
+    def _on_machine_scan_complete(self, result: dict):
+        self.machine_scan_quick_btn.setEnabled(True)
+        self.machine_scan_deep_btn.setEnabled(True)
+        self.machine_scan_progress.setValue(100)
+
+        if result.get('error'):
+            self.machine_scan_status.setText(f"❌ Scan failed: {result.get('error')}")
+            self.machine_scan_status.setStyleSheet("color: #ff6b6b;")
+            return
+
+        self.machine_scan_result = result
+        self.machine_scan_findings = result.get('findings', [])
+        summary = result.get('summary', {})
+        self.machine_scan_summary.setText(
+            f"Findings: {summary.get('total_findings', 0)} | "
+            f"High: {summary.get('high', 0)} | "
+            f"Medium: {summary.get('medium', 0)} | "
+            f"Low: {summary.get('low', 0)}"
+        )
+
+        self.machine_scan_status.setText("✅ Machine scan complete")
+        self.machine_scan_status.setStyleSheet("color: #69db7c;")
+
+        self.machine_scan_table.setRowCount(len(self.machine_scan_findings))
+        for i, item in enumerate(self.machine_scan_findings):
+            severity = str(item.get('severity', 'LOW'))
+            source = str(item.get('source', 'unknown'))
+            process_name = str(item.get('process', 'unknown'))
+            pid = str(item.get('pid', 0))
+            score = str(item.get('score', 0))
+
+            self.machine_scan_table.setItem(i, 0, QTableWidgetItem(severity))
+            self.machine_scan_table.setItem(i, 1, QTableWidgetItem(source))
+            self.machine_scan_table.setItem(i, 2, QTableWidgetItem(process_name))
+            self.machine_scan_table.setItem(i, 3, QTableWidgetItem(pid))
+            self.machine_scan_table.setItem(i, 4, QTableWidgetItem(score))
+
+        self.machine_scan_raw.setPlainText(json.dumps(result, indent=2)[:12000])
+        self.machine_scan_detail.setPlainText("Select a finding to inspect details.")
+
+        if self.machine_scan_auto_learn.isChecked():
+            learn_result = self.ai.learn_from_machine_scan(result)
+            self._add_chat_message(
+                'assistant',
+                f"Machine scan learning complete: stored {learn_result.get('findings_stored', 0)} findings, "
+                f"learned {learn_result.get('exploits_learned', 0)} exploit patterns."
+            )
+            self._refresh_findings()
+            self._refresh_learned()
+
+    def _show_machine_scan_selected(self):
+        if not hasattr(self, 'machine_scan_table'):
+            return
+        row = self.machine_scan_table.currentRow()
+        if row < 0 or row >= len(getattr(self, 'machine_scan_findings', [])):
+            return
+
+        item = self.machine_scan_findings[row]
+        reasons = item.get('reasons', []) or []
+        network = item.get('network', []) or []
+        detail = [
+            f"Source: {item.get('source', 'unknown')}",
+            f"Severity: {item.get('severity', 'LOW')}",
+            f"Score: {item.get('score', 0)}",
+            f"Process: {item.get('process', 'unknown')} (PID {item.get('pid', 0)})",
+            f"Executable: {item.get('exe', '')}",
+            f"User: {item.get('username', '')}",
+            f"SHA256: {item.get('sha256', '')}",
+            "",
+            "Reasons:",
+        ]
+        for reason in reasons[:12]:
+            detail.append(f"- {reason}")
+
+        if network:
+            detail.append("")
+            detail.append("Network:")
+            for conn in network[:12]:
+                detail.append(f"- {conn.get('status', '')} {conn.get('local', '')} -> {conn.get('remote', '')}")
+
+        self.machine_scan_detail.setPlainText("\n".join(detail))
     def _on_connection_detected(self, conn: dict):
         row = self.connection_table.rowCount()
         if row >= 100:
@@ -8925,6 +9201,13 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
             self._set_current_tab_by_label("Cache Scanner", fallback_index=10)
             self._start_cache_scan()
             return "🔍 Browser cache scan initiated. Hunting for artifacts and threats..."
+
+        # Machine scan - AUTO-EXECUTE
+        if any(q in text for q in ['machine scan', 'host scan', 'system scan', 'local scan', 'ofsp scan']):
+            self._set_current_tab_by_label("Machine Scan")
+            deep = any(q in text for q in ['deep', 'full'])
+            self._start_machine_scan(deep)
+            return "🖥️ Machine scan initiated. Results will populate the Machine Scan tab and learn from findings if enabled."
         
         # Capabilities
         if any(q in text for q in ['what can you do', 'capabilities', 'abilities', 'features', 'help me']):
@@ -8993,6 +9276,7 @@ I act immediately. Just tell me what to hit."""
 **Analysis (auto-executes):**
 • `cache scan` - Scan browser artifacts
 • `browser scan` - Same as cache scan
+• `machine scan` - Scan local machine process and startup risks
 
 **Control:**
 • `stop` - Halt current operation

@@ -16,7 +16,7 @@ import re
 import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import psutil
 
@@ -185,6 +185,7 @@ def score_process(
     proc: psutil.Process,
     proc_map: Dict[int, psutil.Process],
     net_map: Dict[int, List[Dict[str, str]]],
+    check_signatures: bool = True,
 ) -> Optional[Finding]:
     try:
         info = proc.as_dict(attrs=["pid", "name", "exe", "cmdline", "ppid", "username"])
@@ -253,7 +254,7 @@ def score_process(
         finding.score += 25
         finding.reasons.append("Certutil used with download or transform switches")
 
-    if exe and Path(exe).exists():
+    if check_signatures and exe and Path(exe).exists():
         sig_status = powershell_authenticode_status(exe)
         if sig_status not in {"Valid", "UnknownError"}:
             finding.score += 20
@@ -296,16 +297,29 @@ def score_process(
     return finding if finding.score > 0 else None
 
 
-def run_scan() -> Dict[str, object]:
+def run_scan(
+    check_signatures: bool = True,
+    max_processes: Optional[int] = None,
+    progress_callback: Optional[Callable[[int], None]] = None,
+) -> Dict[str, object]:
     """Run endpoint heuristics scan and return structured findings."""
     proc_map = build_process_map()
     net_map = collect_network_by_pid()
 
     findings: List[Finding] = []
-    for proc in list(proc_map.values()):
-        finding = score_process(proc, proc_map, net_map)
+    proc_list = list(proc_map.values())
+    if isinstance(max_processes, int) and max_processes > 0:
+        proc_list = proc_list[:max_processes]
+
+    total = len(proc_list) or 1
+    callback = progress_callback or (lambda _: None)
+
+    for idx, proc in enumerate(proc_list):
+        finding = score_process(proc, proc_map, net_map, check_signatures=check_signatures)
         if finding:
             findings.append(finding)
+        if idx % 10 == 0 or idx == total - 1:
+            callback(int(((idx + 1) / total) * 100))
 
     findings.sort(key=lambda item: (-item.score, item.name, item.pid))
 
