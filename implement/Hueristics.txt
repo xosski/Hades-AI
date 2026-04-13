@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""
+advanced_heuristics_detector.py
+
+Defensive heuristic detection for Windows endpoints.
+Scores suspicious processes and prints findings as JSON.
+
+Requirements:
+    pip install psutil
+
+Optional:
+    Run from an elevated shell for better visibility into process info.
+
+Notes:
+- Heuristic scoring is not proof of compromise.
+- This is meant for triage and hunting, not automatic blocking.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass, asdict, field
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import psutil
+
+
+USER_WRITABLE_PATTERNS = [
+    r"\\Users\\[^\\]+\\AppData\\Local\\Temp\\",
+    r"\\Users\\[^\\]+\\AppData\\Roaming\\",
+    r"\\Users\\[^\\]+\\Downloads\\",
+    r"\\Users\\Public\\",
+    r"\\ProgramData\\",
+    r"\\Temp\\",
+]
+
+LOLBINS = {
+    "powershell.exe",
+    "pwsh.exe",
+    "cmd.exe",
+    "wscript.exe",
+    "cscript.exe",
+    "mshta.exe",
+    "rundll32.exe",
+    "regsvr32.exe",
+    "certutil.exe",
+    "bitsadmin.exe",
+    "wmic.exe",
+    "msbuild.exe",
+    "installutil.exe",
+}
+
+SUSPICIOUS_PARENTS = {
+    "winword.exe",
+    "excel.exe",
+    "outlook.exe",
+    "acrord32.exe",
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+}
+
+SUSPICIOUS_EXTENSIONS = {".tmp", ".dat", ".bin", ".scr", ".js", ".jse", ".vbs", ".vbe", ".hta"}
+SUSPICIOUS_PORTS = {4444, 1337, 5555, 6666, 8081, 8443, 9001, 31337}
+HIGH_RISK_SCORE = 70
+MEDIUM_RISK_SCORE = 40
+
+
+@dataclass
+class Finding:
+    pid: int
+    name: str
+    score: int = 0
+    severity: str = "LOW"
+    exe: Optional[str] = None
+    cmdline: Optional[str] = None
+    parent_name: Optional[str] = None
+    username: Optional[str] = None
+    reasons: List[str] = field(default_factory=list)
+    network: List[Dict[str, str]] = field(default_factory=list)
+
+
+def normalize_path(path: Optional[str]) -> str:
+    return (path or "").strip().lower()
+
+
+def matches_any_pattern(path: str, patterns: List[str]) -> bool:
+    return any(re.search(pattern, path, re.IGNORECASE) for pattern in patterns)
+
+
+def safe_join_cmdline(parts: List[str]) -> str:
+    try:
+        return " ".join(parts)
+    except Exception:
+        return ""
+
+
+def is_encoded_powershell(cmdline: str) -> bool:
+    patterns = [
+        r"-enc(?:odedcommand)?\s+",
+        r"frombase64string",
+        r"\[system\.convert\]::frombase64string",
+    ]
+    return any(re.search(p, cmdline, re.IGNORECASE) for p in patterns)
+
+
+def has_suspicious_switches(cmdline: str) -> bool:
+    patterns = [
+        r"-nop\b",
+        r"-w\s+hidden",
+        r"-windowstyle\s+hidden",
+        r"-executionpolicy\s+bypass",
+        r"-ep\s+bypass",
+        r"-noni\b",
+        r"/c\s+",
+    ]
+    return any(re.search(p, cmdline, re.IGNORECASE) for p in patterns)
+
+
+def suspicious_filename(name: str) -> bool:
+    lower = name.lower()
+    if lower.endswith(tuple(SUSPICIOUS_EXTENSIONS)):
+        return True
+    if re.match(r"^[a-f0-9]{8,}\.(exe|dll|tmp|dat|bin)$", lower):
+        return True
+    if "~" in lower:
+        return True
+    return False
+
+
+def powershell_authenticode_status(path: str) -> str:
+    """
+    Uses PowerShell to check Authenticode signature state.
+    Returns one of: Valid, NotSigned, UnknownError, ...
+    """
+    if not path or not Path(path).exists():
+        return "Missing"
+    cmd = [
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        (
+            "$p = %r; "
+            "try { "
+            "(Get-AuthenticodeSignature -FilePath $p).Status.ToString() "
+            "} catch { 'UnknownError' }"
+        ) % path
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+        return (result.stdout or "").strip() or "UnknownError"
+    except Exception:
+        return "UnknownError"
+
+
+def build_process_map() -> Dict[int, psutil.Process]:
+    proc_map: Dict[int, psutil.Process] = {}
+    for proc in psutil.process_iter(attrs=[]):
+        try:
+            proc_map[proc.pid] = proc
+        except Exception:
+            continue
+    return proc_map
+
+
+def collect_network_by_pid() -> Dict[int, List[Dict[str, str]]]:
+    net_map: Dict[int, List[Dict[str, str]]] = {}
+    try:
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.pid is None:
+                continue
+            local = f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else ""
+            remote = f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else ""
+            entry = {
+                "status": str(conn.status),
+                "local": local,
+                "remote": remote,
+            }
+            net_map.setdefault(conn.pid, []).append(entry)
+    except Exception:
+        pass
+    return net_map
+
+
+def score_process(
+    proc: psutil.Process,
+    proc_map: Dict[int, psutil.Process],
+    net_map: Dict[int, List[Dict[str, str]]],
+) -> Optional[Finding]:
+    try:
+        info = proc.as_dict(attrs=[
+            "pid", "name", "exe", "cmdline", "ppid", "username"
+        ])
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return None
+
+    pid = info["pid"]
+    name = (info.get("name") or "").lower()
+    exe = info.get("exe") or ""
+    cmdline = safe_join_cmdline(info.get("cmdline") or [])
+    ppid = info.get("ppid") or 0
+    username = info.get("username") or ""
+    parent_name = ""
+
+    if ppid in proc_map:
+        try:
+            parent_name = (proc_map[ppid].name() or "").lower()
+        except Exception:
+            parent_name = ""
+
+    finding = Finding(
+        pid=pid,
+        name=name,
+        exe=exe or None,
+        cmdline=cmdline or None,
+        parent_name=parent_name or None,
+        username=username or None,
+    )
+
+    exe_lower = normalize_path(exe)
+    cmd_lower = cmdline.lower()
+
+    # User-writable path execution
+    if exe_lower and matches_any_pattern(exe_lower, USER_WRITABLE_PATTERNS):
+        finding.score += 20
+        finding.reasons.append("Executable launched from user-writable or staging path")
+
+    # Suspicious filename
+    if suspicious_filename(name) or suspicious_filename(Path(exe_lower).name):
+        finding.score += 15
+        finding.reasons.append("Suspicious filename or extension")
+
+    # LOLBin heuristics
+    if name in LOLBINS:
+        finding.score += 10
+        finding.reasons.append("Living-off-the-land binary in use")
+
+    # Encoded PowerShell or stealthy switches
+    if "powershell" in name or "pwsh" in name:
+        if is_encoded_powershell(cmd_lower):
+            finding.score += 30
+            finding.reasons.append("Encoded PowerShell usage detected")
+        if has_suspicious_switches(cmd_lower):
+            finding.score += 20
+            finding.reasons.append("PowerShell stealth or bypass switches detected")
+
+    # Scripting / proxy utilities with remote URLs
+    if re.search(r"https?://", cmd_lower) and name in LOLBINS:
+        finding.score += 20
+        finding.reasons.append("LOLBIN launched with URL or remote content reference")
+
+    # Suspicious parent-child chains
+    if parent_name in SUSPICIOUS_PARENTS and name in LOLBINS:
+        finding.score += 25
+        finding.reasons.append(f"Suspicious parent-child chain: {parent_name} -> {name}")
+
+    # Rundll32 / regsvr32 weird use
+    if name in {"rundll32.exe", "regsvr32.exe"}:
+        if re.search(r"(http|scrobj\.dll|javascript:|vbscript:)", cmd_lower):
+            finding.score += 35
+            finding.reasons.append("Suspicious DLL/scriptlet execution pattern")
+
+    # Certutil download / decode
+    if name == "certutil.exe" and re.search(r"(-urlcache|-decode|-encode|-split)", cmd_lower):
+        finding.score += 25
+        finding.reasons.append("Certutil used with download or transform switches")
+
+    # Unsigned executable
+    if exe and Path(exe).exists():
+        sig_status = powershell_authenticode_status(exe)
+        if sig_status not in {"Valid", "UnknownError"}:
+            finding.score += 20
+            finding.reasons.append(f"Executable signature status: {sig_status}")
+
+    # Network behavior
+    connections = net_map.get(pid, [])
+    finding.network = connections
+
+    for conn in connections:
+        local_port = int(conn["local"].rsplit(":", 1)[1]) if ":" in conn["local"] else -1
+        remote_port = int(conn["remote"].rsplit(":", 1)[1]) if ":" in conn["remote"] else -1
+
+        if conn["status"].upper() == "LISTEN" and local_port in SUSPICIOUS_PORTS:
+            finding.score += 15
+            finding.reasons.append(f"Listening on suspicious port {local_port}")
+
+        if remote_port in SUSPICIOUS_PORTS:
+            finding.score += 20
+            finding.reasons.append(f"Connected to suspicious remote port {remote_port}")
+
+        if name in LOLBINS and conn["remote"]:
+            finding.score += 15
+            finding.reasons.append("LOLBIN process has active network connection")
+
+    # Hidden or odd user context
+    if exe_lower and "\\windows\\tasks\\" in exe_lower:
+        finding.score += 15
+        finding.reasons.append("Process executing from suspicious Windows Tasks path")
+
+    if re.search(r"appdata\\.*\\(svchost|lsass|csrss|explorer)\.exe", exe_lower):
+        finding.score += 35
+        finding.reasons.append("System-like executable name running from user path")
+
+    # Final severity
+    if finding.score >= HIGH_RISK_SCORE:
+        finding.severity = "HIGH"
+    elif finding.score >= MEDIUM_RISK_SCORE:
+        finding.severity = "MEDIUM"
+    else:
+        finding.severity = "LOW"
+
+    return finding if finding.score > 0 else None
+
+
+def main() -> int:
+    proc_map = build_process_map()
+    net_map = collect_network_by_pid()
+
+    findings: List[Finding] = []
+    for proc in list(proc_map.values()):
+        finding = score_process(proc, proc_map, net_map)
+        if finding:
+            findings.append(finding)
+
+    findings.sort(key=lambda x: (-x.score, x.name, x.pid))
+
+    summary = {
+        "total_findings": len(findings),
+        "high": sum(1 for f in findings if f.severity == "HIGH"),
+        "medium": sum(1 for f in findings if f.severity == "MEDIUM"),
+        "low": sum(1 for f in findings if f.severity == "LOW"),
+        "findings": [asdict(f) for f in findings],
+    }
+
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

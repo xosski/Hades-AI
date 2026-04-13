@@ -166,6 +166,14 @@ except ImportError:
     get_current_implementation_integration = None
     HAS_IMPLEMENTATION_INTEGRATION = False
 
+# Endpoint Heuristics Detector (defensive runtime scan)
+try:
+    from modules.endpoint_heuristics_detector import run_scan as run_endpoint_heuristics_scan
+    HAS_ENDPOINT_HEURISTICS = True
+except ImportError:
+    run_endpoint_heuristics_scan = None
+    HAS_ENDPOINT_HEURISTICS = False
+
 # PHASE 1 INTEGRATION - Critical Systems
 try:
     from modules.obsidian_core_integration import get_obsidian_core
@@ -3064,6 +3072,7 @@ class HadesAI:
         self.amp_threads_folder = os.getenv('HADES_AMP_THREADS_DIR', 'amp threads')
         self.current_implementation_integration = None
         self.current_implementation_catalog = {}
+        self.endpoint_heuristics_available = HAS_ENDPOINT_HEURISTICS and run_endpoint_heuristics_scan is not None
         
         # Initialize LLM conversation manager
         if HAS_LLM_CORE:
@@ -3143,6 +3152,9 @@ class HadesAI:
             'total_files': self.current_implementation_catalog.get('total_files', 0),
             'by_extension': self.current_implementation_catalog.get('by_extension', {}),
         }
+        stats['endpoint_heuristics'] = {
+            'available': self.endpoint_heuristics_available,
+        }
         if self.cognitive:
             stats['cognitive_memories'] = self.cognitive.get_memory_stats()
         return stats
@@ -3160,6 +3172,45 @@ class HadesAI:
             self.current_implementation_catalog = self.current_implementation_integration.get_catalog()
 
         return dict(self.current_implementation_catalog)
+
+    def run_endpoint_heuristics_scan(self) -> Dict[str, Any]:
+        """Run the defensive endpoint heuristics detector and return findings."""
+        if not self.endpoint_heuristics_available or not run_endpoint_heuristics_scan:
+            return {
+                'error': 'Endpoint heuristics detector is not available',
+                'available': False,
+                'total_findings': 0,
+                'high': 0,
+                'medium': 0,
+                'low': 0,
+                'findings': [],
+            }
+
+        try:
+            result = run_endpoint_heuristics_scan()
+            if isinstance(result, dict):
+                result.setdefault('available', True)
+                return result
+            return {
+                'error': 'Endpoint heuristics detector returned invalid response',
+                'available': True,
+                'total_findings': 0,
+                'high': 0,
+                'medium': 0,
+                'low': 0,
+                'findings': [],
+            }
+        except Exception as e:
+            logger.warning(f"Endpoint heuristics scan failed: {str(e)}")
+            return {
+                'error': f'Endpoint heuristics scan failed: {str(e)}',
+                'available': True,
+                'total_findings': 0,
+                'high': 0,
+                'medium': 0,
+                'low': 0,
+                'findings': [],
+            }
 
     # ========== Amp Thread Learning Methods ==========
     def _extract_text_fragments(self, node: Any) -> List[str]:
