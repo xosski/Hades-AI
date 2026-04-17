@@ -190,7 +190,7 @@ try:
     from phase1_gui_tabs import ObsidianCoreTab, EthicalControlTab, MalwareEngineTab
     HAS_PHASE1_INTEGRATION = True
 except ImportError as e:
-    logger.warning(f"Phase 1 Integration failed: {str(e)}")
+    logging.getLogger("HadesAI").warning(f"Phase 1 Integration failed: {str(e)}")
     HAS_PHASE1_INTEGRATION = False
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

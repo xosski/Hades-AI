@@ -12,6 +12,7 @@ Notes:
 from __future__ import annotations
 
 import json
+import platform
 import re
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -186,6 +187,7 @@ def score_process(
     proc_map: Dict[int, psutil.Process],
     net_map: Dict[int, List[Dict[str, str]]],
     check_signatures: bool = True,
+    signature_cache: Optional[Dict[str, str]] = None,
 ) -> Optional[Finding]:
     try:
         info = proc.as_dict(attrs=["pid", "name", "exe", "cmdline", "ppid", "username"])
@@ -255,7 +257,15 @@ def score_process(
         finding.reasons.append("Certutil used with download or transform switches")
 
     if check_signatures and exe and Path(exe).exists():
-        sig_status = powershell_authenticode_status(exe)
+        sig_status = None
+        if signature_cache is not None:
+            sig_status = signature_cache.get(exe)
+
+        if sig_status is None:
+            sig_status = powershell_authenticode_status(exe)
+            if signature_cache is not None:
+                signature_cache[exe] = sig_status
+
         if sig_status not in {"Valid", "UnknownError"}:
             finding.score += 20
             finding.reasons.append(f"Executable signature status: {sig_status}")
@@ -313,9 +323,17 @@ def run_scan(
 
     total = len(proc_list) or 1
     callback = progress_callback or (lambda _: None)
+    signature_cache: Dict[str, str] = {}
+    signature_checks_enabled = bool(check_signatures and platform.system().lower() == "windows")
 
     for idx, proc in enumerate(proc_list):
-        finding = score_process(proc, proc_map, net_map, check_signatures=check_signatures)
+        finding = score_process(
+            proc,
+            proc_map,
+            net_map,
+            check_signatures=signature_checks_enabled,
+            signature_cache=signature_cache,
+        )
         if finding:
             findings.append(finding)
         if idx % 10 == 0 or idx == total - 1:
