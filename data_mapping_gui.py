@@ -4,6 +4,7 @@ Shows relationships between vulnerabilities, techniques, CVEs, and attack patter
 """
 
 import json
+import html
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
@@ -225,6 +226,8 @@ class DataMappingTab(QWidget):
         super().__init__()
         self.analyzer = AttackVectorAnalyzer()
         self.current_site = None
+        self.current_threat_rows = []
+        self.threats_summary_html = ""
         self.init_ui()
         self.load_data()
     
@@ -246,6 +249,7 @@ class DataMappingTab(QWidget):
         self.view_combo = QComboBox()
         self.view_combo.addItems([
             "Attack Vectors Overview",
+            "Exploit Chain Map",
             "Threat Findings",
             "Security Patterns",
             "Learned Exploits",
@@ -312,13 +316,14 @@ class DataMappingTab(QWidget):
         self.details_table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
         )
+        self.details_table.itemSelectionChanged.connect(self.on_details_table_selection_changed)
         right_layout.addWidget(self.details_table)
         
         # Details text area
         right_layout.addWidget(QLabel("Attack Vector Details:"))
         self.details_text = QTextEdit()
         self.details_text.setReadOnly(True)
-        self.details_text.setMaximumHeight(200)
+        self.details_text.setMaximumHeight(300)
         right_layout.addWidget(self.details_text)
         
         right_widget.setLayout(right_layout)
@@ -421,14 +426,67 @@ class DataMappingTab(QWidget):
     
     def get_severity_color(self, severity: str) -> QColor:
         """Get color for severity level"""
+        normalized = (severity or "").strip().lower()
         colors = {
-            'Critical': QColor("#ff0000"),
-            'High': QColor("#ff7700"),
-            'Medium': QColor("#ffff00"),
-            'Low': QColor("#00ff00"),
-            'Info': QColor("#00ccff"),
+            'critical': QColor("#ff0000"),
+            'high': QColor("#ff7700"),
+            'warning': QColor("#ffb347"),
+            'medium': QColor("#ffff00"),
+            'low': QColor("#00ff00"),
+            'info': QColor("#00ccff"),
         }
-        return colors.get(severity, QColor("#cccccc"))
+        return colors.get(normalized, QColor("#cccccc"))
+
+    def reset_default_table_headers(self):
+        """Reset details table to the default 3-column layout"""
+        self.details_table.setColumnCount(3)
+        self.details_table.setHorizontalHeaderLabels(["Property", "Value", "Status"])
+        self.details_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+        self.details_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+    def on_details_table_selection_changed(self):
+        """Render full threat details when a threat row is selected"""
+        if self.view_combo.currentText() != "Threat Findings":
+            return
+
+        selected_items = self.details_table.selectedItems()
+        if not selected_items:
+            if self.threats_summary_html:
+                self.details_text.setHtml(self.threats_summary_html)
+            return
+
+        row = selected_items[0].row()
+        if row < 0 or row >= len(self.current_threat_rows):
+            return
+
+        threat = self.current_threat_rows[row]
+        severity = threat.get('severity', 'Unknown')
+        severity_color = self.get_severity_color(severity).name()
+
+        full_detail_html = (
+            "<div style='margin-top:10px;padding:10px;border:1px solid #324760;"
+            "border-left:4px solid " + severity_color + ";background:#0f141c;border-radius:8px;color:#d8dee9'>"
+            "<div style='font-size:13px;font-weight:700;color:#8bd5ff;margin-bottom:6px'>"
+            "Selected Threat (Full Detail)"
+            "</div>"
+            f"<div><b>Type:</b> {html.escape(str(threat.get('threat_type', 'N/A')))}</div>"
+            f"<div><b>Severity:</b> <span style='color:{severity_color}'>{html.escape(str(severity))}</span></div>"
+            f"<div><b>Path:</b> {html.escape(str(threat.get('path', 'N/A')))}</div>"
+            f"<div><b>Sensor:</b> {html.escape(str(threat.get('browser', 'N/A')))}</div>"
+            f"<div><b>Detected:</b> {html.escape(str(threat.get('detected_at', 'N/A')))}</div>"
+            f"<div><b>Pattern:</b> {html.escape(str(threat.get('pattern', 'N/A')))}</div>"
+            f"<div><b>Context:</b> {html.escape(str(threat.get('context', 'N/A')))}</div>"
+            f"<div style='margin-top:6px'><b>Snippet:</b></div>"
+            f"<pre style='white-space:pre-wrap;background:#0b0f14;border:1px solid #243041;padding:8px;border-radius:6px;'>"
+            f"{html.escape(str(threat.get('code_snippet', '')))}"
+            "</pre>"
+            "</div>"
+        )
+
+        if self.threats_summary_html:
+            self.details_text.setHtml(self.threats_summary_html + full_detail_html)
+        else:
+            self.details_text.setHtml(full_detail_html)
     
     def on_site_changed(self, index: int):
         """Handle site selection change"""
@@ -457,6 +515,8 @@ class DataMappingTab(QWidget):
         
         if view_type == "Attack Vectors Overview":
             self.show_overview()
+        elif view_type == "Exploit Chain Map":
+            self.show_exploit_chain_map()
         elif view_type == "Threat Findings":
             self.show_threats()
         elif view_type == "Security Patterns":
@@ -474,6 +534,7 @@ class DataMappingTab(QWidget):
     
     def show_overview(self):
         """Show overview of all attack vectors"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
@@ -492,31 +553,214 @@ class DataMappingTab(QWidget):
             self.details_table.setItem(i, 1, QTableWidgetItem(value))
             self.details_table.setItem(i, 2, QTableWidgetItem("✓"))
         
-        self.details_text.setText("Click on vectors in the tree to see detailed information.")
+        self.details_text.setHtml(self.build_exploit_chain_html(vectors))
+
+    def show_exploit_chain_map(self):
+        """Show exploit chains / attack vectors in a visual flow layout"""
+        self.reset_default_table_headers()
+        self.details_table.setRowCount(0)
+
+        vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
+        threats = vectors.get('threats', [])
+        exploits = vectors.get('exploits', [])
+        cves = vectors.get('cves', [])
+
+        self.details_table.setColumnCount(3)
+        self.details_table.setHorizontalHeaderLabels(["Chain Stage", "Mapped Vector", "Signal"])
+
+        chain_rows = []
+        for threat in threats[:5]:
+            chain_rows.append((
+                "Recon / Trigger",
+                threat.get('threat_type', 'Unknown Threat'),
+                threat.get('severity', 'Unknown')
+            ))
+        for exploit in exploits[:5]:
+            attempts = exploit.get('success_count', 0) + exploit.get('fail_count', 0)
+            chain_rows.append((
+                "Exploit / Pivot",
+                exploit.get('exploit_type', 'Unknown Exploit'),
+                f"{exploit.get('success_count', 0)}/{attempts if attempts else 0}"
+            ))
+        for cve in cves[:5]:
+            chain_rows.append((
+                "Impact / Exposure",
+                cve.get('cve_id', 'Unknown CVE'),
+                f"CVSS {float(cve.get('cvss', 0) or 0):.1f}"
+            ))
+
+        for i, (stage, vector, signal) in enumerate(chain_rows):
+            self.details_table.insertRow(i)
+            self.details_table.setItem(i, 0, QTableWidgetItem(stage))
+            self.details_table.setItem(i, 1, QTableWidgetItem(vector))
+            self.details_table.setItem(i, 2, QTableWidgetItem(signal))
+
+        self.details_text.setHtml(self.build_exploit_chain_html(vectors))
+
+    def build_exploit_chain_html(self, vectors: Dict[str, List]) -> str:
+        """Build a rich visual chain map for attack vectors"""
+        threats = vectors.get('threats', [])
+        exploits = vectors.get('exploits', [])
+        cves = vectors.get('cves', [])
+        techniques = vectors.get('techniques', [])
+
+        top_threats = threats[:3]
+        top_exploits = sorted(
+            exploits,
+            key=lambda e: (e.get('success_count', 0), -e.get('fail_count', 0)),
+            reverse=True,
+        )[:3]
+        top_cves = sorted(cves, key=lambda c: float(c.get('cvss', 0) or 0), reverse=True)[:3]
+        top_techniques = techniques[:3]
+
+        if not (top_threats or top_exploits or top_cves or top_techniques):
+            return (
+                "<div style='padding:10px;color:#b0b8c4;'>"
+                "No chain data available for this selection yet."
+                "</div>"
+            )
+
+        def stage_card(title: str, accent: str, items: List[str]) -> str:
+            rendered_items = "".join(
+                f"<li style='margin:2px 0'>{html.escape(item)}</li>" for item in items
+            ) or "<li style='margin:2px 0'>No vectors mapped</li>"
+            return (
+                "<div style='"
+                "background:#121821;"
+                "border:1px solid #243041;"
+                "border-left:4px solid " + accent + ";"
+                "border-radius:8px;"
+                "padding:8px 10px;"
+                "margin:6px 0;"
+                "color:#d8dee9;"
+                "'>"
+                f"<div style='font-weight:700;color:{accent};margin-bottom:4px'>{html.escape(title)}</div>"
+                f"<ul style='margin:0 0 0 16px;padding:0'>{rendered_items}</ul>"
+                "</div>"
+            )
+
+        threat_items = [
+            f"{t.get('threat_type', 'Unknown')} [{t.get('severity', 'Unknown')}]"
+            for t in top_threats
+        ]
+        exploit_items = []
+        for e in top_exploits:
+            success = e.get('success_count', 0)
+            fail = e.get('fail_count', 0)
+            total = success + fail
+            ratio = f"{success}/{total}" if total > 0 else "0/0"
+            exploit_items.append(f"{e.get('exploit_type', 'Unknown')} (success {ratio})")
+
+        cve_items = [
+            f"{c.get('cve_id', 'Unknown')} (CVSS {float(c.get('cvss', 0) or 0):.1f})"
+            for c in top_cves
+        ]
+        technique_items = [
+            f"{t.get('name', 'Unknown')} / {t.get('category', 'N/A')}"
+            for t in top_techniques
+        ]
+
+        return (
+            "<div style='font-family:Segoe UI, Arial, sans-serif;'>"
+            "<div style='font-size:14px;font-weight:700;color:#8bd5ff;margin-bottom:8px'>"
+            "Exploit Chain / Attack Vector Mapping"
+            "</div>"
+            + stage_card("1. Entry & Trigger Signals", "#5ac8fa", threat_items)
+            + "<div style='color:#88c0d0;font-weight:700;padding-left:8px'>↓</div>"
+            + stage_card("2. Exploitation Paths", "#ff9f43", exploit_items)
+            + "<div style='color:#88c0d0;font-weight:700;padding-left:8px'>↓</div>"
+            + stage_card("3. Technique Alignment", "#b48ead", technique_items)
+            + "<div style='color:#88c0d0;font-weight:700;padding-left:8px'>↓</div>"
+            + stage_card("4. CVE / Impact Surface", "#ff6b6b", cve_items)
+            + "</div>"
+        )
     
     def show_threats(self):
         """Show threat findings"""
+        self.details_table.setColumnCount(6)
+        self.details_table.setHorizontalHeaderLabels([
+            "Threat Type",
+            "Severity",
+            "Source Path",
+            "Sensor",
+            "Detected",
+            "Pattern / Snippet",
+        ])
+        self.details_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.details_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.details_table.setRowCount(0)
+        self.current_threat_rows = []
+        self.threats_summary_html = ""
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
         threats = vectors.get('threats', [])
-        
+
         for i, threat in enumerate(threats[:50]):
             self.details_table.insertRow(i)
-            self.details_table.setItem(i, 0, QTableWidgetItem(threat.get('threat_type', 'N/A')))
-            self.details_table.setItem(i, 1, QTableWidgetItem(threat.get('severity', 'N/A')))
-            self.details_table.setItem(i, 2, QTableWidgetItem(threat.get('pattern', '')[:100]))
-        
+            threat_item = QTableWidgetItem(threat.get('threat_type', 'N/A'))
+            severity = threat.get('severity', 'N/A')
+            severity_item = QTableWidgetItem(severity)
+
+            severity_color = self.get_severity_color(severity)
+            severity_item.setBackground(QBrush(severity_color))
+
+            self.details_table.setItem(i, 0, threat_item)
+            self.details_table.setItem(i, 1, severity_item)
+            self.details_table.setItem(i, 2, QTableWidgetItem(threat.get('path', 'N/A')[:120]))
+            self.details_table.setItem(i, 3, QTableWidgetItem(threat.get('browser', 'N/A')))
+            self.details_table.setItem(i, 4, QTableWidgetItem((threat.get('detected_at', '') or '')[:19]))
+
+            pattern = threat.get('pattern', '')
+            snippet = threat.get('code_snippet', '')
+            compact = f"{pattern} | {snippet}".strip(" |")
+            self.details_table.setItem(i, 5, QTableWidgetItem(compact[:180]))
+
+        self.current_threat_rows = threats[:50]
+
         if threats:
-            summary = f"Found {len(threats)} threat findings\n\n"
-            for threat in threats[:5]:
-                summary += f"• {threat.get('threat_type')} ({threat.get('severity')})\n"
-                summary += f"  Pattern: {threat.get('pattern')}\n"
-                summary += f"  Snippet: {threat.get('code_snippet', '')[:100]}...\n\n"
-            self.details_text.setText(summary)
-    
+            severity_counts = {}
+            for threat in threats:
+                sev = (threat.get('severity') or 'Unknown').upper()
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+            severity_summary = " | ".join(
+                f"{label}: {count}" for label, count in sorted(severity_counts.items())
+            )
+
+            cards = []
+            for threat in threats[:8]:
+                severity = threat.get('severity', 'Unknown')
+                color = self.get_severity_color(severity).name()
+                cards.append(
+                    "<div style='background:#121821;border:1px solid #283548;border-left:4px solid " + color + ";"
+                    "border-radius:8px;padding:8px 10px;margin:6px 0;color:#d8dee9'>"
+                    f"<div style='font-weight:700'>{html.escape(str(threat.get('threat_type', 'Unknown Threat')))}"
+                    f" <span style='color:{color}'>[{html.escape(str(severity))}]</span></div>"
+                    f"<div><b>Path:</b> {html.escape(str(threat.get('path', 'N/A')))}</div>"
+                    f"<div><b>Sensor:</b> {html.escape(str(threat.get('browser', 'N/A')))} | "
+                    f"<b>Detected:</b> {html.escape(str(threat.get('detected_at', 'N/A')))}</div>"
+                    f"<div><b>Pattern:</b> {html.escape(str(threat.get('pattern', 'N/A')))}</div>"
+                    f"<div><b>Context:</b> {html.escape(str(threat.get('context', 'N/A')))}</div>"
+                    f"<div><b>Snippet:</b> {html.escape(str(threat.get('code_snippet', ''))[:180])}</div>"
+                    "</div>"
+                )
+
+            self.threats_summary_html = (
+                "<div style='font-family:Segoe UI, Arial, sans-serif;'>"
+                "<div style='font-size:14px;font-weight:700;color:#8bd5ff;margin-bottom:8px'>"
+                f"Threat Findings Detail ({len(threats)} total)"
+                "</div>"
+                f"<div style='color:#b8c4d4;margin-bottom:8px'><b>Severity Mix:</b> {html.escape(severity_summary)}</div>"
+                + "".join(cards)
+                + "</div>"
+            )
+            self.details_text.setHtml(self.threats_summary_html)
+        else:
+            self.details_text.setText("No threat findings available for this selection.")
+
     def show_patterns(self):
         """Show security patterns"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
@@ -543,6 +787,7 @@ class DataMappingTab(QWidget):
     
     def show_exploits(self):
         """Show learned exploits"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
@@ -570,6 +815,7 @@ class DataMappingTab(QWidget):
     
     def show_cves(self):
         """Show CVE mappings"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
@@ -594,6 +840,7 @@ class DataMappingTab(QWidget):
     
     def show_techniques(self):
         """Show attack techniques"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
@@ -617,6 +864,7 @@ class DataMappingTab(QWidget):
     
     def show_timeline(self):
         """Show timeline analysis"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         summary = "Attack Vector Timeline Analysis\n\n"
@@ -636,6 +884,7 @@ class DataMappingTab(QWidget):
     
     def show_risk_matrix(self):
         """Show risk matrix visualization"""
+        self.reset_default_table_headers()
         self.details_table.setRowCount(0)
         
         vectors = self.analyzer.get_attack_vectors_for_site(self.current_site or "")
