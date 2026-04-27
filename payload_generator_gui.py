@@ -335,12 +335,17 @@ class PayloadGeneratorWorker(QThread):
 class PayloadGeneratorTab(QWidget):
     """GUI tab for payload generation"""
 
+    SOURCE_GENERATION = "generation"
+    SOURCE_SELECTION = "selection"
+    SOURCE_SEND_BUTTON = "send_button"
+    SOURCE_AI_GENERATION = "ai_generation"
+
     payload_selected_for_integration = pyqtSignal(str, str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_file = None
-        self.payloads = []
+        self.payloads: list[str] = []
         self.worker = None
         self.integration_linker = None  # Payload-Exploit integration
         self.current_profile_id = None
@@ -562,6 +567,7 @@ class PayloadGeneratorTab(QWidget):
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)  # Indeterminate
         
+        self._stop_active_worker()
         self.worker = PayloadGeneratorWorker(self.current_file)
         self.worker.finished.connect(self._on_generation_complete)
         self.worker.error.connect(self._on_generation_error)
@@ -605,7 +611,7 @@ class PayloadGeneratorTab(QWidget):
 
         primary_payload = self.get_primary_payload()
         if primary_payload:
-            self.payload_selected_for_integration.emit(primary_payload, "generation")
+            self._emit_payload_for_integration(primary_payload, self.SOURCE_GENERATION)
 
         # Create payload profile for integration if available
         if self.integration_linker:
@@ -631,6 +637,7 @@ class PayloadGeneratorTab(QWidget):
         self.progress.setVisible(False)
         QMessageBox.critical(self, "Error", f"Failed to generate payloads:\n{error}")
         logger.error(f"Payload generation error: {error}")
+        self.worker = None
     
     def _display_payloads(self, file_type: str, payloads: list):
         """Display payloads in table"""
@@ -700,7 +707,15 @@ class PayloadGeneratorTab(QWidget):
             self.details_text.setText(details)
 
             # Keep other tabs (e.g., Payload Mutation) in sync with active selection.
-            self.payload_selected_for_integration.emit(payload, "selection")
+            self._emit_payload_for_integration(payload, self.SOURCE_SELECTION)
+
+    def _emit_payload_for_integration(self, payload: str, source: str) -> None:
+        """Emit normalized payload to integrated tabs."""
+        normalized = (payload or "").strip()
+        if not normalized:
+            return
+
+        self.payload_selected_for_integration.emit(normalized, source)
 
     def get_selected_payload(self) -> str:
         """Return currently selected payload, if any."""
@@ -734,7 +749,7 @@ class PayloadGeneratorTab(QWidget):
             QMessageBox.warning(self, "Error", "No payload available to send")
             return
 
-        self.payload_selected_for_integration.emit(payload, "send_button")
+        self._emit_payload_for_integration(payload, self.SOURCE_SEND_BUTTON)
     
     def _copy_payload(self):
         """Copy selected payload to clipboard"""
@@ -807,21 +822,20 @@ class PayloadGeneratorTab(QWidget):
                     },
                     'payloads': self.payloads
                 }
-                with open(file_path, 'w') as f:
+                with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2)
                 
             elif file_path.endswith('.csv'):
                 # CSV Export
-                import csv
-                with open(file_path, 'w', newline='') as f:
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerow(['Payload Number', 'Payload Type', 'Payload'])
                     for idx, payload in enumerate(self.payloads, 1):
                         writer.writerow([idx, file_type, payload])
-                
+
             else:
                 # TXT Export (default)
-                with open(file_path, 'w') as f:
+                with open(file_path, 'w', encoding='utf-8') as f:
                     f.write("╔" + "═" * 78 + "╗\n")
                     f.write(f"║ PAYLOAD EXPORT - {file_type.upper():<60}║\n")
                     f.write("╚" + "═" * 78 + "╝\n\n")
@@ -869,6 +883,7 @@ class PayloadGeneratorTab(QWidget):
         }
         
         # Run AI generation in background
+        self._stop_active_worker()
         self.worker = AIPayloadWorker(
             self.ai_bridge,
             file_type,
@@ -921,9 +936,18 @@ class PayloadGeneratorTab(QWidget):
         
         primary_payload = self.get_primary_payload()
         if primary_payload:
-            self.payload_selected_for_integration.emit(primary_payload, "ai_generation")
+            self._emit_payload_for_integration(primary_payload, self.SOURCE_AI_GENERATION)
 
         logger.info(f"Generated {len(payload_strings)} AI-enhanced payloads")
+        self.worker = None
+
+    def _stop_active_worker(self):
+        """Best-effort stop of any active worker before starting a new one."""
+        if self.worker and self.worker.isRunning():
+            self.worker.requestInterruption()
+            self.worker.quit()
+            self.worker.wait(1500)
+        self.worker = None
     
     def _clear(self):
         """Clear all"""

@@ -4694,6 +4694,8 @@ Current query:
 
 class HadesGUI(QMainWindow):
     DONATE_URL = "https://buy.stripe.com/28EbJ1f7ceo3ckyeES5kk00"
+    PAYLOAD_TAB_LABEL = "payload gen"
+    MUTATION_TAB_LABEL = "payload mutation"
     
     def __init__(self):
         super().__init__()
@@ -4911,14 +4913,20 @@ please consider supporting its development.</p>
         
     def _wire_payload_tab_integration(self):
         """Wire payload generation and mutation tabs for seamless handoff."""
-        if self.payload_gen_tab and self.malware_tab:
-            try:
-                self.payload_gen_tab.payload_selected_for_integration.connect(
-                    self._on_payload_generator_payload_selected
-                )
-                logger.info("✓ Payload Gen -> Payload Mutation integration wired")
-            except Exception as e:
-                logger.warning(f"Payload tab integration wiring failed: {e}")
+        if not (self.payload_gen_tab and self.malware_tab):
+            return
+
+        if not hasattr(self.payload_gen_tab, "payload_selected_for_integration"):
+            logger.warning("Payload Gen tab lacks integration signal; skipping payload handoff wiring")
+            return
+
+        try:
+            self.payload_gen_tab.payload_selected_for_integration.connect(
+                self._on_payload_generator_payload_selected
+            )
+            logger.info("✓ Payload Gen -> Payload Mutation integration wired")
+        except Exception as e:
+            logger.warning(f"Payload tab integration wiring failed: {e}")
 
     def _on_payload_generator_payload_selected(self, payload: str, source: str = ""):
         """Receive payloads from the generator tab and prefill mutation workflow."""
@@ -4935,7 +4943,8 @@ please consider supporting its development.</p>
             try:
                 current_text = self.malware_tab.payload_input.toPlainText().strip()
                 # Avoid clobbering actively edited content unless this is an explicit send.
-                if source == "send_button" or not current_text:
+                explicit_send = source == getattr(self.payload_gen_tab, "SOURCE_SEND_BUTTON", "send_button")
+                if explicit_send or not current_text:
                     self.malware_tab.payload_input.setPlainText(normalized_payload)
             except Exception as e:
                 logger.warning(f"Failed to sync payload into mutation tab: {e}")
@@ -4946,7 +4955,7 @@ please consider supporting its development.</p>
             return
 
         tab_label = self.tabs.tabText(index).lower()
-        if "payload mutation" not in tab_label:
+        if self.MUTATION_TAB_LABEL not in tab_label:
             return
 
         if not self.malware_tab:
