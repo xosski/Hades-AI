@@ -4698,6 +4698,9 @@ class HadesGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.ai = HadesAI()
+        self.payload_gen_tab = None
+        self.malware_tab = None
+        self._latest_generated_payload = ""
         self.scanner = None
         self.tool_executor = None
         self.network_monitor = None
@@ -4725,6 +4728,8 @@ class HadesGUI(QMainWindow):
         
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
+
+        self.tabs.currentChanged.connect(self._on_main_tab_changed)
         
         self.tabs.addTab(self._create_chat_tab(), "💬 AI Chat")
         self.tabs.addTab(self._create_active_defense_tab(), "🛡️ Active Defense")
@@ -4737,7 +4742,8 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_auth_bypass_tab(), "🔓 Auth Bypass")
         self.tabs.addTab(self._create_proxy_tab(), "🌐 Proxy Settings")
         if HAS_PAYLOAD_GEN:
-            self.tabs.addTab(PayloadGeneratorTab(), "📦 Payload Gen")
+            self.payload_gen_tab = PayloadGeneratorTab()
+            self.tabs.addTab(self.payload_gen_tab, "📦 Payload Gen")
         if HAS_DATA_MAPPING:
             self.tabs.addTab(DataMappingTab(), "🗺️ Data Mapping")
         self.tabs.addTab(self._create_findings_tab(), "🔍 Threat Findings")
@@ -4802,6 +4808,8 @@ class HadesGUI(QMainWindow):
                 logger.info("✓ MalwareEngine tab added")
             except Exception as e:
                 logger.warning(f"MalwareEngine tab failed: {str(e)}")
+
+        self._wire_payload_tab_integration()
         
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -4901,6 +4909,66 @@ please consider supporting its development.</p>
             return True
         return False
         
+    def _wire_payload_tab_integration(self):
+        """Wire payload generation and mutation tabs for seamless handoff."""
+        if self.payload_gen_tab and self.malware_tab:
+            try:
+                self.payload_gen_tab.payload_selected_for_integration.connect(
+                    self._on_payload_generator_payload_selected
+                )
+                logger.info("✓ Payload Gen -> Payload Mutation integration wired")
+            except Exception as e:
+                logger.warning(f"Payload tab integration wiring failed: {e}")
+
+    def _on_payload_generator_payload_selected(self, payload: str, source: str = ""):
+        """Receive payloads from the generator tab and prefill mutation workflow."""
+        if not payload:
+            return
+
+        normalized_payload = payload.strip()
+        if not normalized_payload:
+            return
+
+        self._latest_generated_payload = normalized_payload
+
+        if self.malware_tab:
+            try:
+                current_text = self.malware_tab.payload_input.toPlainText().strip()
+                # Avoid clobbering actively edited content unless this is an explicit send.
+                if source == "send_button" or not current_text:
+                    self.malware_tab.payload_input.setPlainText(normalized_payload)
+            except Exception as e:
+                logger.warning(f"Failed to sync payload into mutation tab: {e}")
+
+    def _on_main_tab_changed(self, index: int):
+        """Sync payload context when users navigate between payload-related tabs."""
+        if not self.tabs:
+            return
+
+        tab_label = self.tabs.tabText(index).lower()
+        if "payload mutation" not in tab_label:
+            return
+
+        if not self.malware_tab:
+            return
+
+        try:
+            current_text = self.malware_tab.payload_input.toPlainText().strip()
+            if current_text:
+                return
+
+            candidate = ""
+            if self.payload_gen_tab and hasattr(self.payload_gen_tab, "get_primary_payload"):
+                candidate = self.payload_gen_tab.get_primary_payload().strip()
+
+            if not candidate:
+                candidate = self._latest_generated_payload.strip()
+
+            if candidate:
+                self.malware_tab.payload_input.setPlainText(candidate)
+        except Exception as e:
+            logger.warning(f"Tab sync failed for payload mutation integration: {e}")
+
     def _create_chat_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)

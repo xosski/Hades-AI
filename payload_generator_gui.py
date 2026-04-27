@@ -334,6 +334,8 @@ class PayloadGeneratorWorker(QThread):
 
 class PayloadGeneratorTab(QWidget):
     """GUI tab for payload generation"""
+
+    payload_selected_for_integration = pyqtSignal(str, str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -508,6 +510,11 @@ class PayloadGeneratorTab(QWidget):
         show_raw_btn.clicked.connect(self._show_raw_payload)
         show_raw_btn.setToolTip("Show raw selected payload in large view")
         action_layout.addWidget(show_raw_btn)
+
+        send_to_mutation_btn = QPushButton("🔄 Send To Mutation")
+        send_to_mutation_btn.clicked.connect(self._send_to_mutation_tab)
+        send_to_mutation_btn.setToolTip("Send current payload to the Payload Mutation tab")
+        action_layout.addWidget(send_to_mutation_btn)
         
         clear_btn = QPushButton("🗑️ Clear")
         clear_btn.clicked.connect(self._clear)
@@ -595,6 +602,10 @@ class PayloadGeneratorTab(QWidget):
         # Display payloads
         self.payloads = payloads
         self._display_payloads(effective_type, payloads)
+
+        primary_payload = self.get_primary_payload()
+        if primary_payload:
+            self.payload_selected_for_integration.emit(primary_payload, "generation")
 
         # Create payload profile for integration if available
         if self.integration_linker:
@@ -687,6 +698,43 @@ class PayloadGeneratorTab(QWidget):
             details += f"Type: {self.file_type_combo.currentText()}\n"
             
             self.details_text.setText(details)
+
+            # Keep other tabs (e.g., Payload Mutation) in sync with active selection.
+            self.payload_selected_for_integration.emit(payload, "selection")
+
+    def get_selected_payload(self) -> str:
+        """Return currently selected payload, if any."""
+        selected_rows = self.payloads_table.selectionModel().selectedRows()
+        if selected_rows:
+            row = selected_rows[0].row()
+            item = self.payloads_table.item(row, 1)
+            if item:
+                return item.text().strip()
+        return ""
+
+    def get_primary_payload(self) -> str:
+        """Return the best available payload for cross-tab workflows."""
+        selected = self.get_selected_payload()
+        if selected:
+            return selected
+
+        raw_payload = self.raw_payload_text.toPlainText().strip()
+        if raw_payload:
+            return raw_payload
+
+        if self.payloads:
+            return str(self.payloads[0]).strip()
+
+        return ""
+
+    def _send_to_mutation_tab(self):
+        """Send the currently active payload to the mutation tab integration hook."""
+        payload = self.get_primary_payload()
+        if not payload:
+            QMessageBox.warning(self, "Error", "No payload available to send")
+            return
+
+        self.payload_selected_for_integration.emit(payload, "send_button")
     
     def _copy_payload(self):
         """Copy selected payload to clipboard"""
@@ -871,6 +919,10 @@ class PayloadGeneratorTab(QWidget):
         
         self.details_text.setText(details)
         
+        primary_payload = self.get_primary_payload()
+        if primary_payload:
+            self.payload_selected_for_integration.emit(primary_payload, "ai_generation")
+
         logger.info(f"Generated {len(payload_strings)} AI-enhanced payloads")
     
     def _clear(self):
