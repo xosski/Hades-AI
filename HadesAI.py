@@ -4744,10 +4744,17 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_auth_bypass_tab(), "🔓 Auth Bypass")
         self.tabs.addTab(self._create_proxy_tab(), "🌐 Proxy Settings")
         if HAS_PAYLOAD_GEN:
-            self.payload_gen_tab = PayloadGeneratorTab()
-            self.tabs.addTab(self.payload_gen_tab, "📦 Payload Gen")
+            try:
+                self.payload_gen_tab = PayloadGeneratorTab()
+                self.tabs.addTab(self.payload_gen_tab, "📦 Payload Gen")
+            except Exception as e:
+                logger.warning(f"Payload Gen tab failed: {e}")
+                self.payload_gen_tab = None
         if HAS_DATA_MAPPING:
-            self.tabs.addTab(DataMappingTab(), "🗺️ Data Mapping")
+            try:
+                self.tabs.addTab(DataMappingTab(), "🗺️ Data Mapping")
+            except Exception as e:
+                logger.warning(f"Data Mapping tab failed: {e}")
         self.tabs.addTab(self._create_findings_tab(), "🔍 Threat Findings")
         self.tabs.addTab(self._create_learned_tab(), "🧠 Learned Exploits")
         if HAS_EXPLOIT_TOME:
@@ -4770,9 +4777,15 @@ class HadesGUI(QMainWindow):
         self.tabs.addTab(self._create_autorecon_tab(), "🧠 AutoRecon")
         self.tabs.addTab(self._create_modules_tab(), "🧩 Modules")
         if HAS_SCRIPT_EDITOR:
-            self.tabs.addTab(PythonScriptEditorTab(), "📜 Script Editor")
+            try:
+                self.tabs.addTab(PythonScriptEditorTab(), "📜 Script Editor")
+            except Exception as e:
+                logger.warning(f"Script Editor tab failed: {e}")
         if HAS_REALISTIC_SIMS:
-            self.tabs.addTab(create_realistic_simulations_tab(), "🎯 Simulations")
+            try:
+                self.tabs.addTab(create_realistic_simulations_tab(), "🎯 Simulations")
+            except Exception as e:
+                logger.warning(f"Simulations tab failed: {e}")
         if HAS_EXPLOIT_SEEK and self.exploit_sharer:
             try:
                 self.exploit_seek_tab = create_exploit_seek_tab(self, self.exploit_sharer, self.ai)
