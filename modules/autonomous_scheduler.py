@@ -20,7 +20,71 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict, field
 from typing import Dict, List, Optional, Callable, Any
 from enum import Enum
-import schedule
+
+try:
+    import schedule
+except ImportError:
+    class _FallbackJob:
+        """Small fallback for the optional schedule package."""
+
+        def __init__(self, interval: int = 1):
+            self.interval = max(1, int(interval or 1))
+            self.unit_seconds = 3600
+            self.job_func = None
+            self.args = ()
+            self.kwargs = {}
+            self.next_run = time.time() + self.unit_seconds * self.interval
+
+        @property
+        def hour(self):
+            self.unit_seconds = 3600
+            return self
+
+        @property
+        def day(self):
+            self.unit_seconds = 86400
+            return self
+
+        @property
+        def week(self):
+            self.unit_seconds = 604800
+            return self
+
+        @property
+        def minutes(self):
+            self.unit_seconds = 60
+            return self
+
+        def at(self, _time_string: str):
+            return self
+
+        def do(self, job_func: Callable, *args, **kwargs):
+            self.job_func = job_func
+            self.args = args
+            self.kwargs = kwargs
+            self.next_run = time.time() + self.unit_seconds * self.interval
+            return self
+
+        def run_if_due(self):
+            if self.job_func and time.time() >= self.next_run:
+                self.job_func(*self.args, **self.kwargs)
+                self.next_run = time.time() + self.unit_seconds * self.interval
+
+    class _FallbackScheduler:
+        def __init__(self):
+            self.jobs = []
+
+        def every(self, interval: int = 1):
+            job = _FallbackJob(interval)
+            self.jobs.append(job)
+            return job
+
+        def run_pending(self):
+            for job in list(self.jobs):
+                job.run_if_due()
+
+    class schedule:
+        Scheduler = _FallbackScheduler
 
 logger = logging.getLogger("AutonomousScheduler")
 

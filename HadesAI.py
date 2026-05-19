@@ -366,29 +366,64 @@ logger.info("Hades AI Core initialized...")
 
 MODULE_DIR = "modules"
 loaded_modules = {}
+loaded_module_specs = {}
+
+def _module_file_path(module_name):
+    return os.path.join(MODULE_DIR, f"{module_name}.py")
+
+def _module_spec_name(module_name):
+    # Keep dynamic modules under the modules package so package-relative imports
+    # such as ``from .obfuscation_engine import ...`` work.  The display/key
+    # name remains the filename stem, including legacy filenames with spaces.
+    return f"{MODULE_DIR}.{module_name}"
+
+def _load_module_object(module_name):
+    module_path = _module_file_path(module_name)
+    if not os.path.isfile(module_path):
+        raise FileNotFoundError(f"Module '{module_name}' not found.")
+
+    spec_name = _module_spec_name(module_name)
+    spec = importlib.util.spec_from_file_location(spec_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not create import spec for '{module_name}'.")
+
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.modules.get(spec_name)
+    had_previous = spec_name in sys.modules
+    sys.modules[spec_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        if had_previous:
+            sys.modules[spec_name] = previous
+        else:
+            sys.modules.pop(spec_name, None)
+        raise
+    return spec_name, module
 
 def parse_command(command):
     parts = command.strip().split(maxsplit=1)
     return parts if len(parts) == 2 else (parts[0], None)
 
 def load_module(module_name):
-    module_path = os.path.join(MODULE_DIR, f"{module_name}.py")
-    if not os.path.isfile(module_path):
-        return f"Module '{module_name}' not found."
-
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    module = importlib.util.module_from_spec(spec)
     try:
-        spec.loader.exec_module(module)
+        spec_name, module = _load_module_object(module_name)
         loaded_modules[module_name] = module
+        loaded_module_specs[module_name] = spec_name
         return f"Module '{module_name}' loaded."
+    except FileNotFoundError:
+        return f"Module '{module_name}' not found."
     except Exception as e:
         return f"Failed to load module '{module_name}': {str(e)}"
 
 def list_modules():
     if not os.path.exists(MODULE_DIR):
         os.makedirs(MODULE_DIR)
-    files = [f[:-3] for f in os.listdir(MODULE_DIR) if f.endswith(".py")]
+    files = sorted(
+        f[:-3]
+        for f in os.listdir(MODULE_DIR)
+        if f.endswith(".py") and f != "__init__.py"
+    )
     return files if files else ["No modules found."]
 
 def execute_module(module_name):
@@ -6177,21 +6212,11 @@ please consider supporting its development.</p>
             self._refresh_learned()
 
     def _refresh_module_list(self):
-        from os import listdir
-        from os.path import isfile, join
-
-        module_path = "modules"
         self.module_list.clear()
-        if not os.path.exists(module_path):
-            os.makedirs(module_path)
-
-        for f in listdir(module_path):
-            if f.endswith(".py") and isfile(join(module_path, f)):
-                self.module_list.addItem(f[:-3])  # strip .py
+        for module_name in list_modules():
+            self.module_list.addItem(module_name)
 
     def _load_selected_module(self):
-        import importlib.util
-
         selected = self.module_list.currentItem()
         if not selected:
             self.module_output.append("[!] No module selected.")
@@ -6201,14 +6226,11 @@ please consider supporting its development.</p>
         if module_name in loaded_modules:
             self.module_output.append(f"[!] Module '{module_name}' is already loaded.")
             return
-            
-        module_path = os.path.join("modules", f"{module_name}.py")
 
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        module = importlib.util.module_from_spec(spec)
         try:
-            spec.loader.exec_module(module)
+            spec_name, module = _load_module_object(module_name)
             loaded_modules[module_name] = module
+            loaded_module_specs[module_name] = spec_name
             self.exec_btn.setEnabled(True)
             self.module_output.append(f"[+] Module '{module_name}' loaded successfully.")
             self._refresh_loaded_modules_list()
@@ -6245,7 +6267,11 @@ please consider supporting its development.</p>
             
         module_name = selected.text()
         if module_name in loaded_modules:
+            module = loaded_modules[module_name]
+            spec_name = loaded_module_specs.pop(module_name, None)
             del loaded_modules[module_name]
+            if spec_name and sys.modules.get(spec_name) is module:
+                sys.modules.pop(spec_name, None)
             self.module_output.append(f"[-] Module '{module_name}' unloaded.")
             self._refresh_loaded_modules_list()
             if not loaded_modules:
