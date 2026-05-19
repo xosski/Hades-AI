@@ -20,10 +20,38 @@ from fastapi.staticfiles import StaticFiles
 import secrets
 import subprocess
 import socket
-from ai_dashboard import DashboardMonitor
-from GhostMemory import GhostMemory
 import ast
 from typing import Optional
+
+# Support running this file both as ``python modules/AICore.py`` and as
+# ``import modules.AICore``.  When executed as a script, Python only adds the
+# modules directory to sys.path, so the project root must be added before
+# importing HadesAI from the repository root.
+MODULE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = MODULE_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from modules.ai_dashboard import DashboardMonitor
+except ImportError:
+    from ai_dashboard import DashboardMonitor
+
+try:
+    from GhostMemory import GhostMemory
+except ImportError:
+    class GhostMemory:
+        """Minimal conversation-memory fallback used when GhostMemory is absent."""
+
+        def __init__(self):
+            self.messages = []
+
+        def save(self, role, content):
+            self.messages.append({
+                "role": role,
+                "content": content,
+                "timestamp": time.time(),
+            })
 
 # Import HadesAI as the main AI engine (replaces Mistral)
 try:
@@ -606,8 +634,8 @@ with open(css_path, 'w') as f:
 print("🎨 Bridge CSS styling generated!")
 print("🎯 Command center directories created!")
 print("💫 The Bridge is ready for deployment!")
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory=str(ROOT_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
 # Health check endpoint
 @app.get("/")
 def health_check():
