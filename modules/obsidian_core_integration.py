@@ -89,7 +89,13 @@ class ObsidianCoreIntegration:
                 self.core_instance = self.core
             except Exception as e:
                 logger.error(f"✗ Failed to instantiate AICore: {str(e)}")
+                logger.warning("⚠️ Falling back to simulated ObsidianCore engines")
+                self.AICore = None
+                self.core = None
                 self.core_instance = None
+                for engine_name in engine_list:
+                    self.engines[engine_name] = self._create_mock_engine(engine_name)
+                    self.status[engine_name] = 'simulated'
         else:
             logger.warning("⚠️ AICore not available, engines will be simulated")
             for engine_name in engine_list:
@@ -114,20 +120,27 @@ class ObsidianCoreIntegration:
             return []
         
         try:
+            fallback_capabilities = [
+                'exploitation',
+                'privilege_escalation',
+                'lateral_movement',
+                'persistence',
+                'exfiltration',
+                'covering_tracks'
+            ]
             if self.AICore and hasattr(self.core, 'attack_engine'):
-                return self.core.attack_engine.get_capabilities()
-            else:
-                return [
-                    'exploitation',
-                    'privilege_escalation',
-                    'lateral_movement',
-                    'persistence',
-                    'exfiltration',
-                    'covering_tracks'
-                ]
+                engine = self.core.attack_engine
+                if hasattr(engine, 'get_capabilities'):
+                    return engine.get_capabilities()
+                if hasattr(engine, 'load_capabilities'):
+                    capabilities = engine.load_capabilities()
+                    if isinstance(capabilities, dict):
+                        return list(capabilities.keys())
+                    return capabilities
+            return fallback_capabilities
         except Exception as e:
             logger.error(f"Error getting attack capabilities: {str(e)}")
-            return []
+            return fallback_capabilities
     
     def execute_attack(self, attack_type: str, target: str, **kwargs) -> Dict:
         """

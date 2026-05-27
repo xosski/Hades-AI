@@ -280,7 +280,7 @@ class AttackEngine:
         self.mutation_techniques = ["encrypt", "rename_functions", "change_execution_order"]
         self.current_payload = None
         self.mutation_history = []
-        self.Redcore = GhostRedCore()
+        self.Redcore = None
         self.target_resources = [
             r"SYSTEM\CurrentControlSet\Services",
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
@@ -4959,16 +4959,7 @@ class AIMovementAndStealth:
             'behavior': self.behavior_analysis,
             'hardware': self.hardware_fingerprinting
         }
-        
-        # Execute evasion checks
-        evasion_results = [technique() for technique in self.evasion_techniques.values()]
-        
-        if all(evasion_results):
-            print("🎯 Environment validated as genuine")
-            self.initialize_stealth_operations()
-        else:
-            print("⚠️ Sandbox detected - initiating evasion")
-            self.execute_evasion_response()
+        self.environment_validated = None
     def initialize_stealth_operations(self):
         """Initialize stealth operations and establish secure execution environment"""
         self.operational_state = {
@@ -6450,6 +6441,7 @@ class MalwareEngine:
         self.mutation_history = []
         self.q_table = np.zeros((5, 5))  # For reinforcement learning
         self.log_access = LoggingEngine()
+        self.log_access.malware_engine = self
         self.attack_graph = nx.Graph()
         self.payload_engine = PayloadEngine()
         self.setup_attack_graph()
@@ -6817,15 +6809,15 @@ class LoggingEngine:
     def __init__(self):
         self.attacker_db = {}
         self.log_file = "/var/log/honeypot_access.log"
-        self.malware_engine = MalwareEngine()
-        self.defense_engine = DefenseEngine()
-        self.deception_engine = DeceptionEngine()
-        self.learning_engine = LearningEngine()
-        self.evasion_engine = MovementEngine()
-        self.payload_engine = PayloadEngine()
-        self.attack_engine = AttackEngine()
+        self.malware_engine = None
+        self.defense_engine = None
+        self.deception_engine = None
+        self.learning_engine = None
+        self.evasion_engine = None
+        self.payload_engine = None
+        self.attack_engine = None
         self.connections = AiDetectingAttackers()
-        self.active_traps = DeceptionEngine()
+        self.active_traps = None
         self.risk_thresholds = {
             "low": 10,
             "medium": 20,
@@ -6837,7 +6829,6 @@ class LoggingEngine:
             "privilege_escalation": 20,
             "lateral_movement": 15
         }
-        self.learning_engine = LearningEngine()
         self.perfect_timing = False
         self.occurrence_count = 0
         self.high_risk = False
@@ -7751,7 +7742,7 @@ class MovementEngine:
         return graph
 class LearningEngine:
     def __init__(self):
-        self.ai_training_log = "/var/log/ai_training_data.json"
+        self.ai_training_log = "ai_training_data.json"
         self.attacker_behavior = {}
         self.connections = AiDetectingAttackers()
         self.attack_engine = AttackEngine()
@@ -7763,7 +7754,7 @@ class LearningEngine:
         self.PayloadEngine = PayloadEngine()
         self.mutation_history = []
         self.PayloadEngine = PayloadEngine()
-        self.core = AICore()
+        self.core = None
     def log_ai_learning(self, user_id, action, success, time_taken):
         entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -9491,11 +9482,18 @@ class AICore:
         self.defense_engine = DefenseEngine()
         self.learning_engine = LearningEngine()
         self.logging_engine = LoggingEngine()
+        self.logging_engine.malware_engine = self.malware_engine
+        self.logging_engine.defense_engine = self.defense_engine
+        self.logging_engine.deception_engine = self.deception_engine
+        self.logging_engine.learning_engine = self.learning_engine
+        self.logging_engine.evasion_engine = self.movement_engine
+        self.logging_engine.attack_engine = self.attack_engine
+        self.logging_engine.active_traps = self.deception_engine
         self.connections = AiDetectingAttackers()
         self.payload_engine = PayloadEngine()
-        self.learning_engine = LearningEngine()
-        self.redcore = GhostRedCore()
-        self.Ghost = GhostWorm()
+        self.logging_engine.payload_engine = self.payload_engine
+        self.redcore = None
+        self.Ghost = None
         
     def initialize(self):
         print("🚀 Initializing AI Core Systems")
@@ -9556,9 +9554,7 @@ class AICore:
             'chain': chain,
             'sealed_state': sealed_data
         }
-    # Launch the unified AI core
-    ai_core = initialize_core()
-    
+
     def detect_ai_behavior(self, ip):
         now = time.time()
         if ip not in self.malware_engine.attacker_behavior:
