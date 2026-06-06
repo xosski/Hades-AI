@@ -5,6 +5,7 @@ import time
 import difflib
 import shutil
 import subprocess
+import shlex
 from typing import Callable, Dict, Any, List, Optional
 
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -243,7 +244,7 @@ Update the short plan (concise)."""
             return False, "Shell disabled by policy (allow_shell=False)"
         # Basic guardrails: limit dangerous commands
         forbidden = ["rm -rf", ":(){:|:&};:", "mkfs", "shutdown", "reboot"]
-        if any(x in cmd for x in forbidden):
+        if any(x in cmd.lower() for x in forbidden):
             return False, "Forbidden command detected"
 
         return self._exec_in_repo(cmd, timeout=self.timeout_cmd, label="cmd")
@@ -276,10 +277,13 @@ Update the short plan (concise)."""
 
     def _exec_in_repo(self, cmd: str, timeout: int = 60, label: str = "cmd") -> (bool, str):
         try:
+            args = shlex.split(cmd, posix=(os.name != "nt"))
+            if not args:
+                return False, "Empty command"
             result = subprocess.run(
-                cmd,
+                args,
                 cwd=self.repo_path,
-                shell=True,
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=timeout

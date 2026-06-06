@@ -1,1 +1,18 @@
+# Local secrets and runtime configuration
+.env
+.env.*
 .hades_config.json
+
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local databases and generated reports
+*.db
+*.sqlite
+*.sqlite3
+security_report_*.html
+security_report_*.json
+security_report_*.md
+*_export_*.json

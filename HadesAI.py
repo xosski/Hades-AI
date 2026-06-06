@@ -25,6 +25,7 @@ import logging
 import time
 import csv
 import socket
+import ipaddress
 import urllib.parse
 import html
 import concurrent.futures
@@ -1492,26 +1493,42 @@ class NetworkMonitor(QThread):
     def _apply_firewall_block(self, ip: str, permanent: bool = False, ttl: int = 3600):
         """Apply OS-level firewall block"""
         import platform
+        import subprocess
         os_type = platform.system().lower()
         
         try:
+            validated_ip = str(ipaddress.ip_address(ip))
             if os_type == 'windows':
-                rule_name = f"HADES_BLOCK_{ip.replace('.', '_')}"
-                cmd = f'netsh advfirewall firewall add rule name="{rule_name}" dir=in action=block remoteip={ip}'
-                import subprocess
-                subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
-                self.status_update.emit(f"🛡️ Firewall: Blocked {ip} (Windows)")
+                rule_name = f"HADES_BLOCK_{validated_ip.replace('.', '_').replace(':', '_')}"
+                subprocess.run(
+                    [
+                        'netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                        f'name={rule_name}', 'dir=in', 'action=block',
+                        f'remoteip={validated_ip}'
+                    ],
+                    shell=False,
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+                self.status_update.emit(f"🛡️ Firewall: Blocked {validated_ip} (Windows)")
                 
             elif os_type == 'linux':
-                cmd = f'iptables -A INPUT -s {ip} -j DROP'
-                import subprocess
-                subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
-                self.status_update.emit(f"🛡️ Firewall: Blocked {ip} (Linux)")
+                subprocess.run(
+                    ['iptables', '-A', 'INPUT', '-s', validated_ip, '-j', 'DROP'],
+                    shell=False,
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
+                )
+                self.status_update.emit(f"🛡️ Firewall: Blocked {validated_ip} (Linux)")
                 
             elif os_type == 'darwin':
                 # macOS - requires pfctl setup
-                self.status_update.emit(f"🛡️ Block request for {ip} (macOS - manual pfctl needed)")
+                self.status_update.emit(f"🛡️ Block request for {validated_ip} (macOS - manual pfctl needed)")
                 
+        except ValueError:
+            self.status_update.emit(f"⚠️ Firewall block skipped: invalid IP address")
         except Exception as e:
             self.status_update.emit(f"⚠️ Firewall block failed for {ip}: {str(e)[:50]}")
     
@@ -7794,13 +7811,22 @@ please consider supporting its development.</p>
         """Load the saved API key for a specific provider"""
         try:
             config_path = os.path.join(os.path.dirname(__file__), ".hades_config.json")
+            env_key = ""
+            if provider_index == 3:  # Azure
+                env_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+            elif provider_index == 1:  # Mistral
+                env_key = os.getenv("MISTRAL_API_KEY", "")
+            elif provider_index == 0:  # OpenAI
+                env_key = os.getenv("OPENAI_API_KEY", "")
+
+            if hasattr(self, 'si_api_key_input'):
+                self.si_api_key_input.setText(env_key)
+
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     config = json.load(f)
                     
                     if provider_index == 3:  # Azure
-                        key = config.get("azure_api_key", "")
-                        self.si_api_key_input.setText(key)
                         # Load Azure-specific settings
                         if hasattr(self, 'si_azure_endpoint'):
                             self.si_azure_endpoint.setText(config.get("azure_endpoint", ""))
@@ -7815,12 +7841,6 @@ please consider supporting its development.</p>
                                 self.si_azure_api_version.setCurrentText(version)
                     elif provider_index == 2:  # Ollama
                         self.si_api_key_input.clear()
-                    elif provider_index == 1:  # Mistral
-                        key = config.get("mistral_api_key", "")
-                        self.si_api_key_input.setText(key)
-                    else:  # OpenAI
-                        key = config.get("openai_api_key", "")
-                        self.si_api_key_input.setText(key)
         except:
             pass
     
@@ -7923,7 +7943,7 @@ please consider supporting its development.</p>
                     
                     # Load the appropriate key based on saved provider
                     if saved_provider == "azure":
-                        key = config.get("azure_api_key", "")
+                        key = os.getenv("AZURE_OPENAI_API_KEY", "")
                         self.si_api_key_input.setText(key)
                         # Load Azure-specific settings
                         if hasattr(self, 'si_azure_endpoint'):
@@ -7936,10 +7956,10 @@ please consider supporting its development.</p>
                     elif saved_provider == "ollama":
                         self.si_api_key_input.clear()
                     elif saved_provider == "mistral":
-                        key = config.get("mistral_api_key", "")
+                        key = os.getenv("MISTRAL_API_KEY", "")
                         self.si_api_key_input.setText(key)
                     else:
-                        key = config.get("openai_api_key", "")
+                        key = os.getenv("OPENAI_API_KEY", "")
                         self.si_api_key_input.setText(key)
         except:
             pass
@@ -7973,26 +7993,38 @@ please consider supporting its development.</p>
                 with open(config_path, 'r') as f:
                     config = json.load(f)
             
-            # Save key for the current provider
+            # Keep API keys out of project config. Use the process environment for
+            # the current session and save only non-secret provider preferences.
+            for secret_key in (
+                "openai_api_key",
+                "mistral_api_key",
+                "azure_api_key",
+                "azure_openai_api_key",
+            ):
+                config.pop(secret_key, None)
+
             if provider == "azure":
-                config["azure_api_key"] = key
+                os.environ["AZURE_OPENAI_API_KEY"] = key
                 config["azure_endpoint"] = self.si_azure_endpoint.text().strip()
                 config["azure_deployment"] = self.si_azure_deployment.text().strip()
                 config["azure_api_version"] = self.si_azure_api_version.currentText()
             elif provider == "mistral":
-                config["mistral_api_key"] = key
+                os.environ["MISTRAL_API_KEY"] = key
             else:
-                config["openai_api_key"] = key
+                os.environ["OPENAI_API_KEY"] = key
             
             config["ai_provider"] = provider
             
             with open(config_path, 'w') as f:
-                json.dump(config, f)
+                json.dump(config, f, indent=2)
             
             self._si_update_gpt_status()
             provider_names = {"mistral": "Mistral AI", "azure": "Azure OpenAI", "openai": "OpenAI"}
             provider_name = provider_names.get(provider, "OpenAI")
-            self.si_result_display.setPlainText(f"✅ {provider_name} configuration saved successfully! You can now use all AI features.")
+            self.si_result_display.setPlainText(
+                f"✅ {provider_name} key loaded for this session. Provider preference saved without storing the API key. "
+                "For future launches, set the matching environment variable."
+            )
         except Exception as e:
             self.si_result_display.setPlainText(f"❌ Error saving API key: {str(e)}")
     
@@ -8009,7 +8041,7 @@ please consider supporting its development.</p>
             config["ai_provider"] = provider
             
             with open(config_path, 'w') as f:
-                json.dump(config, f)
+                json.dump(config, f, indent=2)
             
             self._si_update_gpt_status()
             provider_name = self._si_get_provider_display_name(provider)
