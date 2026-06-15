@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Integrated test of fallback LLM systems working together"""
 
+import ast
+
 try:
     from fallback_llm import FallbackLLM
     from exploit_generator_multi_llm import FallbackLLMProvider
@@ -20,7 +22,7 @@ try:
     user_prompt = "Goals: Find security vulnerabilities in Python code"
     
     plan_response = agent_llm(system_prompt, user_prompt)
-    plan_json = eval(plan_response)  # Safe here for testing
+    plan_json = ast.literal_eval(plan_response)
     print(f"Goal Type: {agent_llm._classify_goal('Find security vulnerabilities')}")
     print(f"Plan Steps:\n{plan_json['plan']}")
     
@@ -34,7 +36,7 @@ try:
     Recent steps: Listed files, read main.py"""
     
     action_response = agent_llm(system_prompt, user_prompt)
-    action_json = eval(action_response)
+    action_json = ast.literal_eval(action_response)
     print(f"Next Action: {action_json['tool']}")
     print(f"Rationale: {action_json['rationale']}")
     
@@ -80,7 +82,7 @@ try:
     
     reflection = agent_llm(system_prompt, user_prompt)
     try:
-        reflection_json = eval(reflection)
+        reflection_json = ast.literal_eval(reflection)
         updated_plan = reflection_json.get('updated_plan', reflection_json.get('plan', reflection))
     except:
         updated_plan = reflection

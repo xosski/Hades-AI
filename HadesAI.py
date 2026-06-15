@@ -269,6 +269,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger("HadesAI")
 
 
+def is_runtime_code_execution_enabled() -> bool:
+    """Return True only when local Python code execution is explicitly enabled."""
+    return os.getenv("HADES_ENABLE_CODE_EXEC", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def runtime_code_execution_disabled_message() -> str:
+    return (
+        "⚠️ Runtime Python execution is disabled for safety. "
+        "Set HADES_ENABLE_CODE_EXEC=1 only in a trusted local sandbox to enable it."
+    )
+
+
 # ============================================================================
 # DATA CLASSES
 # ============================================================================
@@ -3096,16 +3108,20 @@ class CodeEditorAssistant:
     
     def execute_code(self, code_str: str) -> str:
         """Execute Python code and return output"""
+        if not is_runtime_code_execution_enabled():
+            self.last_code = code_str
+            return runtime_code_execution_disabled_message()
+
+        old_stdout = sys.stdout
         try:
             self.last_code = code_str
-            old_stdout = sys.stdout
             sys.stdout = mystdout = StringIO()
             exec(code_str, {"__builtins__": __builtins__}, {})
             output = mystdout.getvalue()
             sys.stdout = old_stdout
             return f"✅ Code executed.\nOutput:\n{output.strip()}"
         except Exception as e:
-            sys.stdout = sys.__stdout__
+            sys.stdout = old_stdout
             return f"❌ Execution Error:\n{traceback.format_exc()}"
 
 
@@ -3725,9 +3741,13 @@ Current query:
 
 
     def handle_code_interpreter(self, code_str):
+        if not is_runtime_code_execution_enabled():
+            self.last_code = code_str # Save code for assist mode
+            return runtime_code_execution_disabled_message()
+
+        old_stdout = sys.stdout
         try:
             self.last_code = code_str # Save code for assist mode
-            old_stdout = sys.stdout
             sys.stdout = mystdout = StringIO()
             exec(code_str, {}, {})
             output = mystdout.getvalue()
@@ -4706,8 +4726,12 @@ Current query:
         return f"[HadesAI] ✒️ Echoing in {self.personality}: {user_input}"
 
     def handle_code_interpreter(self, code_str):
+        if not is_runtime_code_execution_enabled():
+            self.last_code = code_str
+            return runtime_code_execution_disabled_message()
+
+        old_stdout = sys.stdout
         try:
-            old_stdout = sys.stdout
             sys.stdout = mystdout = StringIO()
             exec(code_str, {}, {})
             output = mystdout.getvalue()

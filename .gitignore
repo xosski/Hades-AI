@@ -1,6 +1,7 @@
 # Local secrets and runtime configuration
 .env
 .env.*
+!.env.example
 .hades_config.json
 
 # Python/runtime artifacts
