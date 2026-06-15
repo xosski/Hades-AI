@@ -3535,6 +3535,28 @@ class HadesAI:
         if not self.cognitive:
             return []
         return self.cognitive.recall(query, top_k)
+
+    def analyze_memory_context(self, query: str, short_term_limit: int = 10,
+                               long_term_limit: int = 5) -> Dict:
+        """Compare recent chat history with cognitive long-term memories."""
+        if not self.cognitive:
+            return {}
+        short_term = self.kb.get_chat_history(short_term_limit)
+        return self.cognitive.analyze_memory_context(
+            query,
+            short_term_messages=short_term,
+            top_k=long_term_limit
+        )
+
+    def get_memory_analyzer_context(self, query: str, char_limit: int = 1800) -> str:
+        """Return concise memory guidance for response construction."""
+        if not self.cognitive:
+            return ""
+        analysis = self.analyze_memory_context(query)
+        return self.cognitive.format_memory_analysis_for_prompt(
+            analysis,
+            char_limit=char_limit
+        )
     
     def optimize_memory(self, prune_threshold: float = 0.2, apply_decay: bool = True) -> Dict:
         """Optimize cognitive memory storage."""
@@ -3865,13 +3887,24 @@ Current query:
             default_system_prompt = "You are HADES, an expert security and coding assistant."
             base_system_prompt = system_prompt or default_system_prompt
             amp_context = self.get_amp_threads_context(message)
+            memory_context = self.get_memory_analyzer_context(message)
             effective_system_prompt = base_system_prompt
+            contextual_sections = []
             if amp_context:
+                contextual_sections.append(
+                    "Use this local context from the amp threads learning folder when relevant:\n"
+                    f"{amp_context}"
+                )
+            if memory_context:
+                contextual_sections.append(
+                    "Use this short-term vs long-term memory analysis to construct a responsive, detailed reply:\n"
+                    f"{memory_context}"
+                )
+            if contextual_sections:
                 effective_system_prompt = (
                     f"{base_system_prompt}\n\n"
-                    f"Use this local context from the amp threads learning folder when relevant:\n"
-                    f"{amp_context}\n\n"
-                    "Prefer accurate retrieval over speculation."
+                    + "\n\n".join(contextual_sections)
+                    + "\n\nPrefer accurate retrieval over speculation. The latest user message takes priority over memory."
                 )
 
             # Create or reuse conversation
@@ -3915,6 +3948,12 @@ Current query:
                 conv_id=self._llm_conversation.id,
                 use_streaming=use_streaming
             )
+            if isinstance(response, str) and self.cognitive:
+                self.remember(
+                    f"User asked: {message}\nHADES responded: {response}",
+                    importance=0.55,
+                    metadata={'type': 'chat_interaction', 'provider': resolved_provider, 'model': resolved_model}
+                )
             return response
         except Exception as e:
             logger.error(f"LLM chat error: {str(e)}")

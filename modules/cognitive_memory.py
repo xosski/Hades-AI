@@ -10,6 +10,7 @@ import uuid
 from typing import List, Optional, Callable, Dict, Tuple
 import numpy as np
 import json
+import re
 
 
 @dataclass
@@ -67,7 +68,7 @@ class MemoryStore:
                 sim = sim * (0.7 + 0.3 * m.reinforcement_score)
             scored.append((sim, m))
         
-        return sorted(scored, reverse=True)[:top_k]
+        return sorted(scored, key=lambda item: item[0], reverse=True)[:top_k]
 
     def get_memory(self, memory_id: str) -> Optional[Memory]:
         """Retrieve a specific memory by ID."""
@@ -223,6 +224,111 @@ class MemoryOptimizer:
         }
 
 
+class MemoryAnalyzer:
+    """Compares recent conversation context against long-term memories."""
+
+    STOPWORDS = {
+        'about', 'after', 'again', 'also', 'and', 'are', 'because', 'been', 'but',
+        'can', 'could', 'did', 'does', 'for', 'from', 'had', 'has', 'have', 'how',
+        'into', 'just', 'like', 'more', 'not', 'now', 'our', 'out', 'that', 'the',
+        'their', 'them', 'then', 'there', 'this', 'through', 'use', 'was', 'were',
+        'what', 'when', 'where', 'which', 'who', 'why', 'with', 'would', 'you', 'your'
+    }
+
+    def _keywords(self, text: str) -> List[str]:
+        words = re.findall(r"[a-zA-Z][a-zA-Z0-9_\-]{2,}", text.lower())
+        return [w for w in words if w not in self.STOPWORDS]
+
+    def analyze(self, query: str, short_term_messages: List[dict],
+                long_term_matches: List[tuple], max_items: int = 5) -> dict:
+        """
+        Compare short-term chat history to recalled long-term memories.
+
+        Returns compact response-planning guidance instead of raw transcripts so an LLM
+        can stay responsive, preserve recent intent, and add durable context only when
+        it is relevant.
+        """
+        recent_text = "\n".join(
+            f"{m.get('role', 'unknown')}: {m.get('message', '')}"
+            for m in short_term_messages[-max_items:]
+        )
+        query_terms = set(self._keywords(query))
+        short_terms = set(self._keywords(recent_text))
+
+        relevant_memories = []
+        long_terms = set()
+        for score, memory in long_term_matches[:max_items]:
+            content = getattr(memory, 'content', '') or ''
+            memory_terms = set(self._keywords(content))
+            long_terms.update(memory_terms)
+            overlap = sorted((query_terms | short_terms) & memory_terms)
+            relevant_memories.append({
+                'id': getattr(memory, 'id', ''),
+                'score': float(score),
+                'importance': float(getattr(memory, 'importance', 0.0)),
+                'overlap': overlap[:8],
+                'content': content[:360]
+            })
+
+        repeated_terms = sorted((query_terms & short_terms) | (short_terms & long_terms))[:12]
+        new_terms = sorted(query_terms - long_terms - short_terms)[:12]
+        durable_terms = sorted((query_terms | short_terms) & long_terms)[:12]
+
+        guidance = []
+        if repeated_terms:
+            guidance.append(
+                "Continue the current thread of thought; the user is repeating or refining: "
+                + ", ".join(repeated_terms[:6])
+            )
+        if durable_terms:
+            guidance.append(
+                "Blend in long-term context for: " + ", ".join(durable_terms[:6])
+            )
+        if new_terms:
+            guidance.append(
+                "Treat these as new or under-specified details and answer directly: "
+                + ", ".join(new_terms[:6])
+            )
+        if relevant_memories:
+            guidance.append(
+                "Use the recalled memories as background, not as a substitute for the user's latest request."
+            )
+        else:
+            guidance.append("No strong long-term memory match; rely primarily on the latest user message.")
+
+        return {
+            'query_terms': sorted(query_terms)[:20],
+            'short_term_focus': sorted(short_terms)[:20],
+            'repeated_terms': repeated_terms,
+            'new_terms': new_terms,
+            'durable_terms': durable_terms,
+            'relevant_memories': relevant_memories,
+            'response_guidance': guidance
+        }
+
+    def format_for_prompt(self, analysis: dict, char_limit: int = 1800) -> str:
+        """Render analysis as concise prompt context."""
+        if not analysis:
+            return ""
+
+        lines = ["Memory analyzer guidance:"]
+        for item in analysis.get('response_guidance', [])[:4]:
+            lines.append(f"- {item}")
+
+        memories = analysis.get('relevant_memories', [])[:3]
+        if memories:
+            lines.append("Relevant long-term memories:")
+            for mem in memories:
+                overlap = ", ".join(mem.get('overlap') or []) or "general relevance"
+                content = " ".join((mem.get('content') or '').split())
+                lines.append(f"- score={mem.get('score', 0):.2f}; overlap={overlap}; {content}")
+
+        output = "\n".join(lines)
+        if len(output) > char_limit:
+            return output[:char_limit - 3] + "..."
+        return output
+
+
 class CognitiveLayer:
     """
     Main interface for memory operations with feedback loop.
@@ -240,6 +346,7 @@ class CognitiveLayer:
         """
         self.store = MemoryStore()
         self.optimizer = MemoryOptimizer()
+        self.analyzer = MemoryAnalyzer()
         self.reflection = ReflectionEngine()
         self.embedder = embedder or self._default_embedder
         self._memory_index = {}  # Quick lookup by content hash
@@ -444,6 +551,17 @@ class CognitiveLayer:
         response = context_provider(query, memory_context)
         
         return response, memories
+
+    def analyze_memory_context(self, query: str, short_term_messages: List[dict],
+                               top_k: int = 5) -> dict:
+        """Compare recent chat history with long-term memory recall."""
+        memories = self.recall(query, top_k=top_k)
+        return self.analyzer.analyze(query, short_term_messages, memories)
+
+    def format_memory_analysis_for_prompt(self, analysis: dict,
+                                          char_limit: int = 1800) -> str:
+        """Render a memory analysis into concise LLM prompt context."""
+        return self.analyzer.format_for_prompt(analysis, char_limit=char_limit)
     
     def get_reflection_stats(self) -> dict:
         """Get statistics about reflections and reinforcement."""
