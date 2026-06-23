@@ -194,7 +194,14 @@ except ImportError as e:
     logging.getLogger("HadesAI").warning(f"Phase 1 Integration failed: {str(e)}")
     HAS_PHASE1_INTEGRATION = False
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+def should_verify_tls() -> bool:
+    """Verify TLS certificates unless explicitly disabled for a trusted lab target."""
+    return os.getenv("HADES_INSECURE_TLS", "").strip().lower() not in {"1", "true", "yes", "on"}
+
+
+if not should_verify_tls():
+    logging.getLogger("HadesAI").warning("TLS certificate verification disabled via HADES_INSECURE_TLS")
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # OpenAI GPT Integration (v1.0+ API)
 try:
@@ -1112,9 +1119,9 @@ class ExploitationEngine:
             try:
                 if method.upper() == 'GET':
                     test_url = f"{url}?{param}={urllib.parse.quote(payload)}"
-                    r = session.get(test_url, timeout=10, verify=False)
+                    r = session.get(test_url, timeout=10, verify=should_verify_tls())
                 else:
-                    r = session.post(url, data={param: payload}, timeout=10, verify=False)
+                    r = session.post(url, data={param: payload}, timeout=10, verify=should_verify_tls())
                 
                 indicators = self._check_exploitation_indicators(r.text, payload)
                 
@@ -1760,7 +1767,7 @@ class RequestInjector:
         
         # Baseline request
         try:
-            baseline = session.get(url, timeout=10, verify=False)
+            baseline = session.get(url, timeout=10, verify=should_verify_tls())
             baseline_len = len(baseline.content)
             baseline_status = baseline.status_code
         except:
@@ -1775,7 +1782,7 @@ class RequestInjector:
             for value in values:
                 try:
                     headers = {header: value}
-                    r = session.get(url, headers=headers, timeout=10, verify=False)
+                    r = session.get(url, headers=headers, timeout=10, verify=should_verify_tls())
                     
                     diff = abs(len(r.content) - baseline_len)
                     interesting = (r.status_code != baseline_status or 
@@ -1805,7 +1812,7 @@ class RequestInjector:
         
         for payload in payloads:
             try:
-                r = session.post(url, json=payload, timeout=10, verify=False)
+                r = session.post(url, json=payload, timeout=10, verify=should_verify_tls())
                 results.append({
                     'payload': str(payload),
                     'status': r.status_code,
@@ -1878,7 +1885,7 @@ class AuthBypass:
         # Get baseline
         try:
             baseline = session.post(url, data={user_field: 'invalid', pass_field: 'invalid'}, 
-                                   timeout=10, verify=False, allow_redirects=False)
+                                   timeout=10, verify=should_verify_tls(), allow_redirects=False)
             baseline_status = baseline.status_code
             baseline_len = len(baseline.content)
         except:
@@ -1888,7 +1895,7 @@ class AuthBypass:
         for user_payload, pass_payload in payloads:
             try:
                 data = {user_field: user_payload, pass_field: pass_payload}
-                r = session.post(url, data=data, timeout=10, verify=False, allow_redirects=False)
+                r = session.post(url, data=data, timeout=10, verify=should_verify_tls(), allow_redirects=False)
                 
                 # Check for success indicators
                 success_indicators = [
@@ -1947,10 +1954,10 @@ class AuthBypass:
                 
                 if method.upper() == 'POST':
                     r = session.post(url, data=data, headers=headers, timeout=10, 
-                                    verify=False, allow_redirects=False)
+                                    verify=should_verify_tls(), allow_redirects=False)
                 else:
                     r = session.get(url, params=data, headers=headers, timeout=10, 
-                                   verify=False, allow_redirects=False)
+                                   verify=should_verify_tls(), allow_redirects=False)
                 
                 results.append({
                     'technique': technique['name'],
@@ -2018,7 +2025,7 @@ class WebLearner:
             
         try:
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            response = requests.get(url, headers=headers, timeout=10, verify=False)
+            response = requests.get(url, headers=headers, timeout=10, verify=should_verify_tls())
             content = response.text
             
             patterns_found = []
@@ -2232,7 +2239,7 @@ class ToolExecutor(QThread):
             if self._stop:
                 break
             try:
-                r = requests.get(test_url, timeout=5, verify=False,
+                r = requests.get(test_url, timeout=5, verify=should_verify_tls(),
                                headers={'User-Agent': 'Mozilla/5.0'})
                 for indicator in indicators:
                     if indicator.lower() in r.text.lower():
@@ -4017,7 +4024,7 @@ Current query:
                 for path in vuln_paths[:10]:
                     try:
                         test_url = f"{base_url}{path}"
-                        r = session.get(test_url, timeout=5, verify=False, allow_redirects=False)
+                        r = session.get(test_url, timeout=5, verify=should_verify_tls(), allow_redirects=False)
                         if r.status_code == 200:
                             finding = {
                                 'type': 'exposed_path',
@@ -4047,7 +4054,7 @@ Current query:
             if HAS_REQUESTS:
                 try:
                     session = self.proxy_manager.get_session()
-                    r = session.get(base_url, timeout=10, verify=False)
+                    r = session.get(base_url, timeout=10, verify=should_verify_tls())
                     headers = r.headers
                     
                     security_headers = {
@@ -4098,7 +4105,7 @@ Current query:
             if HAS_REQUESTS:
                 try:
                     session = self.proxy_manager.get_session()
-                    r = session.get(url, timeout=10, verify=False)
+                    r = session.get(url, timeout=10, verify=should_verify_tls())
                     
                     # Simple form detection
                     form_count = r.text.lower().count('<form')

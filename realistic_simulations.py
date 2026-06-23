@@ -21,10 +21,22 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import ssl
 import warnings
+import os
+import urllib3
 
 from attack_vectors_engine import (
     AttackVectorEngine, AttackPhase, VulnerabilityType
 )
+
+
+def should_verify_tls() -> bool:
+    """Verify TLS certificates unless explicitly disabled for a trusted lab target."""
+    return os.getenv("HADES_INSECURE_TLS", "").strip().lower() not in {"1", "true", "yes", "on"}
+
+
+if not should_verify_tls():
+    warnings.filterwarnings('ignore', message='Unverified HTTPS request')
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class WebTargetScanner:
@@ -44,8 +56,7 @@ class WebTargetScanner:
     def fetch_url(self, url, timeout=10) -> str:
         """Fetch raw content from URL"""
         try:
-            warnings.filterwarnings('ignore', message='Unverified HTTPS request')
-            response = self.session.get(url, timeout=timeout, verify=False)
+            response = self.session.get(url, timeout=timeout, verify=should_verify_tls())
             response.raise_for_status()
             return response.text
         except Exception as e:
@@ -82,7 +93,7 @@ class WebTargetScanner:
     def check_headers(self, url) -> dict:
         """Analyze security headers from target"""
         try:
-            response = self.session.head(url, timeout=10, verify=False)
+            response = self.session.head(url, timeout=10, verify=should_verify_tls())
             headers = {k: v for k, v in response.headers.items()}
             
             # Check for security headers

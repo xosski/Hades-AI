@@ -14,9 +14,21 @@ from urllib.parse import urljoin, urlparse
 import logging
 from collections import defaultdict
 import hashlib
+import os
+import urllib3
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def should_verify_tls() -> bool:
+    """Verify TLS certificates unless explicitly disabled for a trusted lab target."""
+    return os.getenv("HADES_INSECURE_TLS", "").strip().lower() not in {"1", "true", "yes", "on"}
+
+
+if not should_verify_tls():
+    logger.warning("TLS certificate verification disabled via HADES_INSECURE_TLS")
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ============================================================================
 # DATA CLASSES
@@ -270,7 +282,7 @@ class APIEndpointDiscovery:
             for endpoint in self.COMMON_ENDPOINTS:
                 url = urljoin(base_url, pattern + endpoint)
                 try:
-                    r = session.get(url, timeout=5, verify=False)
+                    r = session.get(url, timeout=5, verify=should_verify_tls())
                     if r.status_code < 500:  # Not a server error
                         discovered.append(url)
                 except:
@@ -430,16 +442,12 @@ class APITester:
         self.base_url = base_url
         self.timeout = timeout
         self.session = requests.Session()
-        self.session.verify = False
+        self.session.verify = should_verify_tls()
         self.harvester = DataHarvester()
         self.discoverer = APIEndpointDiscovery()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (API-Tester)',
         })
-        
-        # Disable SSL warnings
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
     def test_endpoint(self, endpoint: str, method: str = 'GET', 
                      data: Dict = None, headers: Dict = None) -> APIEndpoint:
