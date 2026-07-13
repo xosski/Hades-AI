@@ -15,6 +15,7 @@ from enum import Enum
 from pathlib import Path
 import hashlib
 from abc import ABC, abstractmethod
+from contextlib import closing
 
 logger = logging.getLogger("LLMConversation")
 
@@ -496,7 +497,7 @@ class ConversationManager:
     
     def _init_db(self):
         """Initialize SQLite database for conversation storage"""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS conversations (
                     id TEXT PRIMARY KEY,
@@ -561,7 +562,7 @@ class ConversationManager:
     def load_conversation(self, conv_id: str) -> Optional[Conversation]:
         """Load conversation from database"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 cursor = conn.execute(
                     "SELECT * FROM conversations WHERE id = ?", (conv_id,)
                 )
@@ -608,9 +609,9 @@ class ConversationManager:
             return None
     
     def _save_conversation(self, conv: Conversation):
-        """Save conversation to database"""
+        """Save conversation metadata and its complete ordered message history."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute(
                     """INSERT OR REPLACE INTO conversations 
                     (id, title, created_at, updated_at, provider, model, temperature, max_tokens, system_prompt, metadata)
@@ -622,6 +623,19 @@ class ConversationManager:
                         conv.system_prompt,
                         json.dumps(conv.metadata)
                     )
+                )
+                conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv.id,))
+                conn.executemany(
+                    """INSERT INTO messages
+                    (conversation_id, role, content, timestamp, metadata)
+                    VALUES (?, ?, ?, ?, ?)""",
+                    [
+                        (
+                            conv.id, message.role, message.content,
+                            message.timestamp.isoformat(), json.dumps(message.metadata)
+                        )
+                        for message in conv.messages
+                    ]
                 )
                 conn.commit()
         except Exception as e:
@@ -695,7 +709,7 @@ class ConversationManager:
     def list_conversations(self, limit: int = 50) -> List[Dict]:
         """List all conversations"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 rows = conn.execute(
                     "SELECT id, title, created_at, updated_at, provider FROM conversations ORDER BY updated_at DESC LIMIT ?",
                     (limit,)
@@ -718,7 +732,7 @@ class ConversationManager:
     def delete_conversation(self, conv_id: str) -> bool:
         """Delete conversation"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
                 conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
                 conn.commit()

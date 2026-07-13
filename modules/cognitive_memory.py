@@ -6,7 +6,11 @@ and reinforcement learning through outcome evaluation.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import hashlib
+import sqlite3
+import threading
 import uuid
+from contextlib import closing
 from typing import List, Optional, Callable, Dict, Tuple
 import numpy as np
 import json
@@ -336,32 +340,126 @@ class CognitiveLayer:
     and reinforcement learning through outcome evaluation.
     """
     
-    def __init__(self, embedder: Callable = None):
+    def __init__(self, embedder: Callable = None, db_path: str = None):
         """
         Initialize the cognitive layer.
         
         Args:
             embedder: Callable that converts text to embeddings.
                      If None, uses simple word-frequency embeddings.
+            db_path: Optional SQLite database used to persist memories and reflections.
         """
         self.store = MemoryStore()
         self.optimizer = MemoryOptimizer()
         self.analyzer = MemoryAnalyzer()
         self.reflection = ReflectionEngine()
         self.embedder = embedder or self._default_embedder
+        self.db_path = db_path
+        self._db_lock = threading.RLock()
         self._memory_index = {}  # Quick lookup by content hash
         self._reinforcement_map = {}  # Map reflection IDs to memory IDs
+        if self.db_path:
+            self._init_db()
+            self._load_state()
+
+    def _connect(self):
+        return sqlite3.connect(self.db_path)
+
+    def _init_db(self) -> None:
+        """Create durable cognitive-memory tables without owning the parent database."""
+        with self._db_lock, closing(self._connect()) as conn, conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cognitive_memories (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding TEXT NOT NULL,
+                    importance REAL NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    metadata TEXT NOT NULL,
+                    access_count INTEGER NOT NULL DEFAULT 0,
+                    reinforcement_score REAL NOT NULL DEFAULT 0.5
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cognitive_reflections (
+                    id TEXT PRIMARY KEY,
+                    user_input TEXT NOT NULL,
+                    ai_output TEXT NOT NULL,
+                    success_score REAL NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    metadata TEXT NOT NULL,
+                    reflected_content TEXT NOT NULL,
+                    memory_id TEXT
+                )
+            """)
+
+    def _load_state(self) -> None:
+        """Restore memories and feedback mappings from SQLite."""
+        with self._db_lock, closing(self._connect()) as conn, conn:
+            memory_rows = conn.execute("""
+                SELECT id, content, embedding, importance, timestamp, metadata,
+                       access_count, reinforcement_score
+                FROM cognitive_memories ORDER BY timestamp
+            """).fetchall()
+            reflection_rows = conn.execute("""
+                SELECT id, user_input, ai_output, success_score, timestamp, metadata,
+                       reflected_content, memory_id
+                FROM cognitive_reflections ORDER BY timestamp
+            """).fetchall()
+
+        for row in memory_rows:
+            memory = Memory(
+                id=row[0], content=row[1], embedding=json.loads(row[2]),
+                importance=float(row[3]), timestamp=datetime.fromisoformat(row[4]),
+                metadata=json.loads(row[5] or '{}'), access_count=int(row[6]),
+                reinforcement_score=float(row[7])
+            )
+            self.store.add(memory)
+            self._memory_index[self._content_key(memory.content)] = memory.id
+
+        for row in reflection_rows:
+            reflection = Reflection(
+                id=row[0], user_input=row[1], ai_output=row[2],
+                success_score=float(row[3]), timestamp=datetime.fromisoformat(row[4]),
+                metadata=json.loads(row[5] or '{}'), reflected_content=row[6]
+            )
+            self.reflection.reflections.append(reflection)
+            if row[7]:
+                self._reinforcement_map[reflection.id] = row[7]
+
+    def _save_memory(self, memory: Memory) -> None:
+        if not self.db_path:
+            return
+        with self._db_lock, closing(self._connect()) as conn, conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO cognitive_memories
+                (id, content, embedding, importance, timestamp, metadata,
+                 access_count, reinforcement_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                memory.id, memory.content, json.dumps(memory.embedding),
+                memory.importance, memory.timestamp.isoformat(),
+                json.dumps(memory.metadata), memory.access_count,
+                memory.reinforcement_score
+            ))
+
+    @staticmethod
+    def _content_key(text: str) -> str:
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
     def _default_embedder(self, text: str) -> list:
         """
         Simple default embedder using word frequencies.
         Replace with proper embedding model (e.g., BERT, sentence-transformers).
         """
-        words = text.lower().split()
+        words = re.findall(r"[a-zA-Z0-9_\-]+", text.lower())
         # Create a simple 128-dimensional embedding from word frequencies
         embedding = [0.0] * 128
         for word in words:
-            hash_val = hash(word) % 128
+            hash_val = int.from_bytes(
+                hashlib.blake2b(word.encode('utf-8'), digest_size=8).digest(),
+                byteorder='big'
+            ) % 128
             embedding[hash_val] += 1.0 / (len(words) + 1)
         # Normalize
         norm = np.linalg.norm(embedding)
@@ -391,7 +489,8 @@ class CognitiveLayer:
             metadata=metadata or {}
         )
         self.store.add(mem)
-        self._memory_index[hash(text)] = mem.id
+        self._memory_index[self._content_key(text)] = mem.id
+        self._save_memory(mem)
         return mem.id
 
     def recall(self, query: str, top_k: int = 5, use_reinforcement: bool = True) -> List[tuple]:
@@ -412,6 +511,7 @@ class CognitiveLayer:
         # Track access for memory usage patterns
         for _, memory in results:
             memory.access_count += 1
+            self._save_memory(memory)
         
         return results
 
@@ -435,6 +535,21 @@ class CognitiveLayer:
         self.optimizer.compress(self.store)
         
         stats_after = self.optimizer.get_statistics(self.store)
+        if self.db_path:
+            with self._db_lock, closing(self._connect()) as conn, conn:
+                conn.execute("DELETE FROM cognitive_memories")
+                for memory in self.store.memories:
+                    conn.execute("""
+                        INSERT INTO cognitive_memories
+                        (id, content, embedding, importance, timestamp, metadata,
+                         access_count, reinforcement_score)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        memory.id, memory.content, json.dumps(memory.embedding),
+                        memory.importance, memory.timestamp.isoformat(),
+                        json.dumps(memory.metadata), memory.access_count,
+                        memory.reinforcement_score
+                    ))
         
         return {
             'pruned_count': pruned,
@@ -444,7 +559,11 @@ class CognitiveLayer:
 
     def forget(self, memory_id: str) -> bool:
         """Remove a specific memory."""
-        return self.store.delete(memory_id)
+        deleted = self.store.delete(memory_id)
+        if deleted and self.db_path:
+            with self._db_lock, closing(self._connect()) as conn, conn:
+                conn.execute("DELETE FROM cognitive_memories WHERE id = ?", (memory_id,))
+        return deleted
 
     def get_memory_stats(self) -> dict:
         """Get current memory statistics."""
@@ -458,6 +577,9 @@ class CognitiveLayer:
         """Clear all memories."""
         self.store.memories.clear()
         self._memory_index.clear()
+        if self.db_path:
+            with self._db_lock, closing(self._connect()) as conn, conn:
+                conn.execute("DELETE FROM cognitive_memories")
     
     # ========== Feedback Loop Methods ==========
     
@@ -492,6 +614,19 @@ class CognitiveLayer:
             }
         )
         self._reinforcement_map[reflection.id] = memory_id
+        if self.db_path:
+            with self._db_lock, closing(self._connect()) as conn, conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO cognitive_reflections
+                    (id, user_input, ai_output, success_score, timestamp, metadata,
+                     reflected_content, memory_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    reflection.id, reflection.user_input, reflection.ai_output,
+                    reflection.success_score, reflection.timestamp.isoformat(),
+                    json.dumps(reflection.metadata), reflection.reflected_content,
+                    memory_id
+                ))
         
         return reflection.id
     
@@ -523,6 +658,7 @@ class CognitiveLayer:
             base_importance=0.3
         )
         memory.importance = max(memory.importance, new_importance)
+        self._save_memory(memory)
         
         return True
     

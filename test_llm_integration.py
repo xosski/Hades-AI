@@ -6,6 +6,7 @@ Test script to verify LLM integration with HadesAI
 import sys
 import os
 import logging
+import tempfile
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("LLM_Test")
@@ -83,7 +84,7 @@ def test_llm_chat():
         logger.error(f"✗ Failed to test LLM chat: {e}")
         return False
 
-def test_conversation_persistence():
+def _legacy_test_conversation_persistence():
     """Test conversation persistence"""
     logger.info("\nTesting conversation persistence...")
     try:
@@ -118,6 +119,57 @@ def test_conversation_persistence():
         logger.error(f"✗ Failed to test conversation persistence: {e}")
         return False
 
+def test_durable_conversation_and_memory():
+    """Verify message history and cognitive feedback survive process restarts."""
+    from llm_conversation_core import ConversationManager
+    from modules.cognitive_memory import CognitiveLayer
+
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            conversation_db = os.path.join(temp_dir, "conversations.db")
+            manager = ConversationManager(db_path=conversation_db)
+            conversation = manager.create_conversation("Persistence", provider="fallback")
+            response = manager.send_message("Hello", conv_id=conversation.id)
+            streamed_response = "".join(
+                manager.send_message("Help", conv_id=conversation.id, use_streaming=True)
+            )
+
+            reloaded = ConversationManager(db_path=conversation_db).load_conversation(
+                conversation.id
+            )
+            assert reloaded is not None
+            assert [message.role for message in reloaded.messages] == [
+                "user", "assistant", "user", "assistant"
+            ]
+            assert reloaded.messages[1].content == response
+            assert reloaded.messages[3].content == streamed_response
+
+            memory_db = os.path.join(temp_dir, "memory.db")
+            memory = CognitiveLayer(db_path=memory_db)
+            memory_id = memory.remember(
+                "The project database is PostgreSQL",
+                importance=0.8,
+                metadata={"type": "project_fact"}
+            )
+            reflection_id = memory.evaluate_response(
+                "Which database do we use?", "PostgreSQL", 0.9
+            )
+
+            reloaded_memory = CognitiveLayer(db_path=memory_db)
+            recalled = reloaded_memory.recall("project database PostgreSQL", top_k=1)
+            assert recalled and recalled[0][1].id == memory_id
+            assert reloaded_memory.get_memory_stats()["total_memories"] == 2
+            assert reloaded_memory.get_reflection_stats()["total_reflections"] == 1
+            assert reflection_id in reloaded_memory._reinforcement_map
+            assert reloaded_memory.reinforce_memory(memory_id, 1.0)
+
+        logger.info("Durable conversation and cognitive memory round trip passed")
+        return True
+    except Exception as e:
+        logger.error(f"Durable conversation and memory test failed: {e}")
+        return False
+
+
 def main():
     """Run all tests"""
     logger.info("=" * 60)
@@ -130,7 +182,7 @@ def main():
     results.append(("ConversationManager", test_conversation_manager()))
     results.append(("HadesAI Integration", test_hades_ai_integration()))
     results.append(("LLM Chat", test_llm_chat()))
-    results.append(("Conversation Persistence", test_conversation_persistence()))
+    results.append(("Durable Conversation and Memory", test_durable_conversation_and_memory()))
     
     # Summary
     logger.info("\n" + "=" * 60)

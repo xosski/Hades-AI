@@ -3170,7 +3170,7 @@ class HadesAI:
         
         # Initialize cognitive memory system
         if HAS_COGNITIVE_MEMORY:
-            self.cognitive = CognitiveLayer()
+            self.cognitive = CognitiveLayer(db_path=knowledge_path)
             logger.info("Cognitive memory layer initialized")
             # Start background memory optimizer
             self._start_background_optimizer()
@@ -3548,7 +3548,13 @@ class HadesAI:
         """Compare recent chat history with cognitive long-term memories."""
         if not self.cognitive:
             return {}
-        short_term = self.kb.get_chat_history(short_term_limit)
+        if hasattr(self, '_llm_conversation'):
+            short_term = [
+                {'role': message.role, 'message': message.content}
+                for message in self._llm_conversation.messages[-short_term_limit:]
+            ]
+        else:
+            short_term = self.kb.get_chat_history(short_term_limit)
         return self.cognitive.analyze_memory_context(
             query,
             short_term_messages=short_term,
@@ -3959,8 +3965,31 @@ Current query:
                 self.remember(
                     f"User asked: {message}\nHADES responded: {response}",
                     importance=0.55,
-                    metadata={'type': 'chat_interaction', 'provider': resolved_provider, 'model': resolved_model}
+                    metadata={
+                        'type': 'chat_interaction',
+                        'provider': self._llm_conversation.provider,
+                        'model': self._llm_conversation.model
+                    }
                 )
+            elif use_streaming and response is not None and self.cognitive:
+                def stream_with_memory():
+                    chunks = []
+                    for chunk in response:
+                        chunks.append(chunk)
+                        yield chunk
+                    full_response = "".join(chunks)
+                    if full_response:
+                        self.remember(
+                            f"User asked: {message}\nHADES responded: {full_response}",
+                            importance=0.55,
+                            metadata={
+                                'type': 'chat_interaction',
+                                'provider': self._llm_conversation.provider,
+                                'model': self._llm_conversation.model
+                            }
+                        )
+
+                return stream_with_memory()
             return response
         except Exception as e:
             logger.error(f"LLM chat error: {str(e)}")
