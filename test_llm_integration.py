@@ -6,7 +6,9 @@ Test script to verify LLM integration with HadesAI
 import sys
 import os
 import logging
+import sqlite3
 import tempfile
+from contextlib import closing
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("LLM_Test")
@@ -133,6 +135,22 @@ def test_durable_conversation_and_memory():
             streamed_response = "".join(
                 manager.send_message("Help", conv_id=conversation.id, use_streaming=True)
             )
+
+            with closing(sqlite3.connect(conversation_db)) as conn:
+                message_ids = [
+                    row[0] for row in conn.execute(
+                        "SELECT id FROM messages WHERE conversation_id = ? ORDER BY id",
+                        (conversation.id,)
+                    )
+                ]
+                indexes = {
+                    row[1] for row in conn.execute("PRAGMA index_list('messages')")
+                }
+
+            # Appending must not delete and recreate the complete history.
+            assert message_ids == [1, 2, 3, 4]
+            assert "idx_messages_conversation_id_id" in indexes
+            assert manager.switch_provider(conversation.id, "fallback", "fallback")
 
             reloaded = ConversationManager(db_path=conversation_db).load_conversation(
                 conversation.id

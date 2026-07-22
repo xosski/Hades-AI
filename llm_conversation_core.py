@@ -9,7 +9,7 @@ import sqlite3
 import logging
 import threading
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Iterator, Tuple
+from typing import Dict, List, Any, Optional, Iterator, Tuple, Union
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
@@ -460,6 +460,13 @@ class ConversationManager:
         
         self._init_db()
         self._init_providers()
+
+    def _connect(self) -> sqlite3.Connection:
+        """Open a configured connection that tolerates short concurrent writes."""
+        conn = sqlite3.connect(self.db_path, timeout=10)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 10000")
+        return conn
     
     def _init_providers(self):
         """Initialize all available LLM providers"""
@@ -497,7 +504,9 @@ class ConversationManager:
     
     def _init_db(self):
         """Initialize SQLite database for conversation storage"""
-        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+        with closing(self._connect()) as conn, conn:
+            # WAL lets the UI read conversation history while a worker saves a reply.
+            conn.execute("PRAGMA journal_mode = WAL")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS conversations (
                     id TEXT PRIMARY KEY,
@@ -524,7 +533,14 @@ class ConversationManager:
                     FOREIGN KEY(conversation_id) REFERENCES conversations(id)
                 )
             """)
-            conn.commit()
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_conversations_updated_at
+                ON conversations(updated_at DESC)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_id
+                ON messages(conversation_id, id)
+            """)
     
     def create_conversation(
         self,
@@ -562,7 +578,7 @@ class ConversationManager:
     def load_conversation(self, conv_id: str) -> Optional[Conversation]:
         """Load conversation from database"""
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            with closing(self._connect()) as conn:
                 cursor = conn.execute(
                     "SELECT * FROM conversations WHERE id = ?", (conv_id,)
                 )
@@ -611,11 +627,21 @@ class ConversationManager:
     def _save_conversation(self, conv: Conversation):
         """Save conversation metadata and its complete ordered message history."""
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            with closing(self._connect()) as conn, conn:
                 conn.execute(
-                    """INSERT OR REPLACE INTO conversations 
+                    """INSERT INTO conversations
                     (id, title, created_at, updated_at, provider, model, temperature, max_tokens, system_prompt, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        title = excluded.title,
+                        created_at = excluded.created_at,
+                        updated_at = excluded.updated_at,
+                        provider = excluded.provider,
+                        model = excluded.model,
+                        temperature = excluded.temperature,
+                        max_tokens = excluded.max_tokens,
+                        system_prompt = excluded.system_prompt,
+                        metadata = excluded.metadata""",
                     (
                         conv.id, conv.title,
                         conv.created_at.isoformat(), conv.updated_at.isoformat(),
@@ -637,16 +663,42 @@ class ConversationManager:
                         for message in conv.messages
                     ]
                 )
-                conn.commit()
         except Exception as e:
             logger.error(f"Error saving conversation: {str(e)}")
+
+    def _append_message(self, conv: Conversation, message: Message):
+        """Persist one new message without rewriting the conversation history."""
+        try:
+            with closing(self._connect()) as conn, conn:
+                conn.execute(
+                    """UPDATE conversations
+                    SET updated_at = ?, provider = ?, model = ?, temperature = ?,
+                        max_tokens = ?, system_prompt = ?, metadata = ?
+                    WHERE id = ?""",
+                    (
+                        conv.updated_at.isoformat(), conv.provider, conv.model,
+                        conv.temperature, conv.max_tokens, conv.system_prompt,
+                        json.dumps(conv.metadata), conv.id
+                    )
+                )
+                conn.execute(
+                    """INSERT INTO messages
+                    (conversation_id, role, content, timestamp, metadata)
+                    VALUES (?, ?, ?, ?, ?)""",
+                    (
+                        conv.id, message.role, message.content,
+                        message.timestamp.isoformat(), json.dumps(message.metadata)
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Error appending conversation message: {str(e)}")
     
     def send_message(
         self,
         content: str,
         conv_id: Optional[str] = None,
         use_streaming: bool = False
-    ) -> str or Iterator[str]:
+    ) -> Union[str, Iterator[str]]:
         """Send message and get response"""
         if conv_id:
             conv = self.conversations.get(conv_id)
@@ -659,8 +711,9 @@ class ConversationManager:
             raise ValueError("No active conversation")
         
         # Add user message
-        conv.add_message("user", content)
-        self._save_conversation(conv)
+        with self.lock:
+            user_message = conv.add_message("user", content)
+            self._append_message(conv, user_message)
         
         # Get provider
         provider = self.providers.get(conv.provider)
@@ -687,8 +740,9 @@ class ConversationManager:
                     full_response += chunk
                     yield chunk
 
-                conv.add_message("assistant", full_response)
-                self._save_conversation(conv)
+                with self.lock:
+                    assistant_message = conv.add_message("assistant", full_response)
+                    self._append_message(conv, assistant_message)
 
             return _stream_and_persist()
         else:
@@ -701,15 +755,16 @@ class ConversationManager:
             )
             
             if response:
-                conv.add_message("assistant", response)
-                self._save_conversation(conv)
+                with self.lock:
+                    assistant_message = conv.add_message("assistant", response)
+                    self._append_message(conv, assistant_message)
             
             return response
     
     def list_conversations(self, limit: int = 50) -> List[Dict]:
         """List all conversations"""
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            with closing(self._connect()) as conn:
                 rows = conn.execute(
                     "SELECT id, title, created_at, updated_at, provider FROM conversations ORDER BY updated_at DESC LIMIT ?",
                     (limit,)
@@ -732,12 +787,14 @@ class ConversationManager:
     def delete_conversation(self, conv_id: str) -> bool:
         """Delete conversation"""
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            with closing(self._connect()) as conn, conn:
                 conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
                 conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
-                conn.commit()
-            
-            self.conversations.pop(conv_id, None)
+
+            with self.lock:
+                self.conversations.pop(conv_id, None)
+                if self.current_conversation and self.current_conversation.id == conv_id:
+                    self.current_conversation = None
             return True
         except Exception as e:
             logger.error(f"Error deleting conversation: {str(e)}")
