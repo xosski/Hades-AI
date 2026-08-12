@@ -381,7 +381,7 @@ class AutonomousScheduler:
     
     def _execute_task(self, task: ScheduledTask):
         """Execute a scheduled task with retries"""
-        execution_id = f"{task.task_id}_{int(time.time())}"
+        execution_id = f"{task.task_id}_{time.time_ns()}"
         record = ExecutionRecord(
             execution_id=execution_id,
             task_id=task.task_id,
@@ -390,54 +390,41 @@ class AutonomousScheduler:
         )
         
         try:
-            self.logger.info(f"Executing task: {task.name}")
-            
-            # Execute with timeout
-            result = self._execute_with_timeout(
-                task.operation,
-                task.parameters,
-                task.timeout
-            )
-            
-            record.status = TaskStatus.SUCCESS
-            record.result = result
-            
-            task.last_execution = time.time()
-            task.execution_count += 1
-            task.success_count += 1
-            
-            self.logger.info(
-                f"Task completed: {task.name} "
-                f"(execution_count={task.execution_count})"
-            )
-            
-            # Trigger success event
-            self._trigger_event(f"task_success_{task.task_id}")
-        
-        except Exception as e:
-            # Retry logic
-            if record.retry_count < task.max_retries:
-                record.retry_count += 1
-                self.logger.warning(
-                    f"Task {task.name} failed, retrying "
-                    f"(attempt {record.retry_count}/{task.max_retries})"
-                )
-                time.sleep(2 ** record.retry_count)  # Exponential backoff
-                self._execute_task(task)
-            else:
-                record.status = TaskStatus.FAILED
-                record.error = str(e)
-                
-                task.failure_count += 1
-                
-                self.logger.error(
-                    f"Task failed: {task.name} - {e}"
-                )
-                
-                # Trigger failure event
-                self._trigger_event(f"task_failed_{task.task_id}")
+            while True:
+                try:
+                    self.logger.info(f"Executing task: {task.name}")
+                    record.result = self._execute_with_timeout(
+                        task.operation,
+                        task.parameters,
+                        task.timeout
+                    )
+                    record.status = TaskStatus.SUCCESS
+                    record.error = None
+                    task.last_execution = time.time()
+                    task.success_count += 1
+                    self.logger.info(f"Task completed: {task.name}")
+                    self._trigger_event(f"task_success_{task.task_id}")
+                    break
+                except Exception as e:
+                    record.error = str(e)
+                    # A timed-out thread may still be running. Retrying it could
+                    # duplicate side effects, so timeouts are deliberately final.
+                    if isinstance(e, TimeoutError) or record.retry_count >= task.max_retries:
+                        record.status = TaskStatus.FAILED
+                        task.failure_count += 1
+                        self.logger.error(f"Task failed: {task.name} - {e}")
+                        self._trigger_event(f"task_failed_{task.task_id}")
+                        break
+
+                    record.retry_count += 1
+                    self.logger.warning(
+                        f"Task {task.name} failed, retrying "
+                        f"(attempt {record.retry_count}/{task.max_retries})"
+                    )
+                    time.sleep(2 ** record.retry_count)
         
         finally:
+            task.execution_count += 1
             record.end_time = time.time()
             record.duration = record.end_time - record.start_time
             

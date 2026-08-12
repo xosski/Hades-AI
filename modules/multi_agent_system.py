@@ -16,6 +16,7 @@ import logging
 import threading
 import time
 import json
+from contextlib import closing
 from datetime import datetime
 from dataclasses import dataclass, asdict, field
 from typing import Dict, List, Optional, Set, Callable, Any, Tuple
@@ -309,7 +310,7 @@ class MultiAgentSystem:
                 if best_agent:
                     task.assigned_agents[required_role] = best_agent.agent_id
                     best_agent.current_task = task.task_id
-                    best_agent.status = AgentStatus.ASSIGNED
+                    best_agent.status = AgentStatus.BUSY
                     
                     self.logger.info(
                         f"Assigned {best_agent.name} to {required_role.value} "
@@ -441,7 +442,7 @@ class MultiAgentSystem:
         """Manage collaborative task lifecycle"""
         try:
             for task_id, task in list(self.collaborative_tasks.items()):
-                if task.status == TaskStatus.PENDING:
+                if task.status in (TaskStatus.PENDING, TaskStatus.ASSIGNED):
                     if len(task.assigned_agents) == len(task.required_roles):
                         task.status = TaskStatus.IN_PROGRESS
                         task.started_at = time.time()
@@ -479,8 +480,8 @@ class MultiAgentSystem:
             
             # All agents reported completion
             return all(
-                role in task.results
-                for role in task.required_roles
+                agent_id in task.results
+                for agent_id in task.assigned_agents.values()
             )
         except Exception as e:
             self.logger.error(f"Task completion check failed: {e}")
@@ -492,31 +493,23 @@ class MultiAgentSystem:
             if not self.conflict_resolution_enabled:
                 return
             
-            # Check for agent conflicts (duplicate task assignments, etc.)
-            assigned_tasks = {}
-            for agent_id, agent in self.agents.items():
-                if agent.current_task:
-                    if agent.current_task not in assigned_tasks:
-                        assigned_tasks[agent.current_task] = []
-                    assigned_tasks[agent.current_task].append(agent_id)
-            
-            # Resolve conflicts
-            for task_id, agent_ids in assigned_tasks.items():
-                if len(agent_ids) > 1 and task_id in self.collaborative_tasks:
-                    task = self.collaborative_tasks[task_id]
-                    
-                    # Keep highest performing agent
-                    agent_ids.sort(
-                        key=lambda aid: self.agents[aid].performance_score,
-                        reverse=True
-                    )
-                    
-                    for aid in agent_ids[1:]:
-                        self.agents[aid].current_task = None
-                        self.logger.info(
-                            f"Conflict resolution: freed {self.agents[aid].name} "
-                            f"from duplicate task"
+            # Multiple agents on one collaborative task are expected. A real
+            # conflict is one agent occupying more than one role in that task.
+            for task in self.collaborative_tasks.values():
+                seen_agents = set()
+                changed = False
+                for role, agent_id in list(task.assigned_agents.items()):
+                    if agent_id in seen_agents:
+                        del task.assigned_agents[role]
+                        changed = True
+                        self.logger.warning(
+                            f"Conflict resolution: removed duplicate role "
+                            f"{role.value} for agent {agent_id}"
                         )
+                    else:
+                        seen_agents.add(agent_id)
+                if changed:
+                    self._store_task(task)
         
         except Exception as e:
             self.logger.error(f"Conflict resolution failed: {e}")
@@ -584,7 +577,13 @@ class MultiAgentSystem:
                 return False
             
             task = self.collaborative_tasks[task_id]
+            if agent_id not in task.assigned_agents.values():
+                self.logger.warning(
+                    f"Rejected result from unassigned agent {agent_id} for task {task_id}"
+                )
+                return False
             task.results[agent_id] = result
+            self._store_task(task)
             
             self.logger.debug(f"Result reported by {agent_id} for task {task_id}")
             return True
@@ -651,20 +650,23 @@ class MultiAgentSystem:
     def _store_task(self, task: CollaborativeTask):
         """Store task in database"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT OR REPLACE INTO collaborative_tasks
-                (task_id, name, description, required_roles, assigned_agents,
-                 status, priority, created_at, started_at, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (task.task_id, task.name, task.description,
-                  json.dumps([r.value for r in task.required_roles]),
-                  json.dumps(task.assigned_agents), task.status.value,
-                  task.priority, task.created_at, task.started_at,
-                  task.completed_at))
-            conn.commit()
-            conn.close()
+            assigned_agents = {
+                role.value if isinstance(role, AgentRole) else str(role): agent_id
+                for role, agent_id in task.assigned_agents.items()
+            }
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO collaborative_tasks
+                    (task_id, name, description, required_roles, assigned_agents,
+                     status, priority, created_at, started_at, completed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (task.task_id, task.name, task.description,
+                      json.dumps([r.value for r in task.required_roles]),
+                      json.dumps(assigned_agents), task.status.value,
+                      task.priority, task.created_at, task.started_at,
+                      task.completed_at))
+                conn.commit()
         except Exception as e:
             self.logger.error(f"Failed to store task: {e}")
     

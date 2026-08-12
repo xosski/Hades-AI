@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from collections import Counter
 import numpy as np
 
+from modules.autonomy_policy import ActionRisk, AutonomousActionPolicy
+
 logger = logging.getLogger("PredictiveExecutor")
 
 
@@ -148,16 +150,18 @@ class PredictiveExecutor:
     Integrates with cognitive memory for context-aware predictions.
     """
     
-    def __init__(self, cognitive_layer=None, executor_fn=None):
+    def __init__(self, cognitive_layer=None, executor_fn=None, action_policy=None):
         """
         Initialize predictive executor
         
         Args:
             cognitive_layer: CognitiveLayer instance for memory access
             executor_fn: Callable to execute predicted actions
+            action_policy: Policy that authorizes actions independently of confidence
         """
         self.cognitive_layer = cognitive_layer
         self.executor_fn = executor_fn
+        self.action_policy = action_policy or AutonomousActionPolicy()
         self.analyzer = PatternAnalyzer()
         self.prediction_history: List[Dict] = []
         self.prediction_accuracy: float = 0.5
@@ -332,6 +336,25 @@ class PredictiveExecutor:
                 'success': False,
                 'error': f'Confidence {prediction.confidence:.1%} below threshold {self.confidence_threshold:.1%}'
             }
+
+        policy_decision = self.action_policy.evaluate(
+            prediction.action,
+            prediction.metadata,
+            max_risk=ActionRisk.MEDIUM,
+        )
+        if not policy_decision.allowed:
+            self.logger.warning(
+                "Predicted action denied by policy: %s (%s)",
+                prediction.action,
+                policy_decision.reason,
+            )
+            return {
+                'success': False,
+                'action': prediction.action,
+                'denied': True,
+                'risk': policy_decision.risk.name,
+                'error': policy_decision.reason,
+            }
         
         try:
             self.logger.info(
@@ -340,9 +363,10 @@ class PredictiveExecutor:
             )
             
             result = self.executor_fn(prediction.action, prediction.metadata)
+            success = result.get('success', False) if isinstance(result, dict) else bool(result)
             
             return {
-                'success': result.get('success', False),
+                'success': success,
                 'action': prediction.action,
                 'confidence': prediction.confidence,
                 'result': result,

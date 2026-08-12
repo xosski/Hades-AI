@@ -24,6 +24,8 @@ from typing import Dict, List, Optional, Callable, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
+from modules.autonomy_policy import ActionRisk, AutonomousActionPolicy
+
 # Import specialized modules
 try:
     from modules.predictive_executor import PredictiveExecutor, PredictedAction
@@ -91,7 +93,8 @@ class AutonomousIntelligence:
     def __init__(self, 
                  cognitive_layer=None,
                  action_executor: Callable = None,
-                 autonomy_level: AutonomyLevel = AutonomyLevel.SEMI_AUTONOMOUS):
+                 autonomy_level: AutonomyLevel = AutonomyLevel.SEMI_AUTONOMOUS,
+                 action_policy: Optional[AutonomousActionPolicy] = None):
         """
         Initialize Autonomous Intelligence system
         
@@ -99,10 +102,12 @@ class AutonomousIntelligence:
             cognitive_layer: CognitiveLayer for memory
             action_executor: Callable to execute predicted actions
             autonomy_level: Initial autonomy level
+            action_policy: Independent authorization policy for proposed actions
         """
         self.cognitive_layer = cognitive_layer
         self.action_executor = action_executor
         self.autonomy_level = autonomy_level
+        self.action_policy = action_policy or AutonomousActionPolicy()
         
         # Initialize sub-systems
         self.predictor: Optional[PredictiveExecutor] = None
@@ -111,7 +116,8 @@ class AutonomousIntelligence:
         if HAS_PREDICTIVE:
             self.predictor = PredictiveExecutor(
                 cognitive_layer=cognitive_layer,
-                executor_fn=action_executor
+                executor_fn=action_executor,
+                action_policy=self.action_policy,
             )
         
         if HAS_ADAPTIVE:
@@ -276,6 +282,10 @@ class AutonomousIntelligence:
         """Determine if a prediction should be executed"""
         if not prediction:
             return False
+
+        # Manual and assisted modes only surface recommendations.
+        if self.autonomy_level in (AutonomyLevel.MANUAL, AutonomyLevel.ASSISTED):
+            return False
         
         # Adjust confidence threshold based on autonomy level
         threshold_map = {
@@ -292,6 +302,25 @@ class AutonomousIntelligence:
             confidence_threshold = max(0.4, confidence_threshold - 0.2)
         
         should_exec = prediction.confidence >= confidence_threshold
+
+        max_risk = (
+            ActionRisk.LOW
+            if self.autonomy_level == AutonomyLevel.SEMI_AUTONOMOUS
+            else ActionRisk.MEDIUM
+        )
+        policy_decision = self.action_policy.evaluate(
+            prediction.action,
+            prediction.metadata,
+            max_risk=max_risk,
+        )
+        should_exec = should_exec and policy_decision.allowed
+
+        if not policy_decision.allowed:
+            self.logger.warning(
+                "Autonomous action denied by policy: %s (%s)",
+                prediction.action,
+                policy_decision.reason,
+            )
         
         if should_exec:
             self.logger.info(
@@ -304,6 +333,24 @@ class AutonomousIntelligence:
     def _execute_decision(self, decision: AutonomousDecision) -> bool:
         """Execute an autonomous decision"""
         if not decision.predicted_action or not self.action_executor:
+            return False
+
+        max_risk = (
+            ActionRisk.LOW
+            if self.autonomy_level == AutonomyLevel.SEMI_AUTONOMOUS
+            else ActionRisk.MEDIUM
+        )
+        policy_decision = self.action_policy.evaluate(
+            decision.predicted_action.action,
+            decision.predicted_action.metadata,
+            max_risk=max_risk,
+        )
+        if not policy_decision.allowed:
+            self.logger.warning(
+                "Execution denied by policy: %s (%s)",
+                decision.predicted_action.action,
+                policy_decision.reason,
+            )
             return False
         
         try:
@@ -366,6 +413,8 @@ class AutonomousIntelligence:
     
     def set_predictor_confidence_threshold(self, threshold: float) -> None:
         """Set minimum confidence for predictions"""
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("confidence threshold must be between 0 and 1")
         if self.predictor:
             self.predictor.confidence_threshold = threshold
             self.logger.info(f"Predictor confidence threshold: {threshold:.1%}")
