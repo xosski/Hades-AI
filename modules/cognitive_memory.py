@@ -14,7 +14,7 @@ import uuid
 import copy
 import queue
 from contextlib import closing
-from typing import List, Optional, Callable, Dict, Tuple
+from typing import Any, List, Optional, Callable, Dict, Tuple
 import numpy as np
 import json
 import re
@@ -23,6 +23,29 @@ import re
 def _utcnow() -> datetime:
     """Naive UTC for compatibility with existing persisted timestamps."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class MemoryType(Enum):
+    """Functional memory systems kept in the canonical memory store."""
+
+    WORKING = "working"
+    EPISODIC = "episodic"
+    SEMANTIC = "semantic"
+    PROCEDURAL = "procedural"
+    AUTOBIOGRAPHICAL = "autobiographical"
+    GOAL = "goal"
+    CANDIDATE = "candidate"
+
+
+class OriginType(Enum):
+    """Epistemic origin of a memory; origins are not interchangeable evidence."""
+
+    USER_STATED = "USER_STATED"
+    OBSERVED = "OBSERVED"
+    MODEL_INFERRED = "MODEL_INFERRED"
+    EXTERNAL_VERIFIED = "EXTERNAL_VERIFIED"
+    SELF_REFLECTION = "SELF_REFLECTION"
+    SIMULATED = "SIMULATED"
 
 
 @dataclass
@@ -42,6 +65,12 @@ class Memory:
     parent_revision: Optional[int] = None
     status: str = "active"
     links: Dict[str, List[str]] = field(default_factory=dict)
+    memory_type: str = MemoryType.SEMANTIC.value
+    origin_type: str = OriginType.MODEL_INFERRED.value
+    confidence: float = 0.5
+    evidence: List[str] = field(default_factory=list)
+    last_verified: Optional[datetime] = None
+    contradictions: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         if self.updated_at is None:
@@ -72,6 +101,12 @@ class MemoryMutation:
     success_score: Optional[float] = None
     relation: Optional[str] = None
     target_memory_id: Optional[str] = None
+    memory_type: Optional[str] = None
+    origin_type: Optional[str] = None
+    confidence: Optional[float] = None
+    evidence: Optional[List[str]] = None
+    last_verified: Optional[datetime] = None
+    contradictions: Optional[List[str]] = None
     source_channel: str = "cortex"
     source_thread: str = ""
     reason: str = ""
@@ -138,6 +173,38 @@ class Reflection:
     timestamp: datetime
     metadata: dict = field(default_factory=dict)
     reflected_content: str = ""  # Structured reflection text
+    structured_data: dict = field(default_factory=dict)
+    candidate_memory_id: str = ""
+
+
+@dataclass
+class SelfModel:
+    """Persistent beliefs about this system, separate from factual memory."""
+
+    identity: str = "HADES reflective assistant"
+    capabilities: List[str] = field(default_factory=lambda: [
+        "retrieve durable context",
+        "review response quality",
+        "adapt response strategies from repeated evidence",
+    ])
+    limitations: List[str] = field(default_factory=lambda: [
+        "generated knowledge may be incomplete or incorrect",
+        "self-reflections are provisional until supported by evidence",
+    ])
+    long_term_goals: List[str] = field(default_factory=lambda: [
+        "answer accurately and directly",
+        "distinguish observations, user statements, inference, and simulation",
+    ])
+    active_goals: List[str] = field(default_factory=list)
+    preferences: Dict[str, Any] = field(default_factory=dict)
+    beliefs: Dict[str, Any] = field(default_factory=dict)
+    uncertainties: Dict[str, Any] = field(default_factory=dict)
+    known_failures: Dict[str, Any] = field(default_factory=dict)
+    learned_strategies: Dict[str, Any] = field(default_factory=dict)
+    relationships: Dict[str, Any] = field(default_factory=dict)
+    autobiographical_summary: str = ""
+    revision: int = 1
+    updated_at: datetime = field(default_factory=_utcnow)
 
 
 class MemoryStore:
@@ -180,7 +247,9 @@ class MemoryStore:
             self._require_authority(authority_token)
             return self._memories.get(memory_id)
 
-    def search(self, query_embedding: list, top_k: int = 5, use_reinforcement: bool = True) -> List[tuple]:
+    def search(self, query_embedding: list, top_k: int = 5,
+               use_reinforcement: bool = True,
+               include_candidates: bool = False) -> List[tuple]:
         """
         Search memories by embedding similarity with optional reinforcement bias.
         Returns list of (similarity_score, Memory) tuples.
@@ -194,10 +263,21 @@ class MemoryStore:
         
         scored = []
         for m in self.memories:
+            if not include_candidates and m.memory_type == MemoryType.CANDIDATE.value:
+                continue
             sim = cosine_similarity(query_embedding, m.embedding)
             # Apply reinforcement bias: boost memories with higher reinforcement scores
             if use_reinforcement:
                 sim = sim * (0.7 + 0.3 * m.reinforcement_score)
+            origin_weight = {
+                OriginType.EXTERNAL_VERIFIED.value: 1.0,
+                OriginType.OBSERVED.value: 0.95,
+                OriginType.USER_STATED.value: 0.9,
+                OriginType.MODEL_INFERRED.value: 0.7,
+                OriginType.SELF_REFLECTION.value: 0.55,
+                OriginType.SIMULATED.value: 0.35,
+            }.get(m.origin_type, 0.5)
+            sim *= origin_weight * (0.6 + 0.4 * m.confidence)
             scored.append((sim, m))
         
         return sorted(scored, key=lambda item: item[0], reverse=True)[:top_k]
@@ -324,6 +404,14 @@ class MemoryCoordinator:
                 updated_at=mutation.timestamp,
                 metadata=copy.deepcopy(mutation.metadata or {}),
                 source_thread=mutation.source_thread,
+                memory_type=mutation.memory_type or MemoryType.SEMANTIC.value,
+                origin_type=mutation.origin_type or OriginType.MODEL_INFERRED.value,
+                confidence=max(0.0, min(1.0, float(
+                    mutation.confidence if mutation.confidence is not None else 0.5
+                ))),
+                evidence=list(mutation.evidence or []),
+                last_verified=mutation.last_verified,
+                contradictions=list(mutation.contradictions or []),
             )
         else:
             if current is None:
@@ -349,6 +437,18 @@ class MemoryCoordinator:
                     updated.importance = max(0.0, min(1.0, float(mutation.importance)))
                 if mutation.metadata is not None:
                     updated.metadata = copy.deepcopy(mutation.metadata)
+                if mutation.memory_type is not None:
+                    updated.memory_type = mutation.memory_type
+                if mutation.origin_type is not None:
+                    updated.origin_type = mutation.origin_type
+                if mutation.confidence is not None:
+                    updated.confidence = max(0.0, min(1.0, float(mutation.confidence)))
+                if mutation.evidence is not None:
+                    updated.evidence = list(dict.fromkeys(mutation.evidence))
+                if mutation.last_verified is not None:
+                    updated.last_verified = mutation.last_verified
+                if mutation.contradictions is not None:
+                    updated.contradictions = list(dict.fromkeys(mutation.contradictions))
             elif mutation.operation == MemoryOperation.REINFORCE:
                 score = max(0.0, min(
                     1.0,
@@ -434,6 +534,12 @@ class MemoryCoordinator:
             "parent_revision": memory.parent_revision,
             "status": memory.status,
             "links": memory.links,
+            "memory_type": memory.memory_type,
+            "origin_type": memory.origin_type,
+            "confidence": memory.confidence,
+            "evidence": memory.evidence,
+            "last_verified": memory.last_verified.isoformat() if memory.last_verified else None,
+            "contradictions": memory.contradictions,
         }
 
 
@@ -444,39 +550,63 @@ class ReflectionEngine:
         self.reflections: List[Reflection] = []
         self._lock = threading.RLock()
     
-    def create_reflection(self, user_input: str, ai_output: str, 
-                         success_score: float, metadata: dict = None) -> Reflection:
-        """
-        Create a reflection from an interaction outcome.
-        
-        Args:
-            user_input: Original user input
-            ai_output: AI response
-            success_score: Outcome evaluation (0.0-1.0)
-            metadata: Optional metadata
-            
-        Returns:
-            Reflection object
-        """
-        reflected_content = f"""
-Input: {user_input}
-Output: {ai_output}
-Outcome Score: {success_score:.2f}
-Timestamp: {_utcnow()}
-"""
+    def create_reflection(self, user_input: str, ai_output: str,
+                         success_score: float, metadata: dict = None,
+                         structured_data: dict = None) -> Reflection:
+        """Create an inspectable reflection without treating it as established truth."""
+        metadata = copy.deepcopy(metadata or {})
+        success_score = max(0.0, min(1.0, float(success_score)))
+        structured = copy.deepcopy(structured_data or {})
+        defaults = {
+            "what_happened": f"A response was produced for: {user_input[:500]}",
+            "prediction": metadata.get(
+                "prediction", "The response would address the user's current request."
+            ),
+            "actual_outcome": metadata.get(
+                "actual_outcome",
+                "Response produced; external outcome has not been observed.",
+            ),
+            "wrong_assumptions": list(metadata.get("wrong_assumptions", [])),
+            "memory_ids": list(metadata.get("memory_ids", [])),
+            "strategy_succeeded": metadata.get("strategy_succeeded", ""),
+            "change_next_time": metadata.get("change_next_time", ""),
+            "confidence": float(metadata.get("reflection_confidence", 0.5)),
+            "contradictions": list(metadata.get("contradictions", [])),
+            "outcome_observed": bool(metadata.get("outcome_observed", False)),
+        }
+        for key, value in defaults.items():
+            structured.setdefault(key, value)
+        structured["confidence"] = max(
+            0.0, min(1.0, float(structured.get("confidence", 0.5)))
+        )
+        reflected_content = "\n".join([
+            f"What happened: {structured['what_happened']}",
+            f"Prediction: {structured['prediction']}",
+            f"Actual outcome: {structured['actual_outcome']}",
+            "Wrong assumptions: " + (
+                "; ".join(structured['wrong_assumptions']) or "none identified"
+            ),
+            f"Strategy that succeeded: {structured['strategy_succeeded'] or 'not established'}",
+            f"Change next time: {structured['change_next_time'] or 'none proposed'}",
+            f"Lesson confidence: {structured['confidence']:.2f}",
+            "Contradictions: " + (
+                "; ".join(structured['contradictions']) or "none identified"
+            ),
+        ])
         reflection = Reflection(
             id=str(uuid.uuid4()),
             user_input=user_input,
             ai_output=ai_output,
             success_score=success_score,
             timestamp=_utcnow(),
-            metadata=metadata or {},
-            reflected_content=reflected_content.strip()
+            metadata=metadata,
+            reflected_content=reflected_content,
+            structured_data=structured,
         )
         with self._lock:
             self.reflections.append(reflection)
         return reflection
-    
+
     def calculate_reinforcement(self, success_score: float, base_importance: float = 0.3) -> float:
         """
         Calculate memory importance based on reinforcement feedback.
@@ -804,6 +934,9 @@ class MemoryAnalyzer:
                 'id': getattr(memory, 'id', ''),
                 'score': float(score),
                 'importance': float(getattr(memory, 'importance', 0.0)),
+                'memory_type': getattr(memory, 'memory_type', MemoryType.SEMANTIC.value),
+                'origin_type': getattr(memory, 'origin_type', OriginType.MODEL_INFERRED.value),
+                'confidence': float(getattr(memory, 'confidence', 0.5)),
                 'overlap': overlap[:8],
                 'content': content[:360]
             })
@@ -856,10 +989,20 @@ class MemoryAnalyzer:
         memories = analysis.get('relevant_memories', [])[:3]
         if memories:
             lines.append("Relevant long-term memories:")
+            lines.append(
+                "Origin labels describe provenance. An OBSERVED episodic interaction confirms "
+                "the exchange occurred, not that claims inside a prior model response are true."
+            )
             for mem in memories:
                 overlap = ", ".join(mem.get('overlap') or []) or "general relevance"
                 content = " ".join((mem.get('content') or '').split())
-                lines.append(f"- score={mem.get('score', 0):.2f}; overlap={overlap}; {content}")
+                lines.append(
+                    f"- score={mem.get('score', 0):.2f}; "
+                    f"type={mem.get('memory_type', 'semantic')}; "
+                    f"origin={mem.get('origin_type', 'MODEL_INFERRED')}; "
+                    f"confidence={mem.get('confidence', 0.5):.2f}; "
+                    f"overlap={overlap}; {content}"
+                )
 
         output = "\n".join(lines)
         if len(output) > char_limit:
@@ -887,6 +1030,11 @@ class CognitiveLayer:
         self.optimizer = MemoryOptimizer()
         self.analyzer = MemoryAnalyzer()
         self.reflection = ReflectionEngine()
+        self.self_model = SelfModel()
+        self._self_model_lock = threading.RLock()
+        self._module_lock = threading.RLock()
+        self._module_registry: Dict[str, dict] = {}
+        self._last_module_decision: dict = {}
         self.embedder = embedder or self._default_embedder
         self.db_path = db_path
         self._db_lock = threading.RLock()
@@ -932,6 +1080,12 @@ class CognitiveLayer:
                 "parent_revision": "INTEGER",
                 "status": "TEXT NOT NULL DEFAULT 'active'",
                 "links": "TEXT NOT NULL DEFAULT '{}'",
+                "memory_type": "TEXT NOT NULL DEFAULT 'semantic'",
+                "origin_type": "TEXT NOT NULL DEFAULT 'MODEL_INFERRED'",
+                "confidence": "REAL NOT NULL DEFAULT 0.5",
+                "evidence": "TEXT NOT NULL DEFAULT '[]'",
+                "last_verified": "TEXT",
+                "contradictions": "TEXT NOT NULL DEFAULT '[]'",
             }
             for column, definition in migrations.items():
                 if column not in existing_columns:
@@ -948,6 +1102,21 @@ class CognitiveLayer:
                     metadata TEXT NOT NULL,
                     reflected_content TEXT NOT NULL,
                     memory_id TEXT
+                )
+            """)
+            reflection_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(cognitive_reflections)")
+            }
+            if "structured_data" not in reflection_columns:
+                conn.execute(
+                    "ALTER TABLE cognitive_reflections ADD COLUMN structured_data TEXT NOT NULL DEFAULT '{}'"
+                )
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cognitive_self_model (
+                    id TEXT PRIMARY KEY,
+                    state_json TEXT NOT NULL,
+                    revision INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL
                 )
             """)
             conn.execute("""
@@ -976,14 +1145,16 @@ class CognitiveLayer:
             memory_rows = conn.execute("""
                 SELECT id, content, embedding, importance, timestamp, metadata,
                        access_count, reinforcement_score, revision, updated_at,
-                       source_thread, parent_revision, status, links
+                       source_thread, parent_revision, status, links,
+                       memory_type, origin_type, confidence, evidence,
+                       last_verified, contradictions
                 FROM cognitive_memories
                 WHERE status = 'active'
                 ORDER BY timestamp
             """).fetchall()
             reflection_rows = conn.execute("""
                 SELECT id, user_input, ai_output, success_score, timestamp, metadata,
-                       reflected_content, memory_id
+                       reflected_content, memory_id, structured_data
                 FROM cognitive_reflections ORDER BY timestamp
             """).fetchall()
 
@@ -992,15 +1163,77 @@ class CognitiveLayer:
             self.store.add(memory)
 
         for row in reflection_rows:
+            structured = json.loads(row[8] or '{}')
             reflection = Reflection(
                 id=row[0], user_input=row[1], ai_output=row[2],
                 success_score=float(row[3]), timestamp=datetime.fromisoformat(row[4]),
-                metadata=json.loads(row[5] or '{}'), reflected_content=row[6]
+                metadata=json.loads(row[5] or '{}'), reflected_content=row[6],
+                structured_data=structured, candidate_memory_id=row[7] or "",
             )
             with self.reflection._lock:
                 self.reflection.reflections.append(reflection)
             if row[7]:
                 self._reinforcement_map[reflection.id] = row[7]
+
+        self._load_self_model()
+
+    def _load_self_model(self) -> None:
+        if not self.db_path:
+            return
+        with self._db_lock, closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT state_json, revision, updated_at FROM cognitive_self_model WHERE id = 'primary'"
+            ).fetchone()
+        if not row:
+            self._persist_self_model(self.self_model)
+            return
+        data = json.loads(row[0] or '{}')
+        data["revision"] = int(row[1] or 1)
+        data["updated_at"] = datetime.fromisoformat(row[2])
+        allowed = set(SelfModel.__dataclass_fields__)
+        self.self_model = SelfModel(**{
+            key: value for key, value in data.items() if key in allowed
+        })
+
+    def _persist_self_model(self, model: SelfModel) -> None:
+        if not self.db_path:
+            return
+        state = copy.deepcopy(model.__dict__)
+        state["updated_at"] = model.updated_at.isoformat()
+        with self._db_lock, closing(self._connect()) as conn, conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO cognitive_self_model
+                (id, state_json, revision, updated_at) VALUES ('primary', ?, ?, ?)
+            """, (
+                json.dumps(state, default=str), model.revision,
+                model.updated_at.isoformat(),
+            ))
+
+    def get_self_model(self) -> SelfModel:
+        """Return a detached snapshot of the persistent self-model."""
+        with self._self_model_lock:
+            return copy.deepcopy(self.self_model)
+
+    def update_self_model(self, changes: Dict[str, Any],
+                          expected_revision: Optional[int] = None) -> SelfModel:
+        """Apply a versioned self-model update and persist it atomically in-process."""
+        with self._self_model_lock:
+            current = self.self_model
+            if expected_revision is not None and current.revision != expected_revision:
+                raise RevisionConflictError(current.revision, "self-model revision changed")
+            allowed = set(SelfModel.__dataclass_fields__) - {"revision", "updated_at"}
+            unknown = set(changes) - allowed
+            if unknown:
+                raise ValueError(f"unknown self-model fields: {sorted(unknown)}")
+            values = copy.deepcopy(current.__dict__)
+            for key, value in changes.items():
+                values[key] = copy.deepcopy(value)
+            values["revision"] = current.revision + 1
+            values["updated_at"] = _utcnow()
+            updated = SelfModel(**values)
+            self._persist_self_model(updated)
+            self.self_model = updated
+            return copy.deepcopy(updated)
 
     @staticmethod
     def _memory_from_row(row) -> Memory:
@@ -1012,6 +1245,12 @@ class CognitiveLayer:
             updated_at=datetime.fromisoformat(row[9] or row[4]),
             source_thread=row[10] or "", parent_revision=row[11],
             status=row[12] or "active", links=json.loads(row[13] or '{}'),
+            memory_type=row[14] or MemoryType.SEMANTIC.value,
+            origin_type=row[15] or OriginType.MODEL_INFERRED.value,
+            confidence=float(row[16] if row[16] is not None else 0.5),
+            evidence=json.loads(row[17] or '[]'),
+            last_verified=datetime.fromisoformat(row[18]) if row[18] else None,
+            contradictions=json.loads(row[19] or '[]'),
         )
 
     def _persist_event(self, event: MemoryEvent, memory: Optional[Memory]) -> int:
@@ -1025,7 +1264,9 @@ class CognitiveLayer:
             row = conn.execute("""
                 SELECT id, content, embedding, importance, timestamp, metadata,
                        access_count, reinforcement_score, revision, updated_at,
-                       source_thread, parent_revision, status, links
+                       source_thread, parent_revision, status, links,
+                       memory_type, origin_type, confidence, evidence,
+                       last_verified, contradictions
                 FROM cognitive_memories WHERE id = ?
             """,
                 (event.memory_id,),
@@ -1068,8 +1309,10 @@ class CognitiveLayer:
                     INSERT OR REPLACE INTO cognitive_memories
                     (id, content, embedding, importance, timestamp, metadata,
                      access_count, reinforcement_score, revision, updated_at,
-                     source_thread, parent_revision, status, links)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     source_thread, parent_revision, status, links,
+                     memory_type, origin_type, confidence, evidence,
+                     last_verified, contradictions)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     memory.id, memory.content, json.dumps(memory.embedding),
                     memory.importance, memory.timestamp.isoformat(),
@@ -1077,7 +1320,11 @@ class CognitiveLayer:
                     memory.reinforcement_score, memory.revision,
                     memory.updated_at.isoformat(), memory.source_thread,
                     memory.parent_revision, memory.status,
-                    json.dumps(memory.links, default=str),
+                    json.dumps(memory.links, default=str), memory.memory_type,
+                    memory.origin_type, memory.confidence,
+                    json.dumps(memory.evidence, default=str),
+                    memory.last_verified.isoformat() if memory.last_verified else None,
+                    json.dumps(memory.contradictions, default=str),
                 ))
             return sequence
 
@@ -1101,7 +1348,12 @@ class CognitiveLayer:
             embedding = [x / norm for x in embedding]
         return embedding
 
-    def remember(self, text: str, importance: float = 0.5, metadata: dict = None) -> str:
+    def remember(self, text: str, importance: float = 0.5, metadata: dict = None,
+                 memory_type: Any = MemoryType.SEMANTIC,
+                 origin_type: Any = OriginType.MODEL_INFERRED,
+                 confidence: float = 0.5, evidence: Optional[List[str]] = None,
+                 last_verified: Optional[datetime] = None,
+                 contradictions: Optional[List[str]] = None) -> str:
         """
         Store a new memory.
         
@@ -1113,6 +1365,16 @@ class CognitiveLayer:
         Returns:
             Memory ID
         """
+        memory_type_value = (
+            memory_type.value if isinstance(memory_type, Enum) else str(memory_type)
+        )
+        origin_type_value = (
+            origin_type.value if isinstance(origin_type, Enum) else str(origin_type)
+        )
+        if memory_type_value not in {item.value for item in MemoryType}:
+            raise ValueError(f"unknown memory type: {memory_type_value}")
+        if origin_type_value not in {item.value for item in OriginType}:
+            raise ValueError(f"unknown origin type: {origin_type_value}")
         memory_id = str(uuid.uuid4())
         result = self.cortex.propose(MemoryMutation(
             operation=MemoryOperation.ADD,
@@ -1121,6 +1383,12 @@ class CognitiveLayer:
             embedding=self.embedder(text),
             importance=max(0.0, min(1.0, float(importance))),
             metadata=copy.deepcopy(metadata or {}),
+            memory_type=memory_type_value,
+            origin_type=origin_type_value,
+            confidence=max(0.0, min(1.0, float(confidence))),
+            evidence=list(dict.fromkeys(evidence or [])),
+            last_verified=last_verified,
+            contradictions=list(dict.fromkeys(contradictions or [])),
             source_channel="cortex",
             source_thread=threading.current_thread().name,
             reason="active cognition proposed a durable memory",
@@ -1203,7 +1471,8 @@ class CognitiveLayer:
             reason=reason,
         ))
 
-    def recall(self, query: str, top_k: int = 5, use_reinforcement: bool = True) -> List[tuple]:
+    def recall(self, query: str, top_k: int = 5, use_reinforcement: bool = True,
+               include_candidates: bool = False) -> List[tuple]:
         """
         Retrieve similar memories with optional reinforcement bias.
         
@@ -1216,7 +1485,9 @@ class CognitiveLayer:
             List of (similarity_score, Memory) tuples
         """
         query_embedding = self.embedder(query)
-        results = self.store.search(query_embedding, top_k, use_reinforcement)
+        results = self.store.search(
+            query_embedding, top_k, use_reinforcement, include_candidates
+        )
         
         # Access accounting is also a proposal; readers never mutate snapshots.
         accessed = []
@@ -1275,53 +1546,178 @@ class CognitiveLayer:
     
     # ========== Feedback Loop Methods ==========
     
-    def evaluate_response(self, user_input: str, ai_output: str, 
-                         success_score: float, metadata: dict = None) -> str:
+    def evaluate_response(self, user_input: str, ai_output: str,
+                         success_score: float, metadata: dict = None,
+                         structured_data: dict = None) -> str:
+        """Record an outcome-aware reflection as a provisional lesson candidate."""
+        details = copy.deepcopy(metadata or {})
+        details.setdefault("outcome_observed", True)
+        details.setdefault("reflection_confidence", 0.7)
+        reflection = self._record_structured_reflection(
+            user_input, ai_output, success_score, details, structured_data
+        )
+        self._maybe_adapt_self_model(reflection)
+        return reflection.id
+
+    def reflect_on_interaction(self, user_input: str, ai_output: str,
+                               memory_ids: Optional[List[str]] = None,
+                               success_score: Optional[float] = None,
+                               metadata: dict = None) -> Reflection:
+        """Run the automatic post-response reflection loop.
+
+        Automatic review observes response construction, not the user's eventual outcome.
+        Its lesson therefore remains provisional and receives lower confidence.
         """
-        Evaluate an AI response and create a reflection.
-        This is the "outcome evaluation" step in the feedback loop.
-        
-        Args:
-            user_input: User's original query
-            ai_output: AI's response
-            success_score: Evaluation score (0.0-1.0)
-            metadata: Optional metadata about the interaction
-            
-        Returns:
-            Reflection ID
-        """
+        score = (
+            self._estimate_response_quality(user_input, ai_output)
+            if success_score is None else max(0.0, min(1.0, float(success_score)))
+        )
+        lesson, successful_strategy = self._derive_lesson(ai_output, score)
+        details = copy.deepcopy(metadata or {})
+        details.update({
+            "memory_ids": list(dict.fromkeys(memory_ids or [])),
+            "outcome_observed": success_score is not None,
+            "actual_outcome": (
+                f"Observed outcome score: {score:.2f}."
+                if success_score is not None
+                else "Response produced; user outcome has not yet been observed."
+            ),
+            "strategy_succeeded": successful_strategy,
+            "change_next_time": lesson,
+            "reflection_confidence": 0.7 if success_score is not None else 0.45,
+        })
+        reflection = self._record_structured_reflection(
+            user_input, ai_output, score, details, structured_data=None
+        )
+        self._maybe_adapt_self_model(reflection)
+        return reflection
+
+    def _record_structured_reflection(self, user_input: str, ai_output: str,
+                                      success_score: float, metadata: dict,
+                                      structured_data: Optional[dict]) -> Reflection:
         reflection = self.reflection.create_reflection(
-            user_input, ai_output, success_score, metadata
+            user_input, ai_output, success_score, metadata, structured_data
         )
-        
-        # Optionally store the reflection itself as a memory
-        importance = self.reflection.calculate_reinforcement(success_score)
+        structured = reflection.structured_data
+        lesson = structured.get("change_next_time") or structured.get("strategy_succeeded")
+        confidence = float(structured.get("confidence", 0.5))
+        evidence = list(dict.fromkeys(structured.get("memory_ids", [])))
         memory_id = self.remember(
-            text=reflection.reflected_content,
-            importance=importance,
+            text=f"Provisional reflection lesson: {lesson or 'No durable lesson proposed.'}",
+            importance=self.reflection.calculate_reinforcement(success_score),
             metadata={
-                'type': 'reflection',
-                'reinforcement': True,
-                'success_score': success_score
-            }
+                "type": "reflection_candidate",
+                "reflection_id": reflection.id,
+                "lesson": lesson,
+                "success_score": success_score,
+                "outcome_observed": bool(structured.get("outcome_observed", False)),
+                "consolidation_status": "candidate",
+            },
+            memory_type=MemoryType.CANDIDATE,
+            origin_type=OriginType.SELF_REFLECTION,
+            confidence=confidence,
+            evidence=evidence,
+            contradictions=list(structured.get("contradictions", [])),
         )
+        reflection.candidate_memory_id = memory_id
         self._reinforcement_map[reflection.id] = memory_id
         if self.db_path:
             with self._db_lock, closing(self._connect()) as conn, conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO cognitive_reflections
                     (id, user_input, ai_output, success_score, timestamp, metadata,
-                     reflected_content, memory_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     reflected_content, memory_id, structured_data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     reflection.id, reflection.user_input, reflection.ai_output,
                     reflection.success_score, reflection.timestamp.isoformat(),
-                    json.dumps(reflection.metadata), reflection.reflected_content,
-                    memory_id
+                    json.dumps(reflection.metadata, default=str),
+                    reflection.reflected_content, memory_id,
+                    json.dumps(reflection.structured_data, default=str),
                 ))
-        
-        return reflection.id
-    
+        return reflection
+
+    @staticmethod
+    def _estimate_response_quality(user_input: str, ai_output: str) -> float:
+        response = (ai_output or "").strip()
+        if not response:
+            return 0.0
+        lower = response.lower()
+        if lower.startswith(("? llm error", "llm error", "error:")):
+            return 0.15
+        terms = set(re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", user_input.lower()))
+        output_terms = set(re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", lower))
+        overlap = len(terms & output_terms) / max(1, min(8, len(terms)))
+        length_credit = 0.15 if len(response.split()) >= 12 else 0.05
+        return min(0.85, 0.45 + min(0.2, overlap * 0.3) + length_credit)
+
+    @staticmethod
+    def _derive_lesson(ai_output: str, score: float) -> Tuple[str, str]:
+        lower = (ai_output or "").lower()
+        if score < 0.3 or "error" in lower[:120]:
+            return (
+                "Verify provider and dependency availability before relying on a response path.",
+                "",
+            )
+        if score < 0.6:
+            return (
+                "When relevance or confidence is low, retrieve additional evidence before responding.",
+                "",
+            )
+        return (
+            "Answer directly, use retrieved context only when relevant, and label uncertainty.",
+            "A direct response grounded in the current request.",
+        )
+
+    def _maybe_adapt_self_model(self, reflection: Reflection) -> None:
+        """Promote a strategy only after repeated, independent observed interactions."""
+        lesson = reflection.structured_data.get("change_next_time")
+        if not lesson:
+            return
+        key = hashlib.sha256(lesson.encode("utf-8")).hexdigest()[:16]
+        model = self.get_self_model()
+        if key in model.learned_strategies:
+            return
+        matching = [
+            memory for memory in self.store.memories
+            if memory.memory_type == MemoryType.CANDIDATE.value
+            and memory.metadata.get("lesson") == lesson
+        ]
+        evidence_ids = list(dict.fromkeys(
+            evidence_id
+            for memory in matching
+            for evidence_id in memory.evidence
+        ))
+        if len(matching) < 3 or len(evidence_ids) < 3:
+            return
+        candidate = matching[-1]
+        promoted = self.promote_candidate_memory(
+            candidate.id,
+            evidence_ids=evidence_ids,
+            min_evidence=3,
+            min_confidence=0.4,
+        )
+        if not promoted.success:
+            return
+        strategies = copy.deepcopy(model.learned_strategies)
+        strategies[key] = {
+            "strategy": lesson,
+            "confidence": round(min(0.9, 0.5 + len(evidence_ids) * 0.05), 2),
+            "evidence_count": len(evidence_ids),
+            "source_memory_id": promoted.memory.id,
+            "updated_at": _utcnow().isoformat(),
+        }
+        changes = {"learned_strategies": strategies}
+        if reflection.success_score < 0.5:
+            failures = copy.deepcopy(model.known_failures)
+            failures[key] = {
+                "pattern": lesson,
+                "evidence_count": len(evidence_ids),
+                "updated_at": _utcnow().isoformat(),
+            }
+            changes["known_failures"] = failures
+        self.update_self_model(changes, expected_revision=model.revision)
+
     def reinforce_memory(self, memory_id: str, success_score: float) -> bool:
         """
         Reinforce a specific memory based on feedback.
@@ -1431,6 +1827,18 @@ class CognitiveLayer:
                 ),
             )
 
+        if any(memory.memory_type == MemoryType.CANDIDATE.value for memory in sources):
+            mutation = MemoryMutation(
+                MemoryOperation.ADD,
+                content=summary,
+                source_channel="dreamer",
+                reason=reason,
+            )
+            return MutationResult(False, conflict=MemoryConflict(
+                "", None, None, None, mutation,
+                "candidate memories must use promote_candidate_memory evidence checks",
+            ))
+
         result = self.dreamer.propose(MemoryMutation(
             operation=MemoryOperation.ADD,
             memory_id=str(uuid.uuid4()),
@@ -1459,6 +1867,330 @@ class CognitiveLayer:
                 return link_result
             consolidated = link_result.memory
         return MutationResult(True, consolidated, link_result.event)
+
+    def promote_candidate_memory(self, candidate_id: str,
+                                 evidence_ids: Optional[List[str]] = None,
+                                 min_evidence: int = 2,
+                                 min_confidence: float = 0.65) -> MutationResult:
+        """Promote a provisional lesson only after provenance and conflict checks."""
+        candidate = self.store.get_memory(candidate_id)
+        proposed = MemoryMutation(
+            MemoryOperation.ADD,
+            content=candidate.content if candidate else "",
+            source_channel="dreamer",
+            reason="evidence-backed candidate promotion",
+        )
+        if candidate is None or candidate.memory_type != MemoryType.CANDIDATE.value:
+            return MutationResult(False, conflict=MemoryConflict(
+                candidate_id, None, candidate.revision if candidate else None,
+                candidate, proposed, "memory is not an active candidate",
+            ))
+        evidence_ids = list(dict.fromkeys((candidate.evidence or []) + (evidence_ids or [])))
+        evidence = [self.store.get_memory(memory_id) for memory_id in evidence_ids]
+        admissible_origins = {
+            OriginType.USER_STATED.value,
+            OriginType.OBSERVED.value,
+            OriginType.EXTERNAL_VERIFIED.value,
+        }
+        admissible = [
+            item for item in evidence
+            if item is not None
+            and item.memory_type != MemoryType.CANDIDATE.value
+            and item.origin_type in admissible_origins
+        ]
+        if len(admissible) < int(min_evidence):
+            return MutationResult(False, conflict=MemoryConflict(
+                candidate_id, candidate.revision, candidate.revision,
+                candidate, proposed,
+                f"candidate requires {min_evidence} independent admissible evidence memories",
+            ))
+        if candidate.confidence < float(min_confidence):
+            return MutationResult(False, conflict=MemoryConflict(
+                candidate_id, candidate.revision, candidate.revision,
+                candidate, proposed,
+                f"candidate confidence {candidate.confidence:.2f} is below {min_confidence:.2f}",
+            ))
+        conflict_ids = set(candidate.contradictions)
+        conflict_ids.update(candidate.links.get("contradicts", []))
+        active_conflicts = [
+            memory_id for memory_id in conflict_ids
+            if self.store.get_memory(memory_id) is not None
+        ]
+        if active_conflicts:
+            return MutationResult(False, conflict=MemoryConflict(
+                candidate_id, candidate.revision, candidate.revision,
+                candidate, proposed,
+                "candidate has unresolved contradictions: " + ", ".join(active_conflicts),
+            ))
+
+        lesson = candidate.metadata.get("lesson") or candidate.content
+        result = self.dreamer.propose(MemoryMutation(
+            operation=MemoryOperation.ADD,
+            memory_id=str(uuid.uuid4()),
+            content=lesson,
+            embedding=self.embedder(lesson),
+            importance=max(0.7, candidate.importance),
+            metadata={
+                "type": "consolidated_lesson",
+                "candidate_id": candidate.id,
+                "evidence_count": len(admissible),
+            },
+            memory_type=MemoryType.PROCEDURAL.value,
+            origin_type=OriginType.SELF_REFLECTION.value,
+            confidence=min(0.95, candidate.confidence + 0.1),
+            evidence=[item.id for item in admissible],
+            last_verified=(
+                _utcnow()
+                if any(item.origin_type == OriginType.EXTERNAL_VERIFIED.value for item in admissible)
+                else None
+            ),
+            source_channel="dreamer",
+            reason="candidate passed provenance, evidence, and conflict checks",
+        ))
+        if not result.success:
+            return result
+        promoted = result.memory
+        for source in [candidate] + admissible:
+            linked = self.dreamer.propose(MemoryMutation(
+                operation=MemoryOperation.LINK,
+                memory_id=promoted.id,
+                expected_revision=promoted.revision,
+                relation="derived_from",
+                target_memory_id=source.id,
+                source_channel="dreamer",
+                reason="record consolidation provenance",
+            ))
+            if not linked.success:
+                return linked
+            promoted = linked.memory
+        candidate_metadata = copy.deepcopy(candidate.metadata)
+        candidate_metadata.update({
+            "consolidation_status": "promoted",
+            "promoted_memory_id": promoted.id,
+        })
+        self.dreamer.propose(MemoryMutation(
+            operation=MemoryOperation.UPDATE,
+            memory_id=candidate.id,
+            expected_revision=candidate.revision,
+            content=candidate.content,
+            embedding=candidate.embedding,
+            importance=candidate.importance,
+            metadata=candidate_metadata,
+            source_channel="dreamer",
+            reason="candidate was promoted after evidence checks",
+        ))
+        return MutationResult(True, promoted, linked.event)
+
+    def sync_loaded_modules(self, descriptors: List[dict]) -> dict:
+        """Replace the working registry with a JSON-safe snapshot of loaded modules."""
+        registry = {}
+        for descriptor in descriptors or []:
+            name = str(descriptor.get("name") or "").strip()
+            if not name:
+                continue
+            registry[name] = {
+                "name": name,
+                "spec_name": str(descriptor.get("spec_name") or ""),
+                "source": str(descriptor.get("source") or ""),
+                "summary": " ".join(str(descriptor.get("summary") or "").split())[:800],
+                "capabilities": [
+                    str(item)[:120] for item in descriptor.get("capabilities", [])[:40]
+                ],
+                "public_callables": [
+                    str(item)[:120] for item in descriptor.get("public_callables", [])[:80]
+                ],
+                "hooks": [str(item) for item in descriptor.get("hooks", [])],
+                "always_on": bool(descriptor.get("always_on", False)),
+            }
+        with self._module_lock:
+            self._module_registry = registry
+            if self._last_module_decision:
+                self._last_module_decision = {
+                    **self._last_module_decision,
+                    "registry_changed": True,
+                }
+        return {"loaded_count": len(registry), "modules": sorted(registry)}
+
+    def get_loaded_module_snapshot(self) -> List[dict]:
+        """Return detached module descriptors for diagnostics and UI use."""
+        with self._module_lock:
+            return copy.deepcopy(list(self._module_registry.values()))
+
+    def analyze_loaded_modules(self, query: str, max_modules: int = 6) -> dict:
+        """Select relevant loaded capabilities without executing module entry points."""
+        with self._module_lock:
+            modules = copy.deepcopy(list(self._module_registry.values()))
+        routing_groups = [
+            {"code", "coding", "program", "programming", "python", "script", "developer"},
+            {"security", "pentest", "vulnerability", "vulnerabilities", "exploit", "scan"},
+            {"network", "traffic", "connection", "socket", "port"},
+            {"memory", "learning", "cognitive", "reflection", "recall", "knowledge"},
+            {"search", "lookup", "research", "web", "online"},
+            {"language", "english", "text", "response", "writing"},
+            {"format", "formatter", "output", "presentation"},
+            {"training", "model", "lora", "dataset", "finetune"},
+            {"defense", "protect", "protection", "monitor", "monitoring"},
+            {"autonomous", "automation", "scheduler", "orchestrator"},
+            {"obfuscation", "obfuscate", "payload", "mutation"},
+        ]
+
+        def expand_terms(terms):
+            expanded = set(terms)
+            for group in routing_groups:
+                if expanded & group:
+                    expanded.update(group)
+            return expanded
+
+        query_terms = expand_terms(set(self.analyzer._keywords(query)))
+        model = self.get_self_model()
+        routing_preferences = model.preferences.get("module_routing", {})
+        if not isinstance(routing_preferences, dict):
+            routing_preferences = {}
+        always_on_terms = {
+            "formatter", "personality", "introspective", "language", "response"
+        }
+        recommendations = []
+        for module in modules:
+            name_terms = expand_terms(
+                set(self.analyzer._keywords(module["name"].replace("_", " ")))
+            )
+            capability_text = " ".join(
+                module["capabilities"] + module["public_callables"] + [module["summary"]]
+            )
+            capability_terms = expand_terms(
+                set(self.analyzer._keywords(capability_text.replace("_", " ")))
+            )
+            name_overlap = sorted(query_terms & name_terms)
+            capability_overlap = sorted(query_terms & capability_terms)
+            preference = routing_preferences.get(module["name"], 0.0)
+            try:
+                preference = max(-2.0, min(2.0, float(preference)))
+            except (TypeError, ValueError):
+                preference = 0.0
+            inferred_always_on = bool(name_terms & always_on_terms)
+            always_on = module["always_on"] or inferred_always_on
+            score = (
+                len(name_overlap) * 3.0
+                + len(capability_overlap) * 1.0
+                + preference
+                + (1.0 if always_on else 0.0)
+            )
+            if score <= 0:
+                continue
+            reasons = []
+            if name_overlap:
+                reasons.append("name matches " + ", ".join(name_overlap[:5]))
+            if capability_overlap:
+                reasons.append("capabilities match " + ", ".join(capability_overlap[:5]))
+            if always_on:
+                reasons.append("general response-control module")
+            if preference:
+                reasons.append(f"self-model routing preference {preference:+.1f}")
+            recommendations.append({
+                "name": module["name"],
+                "score": round(score, 2),
+                "reason": "; ".join(reasons),
+                "hooks": list(module["hooks"]),
+                "capabilities": list(module["capabilities"][:8]),
+                "can_enhance_response": bool(
+                    {"process_response", "enhance_output"} & set(module["hooks"])
+                ),
+                "requires_explicit_execution": (
+                    "main" in module["hooks"]
+                    and not ({"process_response", "enhance_output"} & set(module["hooks"]))
+                ),
+            })
+        recommendations.sort(key=lambda item: (-item["score"], item["name"].lower()))
+        recommendations = recommendations[:max(1, int(max_modules))]
+        decision = {
+            "query": query[:500],
+            "loaded_count": len(modules),
+            "recommended_modules": recommendations,
+            "response_modules": [
+                item["name"] for item in recommendations
+                if item["can_enhance_response"]
+            ],
+            "explicit_execution_modules": [
+                item["name"] for item in recommendations
+                if item["requires_explicit_execution"]
+            ],
+            "decision_policy": (
+                "recommend relevant loaded capabilities; auto-apply response hooks only; "
+                "never auto-execute main()"
+            ),
+        }
+        with self._module_lock:
+            self._last_module_decision = copy.deepcopy(decision)
+        return decision
+
+    def record_module_outcome(self, decision: dict, applied_modules: List[str],
+                              errors: Optional[Dict[str, str]] = None) -> None:
+        """Keep module routing outcome in working state for subsequent reflection."""
+        outcome = copy.deepcopy(decision or {})
+        outcome["applied_modules"] = list(applied_modules or [])
+        outcome["errors"] = copy.deepcopy(errors or {})
+        with self._module_lock:
+            self._last_module_decision = outcome
+
+    def get_last_module_decision(self) -> dict:
+        with self._module_lock:
+            return copy.deepcopy(self._last_module_decision)
+
+    def format_module_context(self, decision: Optional[dict] = None,
+                              char_limit: int = 1800) -> str:
+        """Render loaded-module analysis as hidden planning context."""
+        decision = copy.deepcopy(decision or self.get_last_module_decision())
+        if not decision or not decision.get("loaded_count"):
+            return ""
+        lines = [
+            "Loaded module capability analysis (internal; do not claim a module ran unless it did):",
+            f"- Loaded modules analyzed: {decision.get('loaded_count', 0)}",
+            "- Policy: main() requires explicit execution; only response hooks may be auto-applied.",
+        ]
+        recommendations = decision.get("recommended_modules", [])
+        if recommendations:
+            lines.append("Relevant loaded modules:")
+            for item in recommendations:
+                mode = "response hook" if item.get("can_enhance_response") else "explicit execution only"
+                capabilities = ", ".join(item.get("capabilities", [])[:4]) or "declared API"
+                lines.append(
+                    f"- {item.get('name')}: {mode}; {item.get('reason')}; "
+                    f"capabilities={capabilities}"
+                )
+        else:
+            lines.append("- No loaded module is relevant enough to route this request.")
+        output = "\n".join(lines)
+        return output if len(output) <= char_limit else output[:char_limit - 3] + "..."
+
+    def format_cognitive_context(self, char_limit: int = 1800) -> str:
+        """Build concise internal guidance from the self-model and provisional lessons."""
+        model = self.get_self_model()
+        lines = [
+            "Persistent cognitive guidance (internal; do not quote or mention):",
+            f"- Identity: {model.identity}",
+            "- Capabilities: " + "; ".join(model.capabilities[:3]),
+            "- Goals: " + "; ".join((model.active_goals or model.long_term_goals)[:3]),
+            "- Limitations: " + "; ".join(model.limitations[:3]),
+        ]
+        strategies = list(model.learned_strategies.values())[-4:]
+        if strategies:
+            lines.append("Evidence-backed learned strategies:")
+            for item in strategies:
+                lines.append(
+                    f"- {item.get('strategy', '')} "
+                    f"(confidence={float(item.get('confidence', 0.5)):.2f})"
+                )
+        candidates = [
+            memory for memory in self.store.memories
+            if memory.memory_type == MemoryType.CANDIDATE.value
+            and memory.metadata.get("consolidation_status") == "candidate"
+        ][-2:]
+        if candidates:
+            lines.append("Provisional reflection hypotheses (planning hints, not facts):")
+            for memory in candidates:
+                lines.append(f"- {memory.metadata.get('lesson') or memory.content}")
+        output = "\n".join(lines)
+        return output if len(output) <= char_limit else output[:char_limit - 3] + "..."
 
     def close(self) -> None:
         """Stop logical channel workers after draining synchronous operations."""

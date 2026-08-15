@@ -14,7 +14,7 @@ import json
 import hashlib
 import sqlite3
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict, Counter
 from typing import Dict, List, Any, Optional, Tuple, Callable
 from dataclasses import dataclass, field
@@ -75,7 +75,9 @@ except ImportError:
 
 # Cognitive Memory System
 try:
-    from modules.cognitive_memory import CognitiveLayer, Memory, MemoryStore
+    from modules.cognitive_memory import (
+        CognitiveLayer, Memory, MemoryStore, MemoryType, OriginType,
+    )
     HAS_COGNITIVE_MEMORY = True
 except ImportError:
     CognitiveLayer = None
@@ -445,6 +447,51 @@ def list_modules():
         if f.endswith(".py") and f != "__init__.py"
     )
     return files if files else ["No modules found."]
+
+def describe_loaded_modules() -> List[dict]:
+    """Return a side-effect-free capability snapshot of every loaded module."""
+    descriptors = []
+    known_hooks = ("process_response", "enhance_output", "main")
+    for module_name, module in list(loaded_modules.items()):
+        namespace = vars(module)
+        capabilities = []
+        for key in ("CAPABILITIES", "MODULE_CAPABILITIES"):
+            declared = namespace.get(key)
+            if isinstance(declared, dict):
+                capabilities.extend(str(item) for item in declared.keys())
+            elif isinstance(declared, (list, tuple, set)):
+                capabilities.extend(str(item) for item in declared)
+            elif isinstance(declared, str):
+                capabilities.append(declared)
+        module_info = namespace.get("MODULE_INFO") or namespace.get("MODULE_METADATA")
+        if isinstance(module_info, dict):
+            declared = module_info.get("capabilities", [])
+            if isinstance(declared, dict):
+                capabilities.extend(str(item) for item in declared.keys())
+            elif isinstance(declared, (list, tuple, set)):
+                capabilities.extend(str(item) for item in declared)
+            elif isinstance(declared, str):
+                capabilities.append(declared)
+        public_callables = sorted(
+            name for name, value in namespace.items()
+            if not name.startswith("_") and callable(value)
+        )
+        hooks = [name for name in known_hooks if callable(namespace.get(name))]
+        summary = " ".join((namespace.get("__doc__") or "").strip().split())
+        descriptors.append({
+            "name": module_name,
+            "spec_name": loaded_module_specs.get(module_name, ""),
+            "source": str(namespace.get("__file__") or ""),
+            "summary": summary[:800],
+            "capabilities": list(dict.fromkeys(capabilities))[:40],
+            "public_callables": public_callables[:80],
+            "hooks": hooks,
+            "always_on": bool(
+                namespace.get("ALWAYS_ON", False)
+                or namespace.get("AUTO_PROCESS_RESPONSES", False)
+            ),
+        })
+    return descriptors
 
 def execute_module(module_name):
     module = loaded_modules.get(module_name)
@@ -3171,6 +3218,7 @@ class HadesAI:
         # Initialize cognitive memory system
         if HAS_COGNITIVE_MEMORY:
             self.cognitive = CognitiveLayer(db_path=knowledge_path)
+            self.sync_cognitive_modules()
             logger.info("Cognitive memory layer initialized")
             # Start background memory optimizer
             self._start_background_optimizer()
@@ -3531,11 +3579,12 @@ class HadesAI:
         return "\n".join(lines)
     
     # ========== Cognitive Memory Methods ==========
-    def remember(self, text: str, importance: float = 0.5, metadata: dict = None) -> Optional[str]:
-        """Store content in cognitive memory."""
+    def remember(self, text: str, importance: float = 0.5, metadata: dict = None,
+                 **provenance) -> Optional[str]:
+        """Store content in cognitive memory with optional type and provenance."""
         if not self.cognitive:
             return None
-        return self.cognitive.remember(text, importance, metadata)
+        return self.cognitive.remember(text, importance, metadata, **provenance)
     
     def recall(self, query: str, top_k: int = 5) -> List[tuple]:
         """Retrieve relevant memories by semantic similarity."""
@@ -3571,6 +3620,62 @@ class HadesAI:
             char_limit=char_limit
         )
     
+    def sync_cognitive_modules(self) -> Dict:
+        """Publish all currently loaded module capabilities to working cognition."""
+        if not self.cognitive:
+            return {"loaded_count": 0, "modules": []}
+        return self.cognitive.sync_loaded_modules(describe_loaded_modules())
+
+    def analyze_loaded_modules(self, query: str, max_modules: int = 6) -> Dict:
+        """Ask cognition which loaded modules are relevant without executing them."""
+        if not self.cognitive:
+            return {
+                "query": query,
+                "loaded_count": len(loaded_modules),
+                "recommended_modules": [],
+                "response_modules": list(loaded_modules),
+                "explicit_execution_modules": [],
+                "decision_policy": "cognitive memory unavailable; preserve existing response hooks",
+            }
+        self.sync_cognitive_modules()
+        return self.cognitive.analyze_loaded_modules(query, max_modules=max_modules)
+
+    def _record_cognitive_interaction(self, user_input: str, ai_output: str,
+                                      recalled_memory_ids: Optional[List[str]] = None,
+                                      provider: str = "", model: str = "",
+                                      module_decision: Optional[Dict] = None) -> None:
+        """Persist an observed episode and run the structured reflection loop."""
+        if not self.cognitive or not ai_output:
+            return
+        try:
+            interaction_id = self.remember(
+                f"User asked: {user_input}\nHADES responded: {ai_output}",
+                importance=0.55,
+                metadata={
+                    "type": "chat_interaction",
+                    "provider": provider,
+                    "model": model,
+                    "module_decision": module_decision or {},
+                },
+                memory_type=MemoryType.EPISODIC,
+                origin_type=OriginType.OBSERVED,
+                confidence=1.0,
+                last_verified=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            evidence_ids = [interaction_id] + list(recalled_memory_ids or [])
+            self.cognitive.reflect_on_interaction(
+                user_input,
+                ai_output,
+                memory_ids=[item for item in evidence_ids if item],
+                metadata={
+                    "provider": provider,
+                    "model": model,
+                    "module_decision": module_decision or {},
+                },
+            )
+        except Exception as exc:
+            logger.error("Cognitive post-response reflection failed: %s", exc)
+
     def optimize_memory(self, prune_threshold: float = 0.2, apply_decay: bool = True) -> Dict:
         """Optimize cognitive memory storage."""
         if not self.cognitive:
@@ -3900,7 +4005,24 @@ Current query:
             default_system_prompt = "You are HADES, an expert security and coding assistant."
             base_system_prompt = system_prompt or default_system_prompt
             amp_context = self.get_amp_threads_context(message)
-            memory_context = self.get_memory_analyzer_context(message)
+            module_decision = self.analyze_loaded_modules(message)
+            module_context = (
+                self.cognitive.format_module_context(module_decision)
+                if self.cognitive else ""
+            )
+            memory_analysis = self.analyze_memory_context(message)
+            memory_context = (
+                self.cognitive.format_memory_analysis_for_prompt(memory_analysis)
+                if self.cognitive else ""
+            )
+            cognitive_context = (
+                self.cognitive.format_cognitive_context()
+                if self.cognitive else ""
+            )
+            recalled_memory_ids = [
+                item.get("id") for item in memory_analysis.get("relevant_memories", [])
+                if item.get("id")
+            ]
             effective_system_prompt = base_system_prompt
             contextual_sections = []
             if amp_context:
@@ -3913,6 +4035,10 @@ Current query:
                     "Use this short-term vs long-term memory analysis to construct a responsive, detailed reply:\n"
                     f"{memory_context}"
                 )
+            if cognitive_context:
+                contextual_sections.append(cognitive_context)
+            if module_context:
+                contextual_sections.append(module_context)
             if contextual_sections:
                 effective_system_prompt = (
                     f"{base_system_prompt}\n\n"
@@ -3962,14 +4088,13 @@ Current query:
                 use_streaming=use_streaming
             )
             if isinstance(response, str) and self.cognitive:
-                self.remember(
-                    f"User asked: {message}\nHADES responded: {response}",
-                    importance=0.55,
-                    metadata={
-                        'type': 'chat_interaction',
-                        'provider': self._llm_conversation.provider,
-                        'model': self._llm_conversation.model
-                    }
+                self._record_cognitive_interaction(
+                    message,
+                    response,
+                    recalled_memory_ids,
+                    self._llm_conversation.provider,
+                    self._llm_conversation.model,
+                    module_decision,
                 )
             elif use_streaming and response is not None and self.cognitive:
                 def stream_with_memory():
@@ -3979,14 +4104,13 @@ Current query:
                         yield chunk
                     full_response = "".join(chunks)
                     if full_response:
-                        self.remember(
-                            f"User asked: {message}\nHADES responded: {full_response}",
-                            importance=0.55,
-                            metadata={
-                                'type': 'chat_interaction',
-                                'provider': self._llm_conversation.provider,
-                                'model': self._llm_conversation.model
-                            }
+                        self._record_cognitive_interaction(
+                            message,
+                            full_response,
+                            recalled_memory_ids,
+                            self._llm_conversation.provider,
+                            self._llm_conversation.model,
+                            module_decision,
                         )
 
                 return stream_with_memory()
@@ -6350,6 +6474,7 @@ please consider supporting its development.</p>
             self.exec_btn.setEnabled(True)
             self.module_output.append(f"[+] Module '{module_name}' loaded successfully.")
             self._refresh_loaded_modules_list()
+            self.ai.sync_cognitive_modules()
         except Exception as e:
             self.module_output.append(f"[!] Failed to load '{module_name}': {e}")
 
@@ -6390,6 +6515,7 @@ please consider supporting its development.</p>
                 sys.modules.pop(spec_name, None)
             self.module_output.append(f"[-] Module '{module_name}' unloaded.")
             self._refresh_loaded_modules_list()
+            self.ai.sync_cognitive_modules()
             if not loaded_modules:
                 self.exec_btn.setEnabled(False)
         else:
@@ -9549,22 +9675,35 @@ You can help with: port scanning, vulnerability assessment, exploit research, an
         return self._si_local_fallback_response(system_prompt, user_input, source="empty-response")
 
     def _process_through_modules(self, user_input: str, base_response: str) -> str:
-        """Allow loaded modules to process and enhance responses."""
+        """Apply only response hooks selected by cognitive module routing."""
         enhanced_response = base_response
-        
-        for module_name, module in loaded_modules.items():
+        decision = self.ai.analyze_loaded_modules(user_input)
+        selected_modules = set(decision.get("response_modules", []))
+        applied_modules = []
+        errors = {}
+
+        for module_name, module in list(loaded_modules.items()):
+            if module_name not in selected_modules:
+                continue
             try:
-                # Check if module has a process_response function
                 if hasattr(module, 'process_response'):
-                    enhanced_response = module.process_response(
+                    candidate = module.process_response(
                         self.brain, user_input, enhanced_response
                     )
-                # Check if module has an enhance_output function
+                    if candidate is not None:
+                        enhanced_response = candidate
+                    applied_modules.append(module_name)
                 elif hasattr(module, 'enhance_output'):
-                    enhanced_response = module.enhance_output(enhanced_response)
+                    candidate = module.enhance_output(enhanced_response)
+                    if candidate is not None:
+                        enhanced_response = candidate
+                    applied_modules.append(module_name)
             except Exception as e:
+                errors[module_name] = str(e)
                 self._add_chat_message("system", f"[Module '{module_name}' error: {str(e)}]")
-        
+
+        if self.ai.cognitive:
+            self.ai.cognitive.record_module_outcome(decision, applied_modules, errors)
         return enhanced_response
 
             

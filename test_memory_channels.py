@@ -9,7 +9,9 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from modules.cognitive_memory import CognitiveLayer, MemoryMutation, MemoryOperation
+from modules.cognitive_memory import (
+    CognitiveLayer, MemoryMutation, MemoryOperation, MemoryType, OriginType,
+)
 
 
 class MemoryChannelTests(unittest.TestCase):
@@ -209,6 +211,192 @@ class MemoryChannelTests(unittest.TestCase):
             self.assertIsInstance(recalled[0][0], float)
             self.assertEqual(1, recalled[0][1].access_count)
             self.assertEqual(2, recalled[0][1].revision)
+
+
+    def test_loaded_module_analysis_routes_only_relevant_response_hooks(self):
+        with tempfile.TemporaryDirectory() as directory, self.make_layer(directory) as layer:
+            layer.sync_loaded_modules([
+                {
+                    "name": "Coding Module",
+                    "capabilities": ["python code editing", "syntax repair"],
+                    "public_callables": ["edit_code"],
+                    "hooks": ["main"],
+                },
+                {
+                    "name": "Response Formatter",
+                    "capabilities": ["format response output"],
+                    "public_callables": ["enhance_output"],
+                    "hooks": ["enhance_output"],
+                    "always_on": True,
+                },
+                {
+                    "name": "Network Defense",
+                    "capabilities": ["network monitoring"],
+                    "public_callables": ["monitor_network"],
+                    "hooks": ["main"],
+                },
+            ])
+
+            decision = layer.analyze_loaded_modules("Repair and format this Python code")
+            recommended = [item["name"] for item in decision["recommended_modules"]]
+
+            self.assertIn("Coding Module", recommended)
+            self.assertIn("Response Formatter", recommended)
+            self.assertNotIn("Network Defense", recommended)
+            self.assertEqual(["Response Formatter"], decision["response_modules"])
+            self.assertEqual(["Coding Module"], decision["explicit_execution_modules"])
+            context = layer.format_module_context(decision)
+            self.assertIn("never", decision["decision_policy"])
+            self.assertIn("main() requires explicit execution", context)
+
+            model = layer.get_self_model()
+            layer.update_self_model({
+                "preferences": {"module_routing": {"Network Defense": 1.5}}
+            }, expected_revision=model.revision)
+            preferred = layer.analyze_loaded_modules("Unrelated request")
+            self.assertIn(
+                "Network Defense",
+                [item["name"] for item in preferred["recommended_modules"]],
+            )
+
+    def test_typed_provenance_and_self_model_survive_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            layer = self.make_layer(directory)
+            memory_id = layer.remember(
+                "The user selected concise answers",
+                memory_type=MemoryType.EPISODIC,
+                origin_type=OriginType.USER_STATED,
+                confidence=0.9,
+                evidence=["conversation-1"],
+            )
+            model = layer.get_self_model()
+            updated = layer.update_self_model({
+                "preferences": {"answer_style": "concise"},
+                "active_goals": ["complete the current implementation"],
+            }, expected_revision=model.revision)
+            self.assertEqual(2, updated.revision)
+            layer.close()
+
+            with self.make_layer(directory) as reloaded:
+                memory = reloaded.get_memory_snapshot(memory_id)
+                self.assertEqual(MemoryType.EPISODIC.value, memory.memory_type)
+                self.assertEqual(OriginType.USER_STATED.value, memory.origin_type)
+                self.assertEqual(0.9, memory.confidence)
+                self.assertEqual(["conversation-1"], memory.evidence)
+                self.assertEqual(
+                    "concise", reloaded.get_self_model().preferences["answer_style"]
+                )
+
+    def test_structured_reflection_is_provisional_and_affects_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            layer = self.make_layer(directory)
+            episode_id = layer.remember(
+                "Observed question and response",
+                memory_type=MemoryType.EPISODIC,
+                origin_type=OriginType.OBSERVED,
+                confidence=1.0,
+            )
+            reflection = layer.reflect_on_interaction(
+                "How should evidence be handled?",
+                "Evidence should be checked and uncertainty should be labeled clearly.",
+                memory_ids=[episode_id],
+            )
+            candidate = layer.get_memory_snapshot(reflection.candidate_memory_id)
+
+            self.assertEqual(MemoryType.CANDIDATE.value, candidate.memory_type)
+            self.assertEqual(OriginType.SELF_REFLECTION.value, candidate.origin_type)
+            self.assertFalse(reflection.structured_data["outcome_observed"])
+            self.assertIn("actual_outcome", reflection.structured_data)
+            self.assertNotIn(
+                candidate.id,
+                [memory.id for _, memory in layer.recall("provisional reflection lesson")],
+            )
+            self.assertIn("Provisional reflection hypotheses", layer.format_cognitive_context())
+            layer.close()
+
+            with self.make_layer(directory) as reloaded:
+                restored = reloaded.reflection.reflections[-1]
+                self.assertEqual(candidate.id, restored.candidate_memory_id)
+                self.assertIn("change_next_time", restored.structured_data)
+
+    def test_candidate_promotion_requires_evidence_and_no_conflicts(self):
+        with tempfile.TemporaryDirectory() as directory, self.make_layer(directory) as layer:
+            first = layer.remember(
+                "Observed outcome one", memory_type=MemoryType.EPISODIC,
+                origin_type=OriginType.OBSERVED, confidence=1.0,
+            )
+            second = layer.remember(
+                "User confirmed outcome two", memory_type=MemoryType.EPISODIC,
+                origin_type=OriginType.USER_STATED, confidence=0.9,
+            )
+            conflict = layer.remember(
+                "Contradictory observation", memory_type=MemoryType.EPISODIC,
+                origin_type=OriginType.OBSERVED, confidence=0.8,
+            )
+            unsupported = layer.remember(
+                "Provisional reflection lesson: verify evidence",
+                memory_type=MemoryType.CANDIDATE,
+                origin_type=OriginType.SELF_REFLECTION,
+                confidence=0.8,
+            )
+            rejected = layer.promote_candidate_memory(unsupported)
+            self.assertFalse(rejected.success)
+            self.assertIn("requires 2", rejected.conflict.reason)
+
+            contradicted = layer.remember(
+                "Provisional reflection lesson: verify evidence",
+                metadata={"lesson": "Verify evidence before making a durable claim."},
+                memory_type=MemoryType.CANDIDATE,
+                origin_type=OriginType.SELF_REFLECTION,
+                confidence=0.8,
+                evidence=[first, second],
+                contradictions=[conflict],
+            )
+            rejected = layer.promote_candidate_memory(contradicted)
+            self.assertFalse(rejected.success)
+            self.assertIn("unresolved contradictions", rejected.conflict.reason)
+
+            candidate = layer.remember(
+                "Provisional reflection lesson: verify evidence",
+                metadata={"lesson": "Verify evidence before making a durable claim."},
+                memory_type=MemoryType.CANDIDATE,
+                origin_type=OriginType.SELF_REFLECTION,
+                confidence=0.8,
+                evidence=[first, second],
+            )
+            promoted = layer.promote_candidate_memory(candidate)
+            self.assertTrue(promoted.success)
+            self.assertEqual(MemoryType.PROCEDURAL.value, promoted.memory.memory_type)
+            self.assertEqual([first, second], promoted.memory.evidence)
+            self.assertEqual(
+                [candidate, first, second], promoted.memory.links["derived_from"]
+            )
+
+    def test_repeated_reflection_updates_persistent_self_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            layer = self.make_layer(directory)
+            for index in range(3):
+                episode = layer.remember(
+                    f"Observed interaction {index}",
+                    memory_type=MemoryType.EPISODIC,
+                    origin_type=OriginType.OBSERVED,
+                    confidence=1.0,
+                )
+                layer.reflect_on_interaction(
+                    "Explain database migration evidence",
+                    "Database migration evidence should be checked carefully and the answer "
+                    "should clearly label uncertainty before presenting the final recommendation.",
+                    memory_ids=[episode],
+                )
+            model = layer.get_self_model()
+            self.assertEqual(1, len(model.learned_strategies))
+            strategy = next(iter(model.learned_strategies.values()))
+            self.assertEqual(3, strategy["evidence_count"])
+            self.assertIn(strategy["strategy"], layer.format_cognitive_context())
+            layer.close()
+
+            with self.make_layer(directory) as reloaded:
+                self.assertEqual(1, len(reloaded.get_self_model().learned_strategies))
 
 
 if __name__ == "__main__":

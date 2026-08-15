@@ -38,6 +38,47 @@ Built with PyQt6 for interface control, GPT/OpenAI/Ollama for logic processing, 
 
 ---
 
+### Persistent Cognitive Architecture
+
+HADES now connects its long-term memory, self-model, reflection system, and
+loaded-module registry into the canonical chat path:
+
+```text
+Input -> memory retrieval -> self-model -> module analysis -> response
+      -> outcome reflection -> candidate lesson -> evidence consolidation
+```
+
+The cognitive layer in `modules/cognitive_memory.py` provides:
+
+* **Typed memory:** working, episodic, semantic, procedural,
+  autobiographical, goal, and provisional candidate memories.
+* **Explicit provenance:** `USER_STATED`, `OBSERVED`, `MODEL_INFERRED`,
+  `EXTERNAL_VERIFIED`, `SELF_REFLECTION`, and `SIMULATED` origins remain
+  distinguishable during retrieval and consolidation.
+* **Evidence metadata:** confidence, supporting memory IDs, verification time,
+  contradictions, reinforcement, revisions, and append-only event history.
+* **Persistent self-model:** identity, capabilities, limitations, goals,
+  preferences, beliefs, uncertainties, known failures, learned strategies,
+  relationships, and an autobiographical summary.
+* **Structured reflection:** each completed LLM response records what happened,
+  the expected outcome, whether an external outcome was observed, assumptions,
+  recalled memories, successful strategy, proposed change, confidence, and
+  contradictions.
+* **Safe consolidation:** automatic reflections are provisional candidates and
+  are excluded from ordinary factual recall. Promotion requires sufficient
+  admissible evidence, confidence, and no unresolved contradiction.
+* **Adaptive planning:** evidence-backed strategies and provisional planning
+  hints are included in future hidden response context.
+
+An automatically generated response only proves that the interaction occurred;
+it does not verify the truth of claims inside that response. Automatic reviews
+therefore mark the user's eventual outcome as unobserved until feedback exists.
+
+This architecture implements persistent, reflective agent behavior. It is not
+presented as proof of consciousness or philosophical free will.
+
+---
+
 ### 🔧 Autonomous Coder Agent
 
 An integrated Plan-Act-Reflect loop that:
@@ -57,12 +98,29 @@ An integrated Plan-Act-Reflect loop that:
 
 ### 🔌 Modular Expansion
 
-Modules can now be hot-loaded via `Personality_Core.py` or other custom interfaces. You can:
+Modules can be hot-loaded from the GUI or with the existing module commands.
+Every loaded module is now described to cognitive memory without executing its
+entry points. HADES analyzes module names, documentation, declared capabilities,
+public callables, and supported hooks against the current request.
 
 * Inject custom behavior/personality logic
 * Load custom response engines (e.g., `sophisticated_responses.py`)
-* Extend memory simulation, active consciousness, and learning loop
+* Extend memory, response planning, and learning behavior
 * Override or enrich the fallback LLM logic
+* Let the cognitive router recommend relevant loaded capabilities
+* Set persistent routing preferences through the self-model
+
+Module execution boundaries are preserved:
+
+| Hook | Cognitive behavior |
+| ---- | ------------------ |
+| `process_response(brain, user_input, response)` | May be selected and applied automatically |
+| `enhance_output(response)` | May be selected and applied automatically |
+| `main()` | Recommended when relevant, but requires explicit user execution |
+
+Module routing decisions and applied-module outcomes are retained as cognitive
+context. A module that is loaded but irrelevant to the current request is not
+automatically applied to the response.
 
 **To add a module:**
 Drop your `.py` file into `/modules` or inject via the GUI loader tab.
@@ -150,6 +208,7 @@ See [`browser_extension/README.md`](browser_extension/README.md) for focused ins
 | File                              | Purpose                                |
 | --------------------------------- | -------------------------------------- |
 | `HadesAI.py`                      | Main GUI and application controller    |
+| `modules/cognitive_memory.py`     | Persistent memory, reflection, self-model, and module routing |
 | `hades_companion.py`               | Authenticated local browser API         |
 | `hades_headless_modules.py`        | Headless module compatibility layer     |
 | `payload_generator_core.py`        | GUI-independent payload catalog         |
@@ -167,7 +226,7 @@ See [`browser_extension/README.md`](browser_extension/README.md) for focused ins
 ### 🧭 Future Plans
 
 * GitHub integration & auto-commits
-* Agent memory persistence across reboots
+* Deeper idle-time semantic consolidation
 * Persona swapping for different use cases
 * Live collaboration via sockets or shared state
 * Multilingual command processing
@@ -203,7 +262,12 @@ See `LICENSE.txt` for full terms.
 ### 🤝 Contributing
 
 We accept pull requests from carbon-based lifeforms *and* synthetic ones.
-Just keep it ethical, readable, and testable. Run `verify_integration.py` before pushing anything sentient.
+Just keep it ethical, readable, and testable. Cognitive changes should run:
+
+```bash
+python -m unittest test_cognitive_loop_integration.py test_memory_channels.py
+python test_llm_integration.py
+```
 
 ---
 
