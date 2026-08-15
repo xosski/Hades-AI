@@ -106,11 +106,54 @@ OLLAMA_HOST=localhost:11434
 
 ---
 
+### Chrome and Edge Extension
+
+Hades can run as a local browser pentesting companion using the Manifest V3 extension in `browser_extension/`. The extension provides a side-panel interface while the Python companion keeps Hades modules, databases, LLM credentials, and authorization enforcement on the local machine.
+
+**Available browser capabilities:**
+
+* Passive analysis of the active HTTP(S) page
+* Hades AI chat using page and finding context
+* Local CVE and Exploit Tome search
+* Browser-cache detection history
+* Payload catalog, confidence scoring, mutation, and confirmed same-origin delivery
+* Finding validation and Markdown report export
+* Deterministic SQL injection, reflected-XSS, and path-traversal checks
+* Asynchronous TCP port scanning with full-range progress and service names
+* Per-origin authorization, active/passive scopes, and active-test audit history
+
+#### 1. Start the local companion
+
+```bash
+pip install -r requirements_llm.txt
+python hades_companion.py
+```
+
+The companion listens only on `127.0.0.1:8765`. Keep the terminal open and copy the generated pairing token.
+
+#### 2. Load the extension
+
+1. Open `chrome://extensions` or `edge://extensions`.
+2. Enable **Developer mode**.
+3. Select **Load unpacked** and choose the `browser_extension` directory.
+4. Open an HTTP(S) target and select the Hades AI toolbar action.
+5. Paste the pairing token, press **Refresh**, approve access to that origin, and record the target authorization.
+
+Use `passive_browser_assessment` for DOM-only analysis. Select `active_web_assessment` only when you have explicit permission to send test requests. Every active test requires an additional confirmation, must remain on the authorized origin, does not follow redirects, and is written to the audit log.
+
+See [`browser_extension/README.md`](browser_extension/README.md) for focused installation instructions.
+
+---
+
 ### 📂 Key Files
 
 | File                              | Purpose                                |
 | --------------------------------- | -------------------------------------- |
 | `HadesAI.py`                      | Main GUI and application controller    |
+| `hades_companion.py`               | Authenticated local browser API         |
+| `hades_headless_modules.py`        | Headless module compatibility layer     |
+| `payload_generator_core.py`        | GUI-independent payload catalog         |
+| `browser_extension/`               | Chrome and Edge Manifest V3 extension   |
 | `autonomouscoding.py`             | Agent loop and tool interface          |
 | `fallback_llm.py`                 | Local LLM logic fallback               |
 | `inject_agent.py`                 | Script to patch HadesAI with new agent |

@@ -85,7 +85,7 @@ class CVEDatabase:
                     affected_products TEXT,
                     published_date TEXT,
                     updated_date TEXT,
-                    references TEXT,
+                    "references" TEXT,
                     cwe_ids TEXT,
                     exploited BOOLEAN,
                     cached_date TIMESTAMP
@@ -109,12 +109,14 @@ class CVEDatabase:
             ''')
             
             conn.commit()
-            conn.close()
             
             logger.info(f"CVE Database initialized at {self.db_path}")
         except Exception as e:
             logger.error(f"Failed to initialize CVE database: {e}")
-    
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
     def search_by_cve_id(self, cve_id: str) -> Optional[CVERecord]:
         """Lookup CVE by ID (CVE-2024-1234)"""
         with self.lock:
@@ -130,7 +132,6 @@ class CVEDatabase:
                 (cve_id,)
             )
             row = cursor.fetchone()
-            conn.close()
             
             if row:
                 record = self._row_to_cverecord(row)
@@ -139,7 +140,9 @@ class CVEDatabase:
                 return record
         except Exception as e:
             logger.error(f"Error searching CVE {cve_id}: {e}")
-        
+        finally:
+            if 'conn' in locals():
+                conn.close()
         return None
     
     def search_by_product(self, product_name: str) -> List[CVERecord]:
@@ -156,13 +159,15 @@ class CVEDatabase:
             ''', (f'%{product_name}%',))
             
             rows = cursor.fetchall()
-            conn.close()
             
             return [self._row_to_cverecord(row) for row in rows]
         except Exception as e:
             logger.error(f"Error searching product {product_name}: {e}")
             return []
-    
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
     def search_exploited_only(self) -> List[CVERecord]:
         """Get all known exploited CVEs (CISA catalog)"""
         try:
@@ -176,13 +181,15 @@ class CVEDatabase:
             ''')
             
             rows = cursor.fetchall()
-            conn.close()
             
             return [self._row_to_cverecord(row) for row in rows]
         except Exception as e:
             logger.error(f"Error fetching exploited CVEs: {e}")
             return []
-    
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
     def search_by_severity(self, severity: str) -> List[CVERecord]:
         """Find CVEs by severity level"""
         valid_severities = {'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'}
@@ -200,13 +207,15 @@ class CVEDatabase:
             ''', (severity.upper(),))
             
             rows = cursor.fetchall()
-            conn.close()
             
             return [self._row_to_cverecord(row) for row in rows]
         except Exception as e:
             logger.error(f"Error searching severity {severity}: {e}")
             return []
-    
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
     def search_by_cwe(self, cwe_id: str) -> List[CVERecord]:
         """Find CVEs by CWE (Common Weakness Enumeration)"""
         try:
@@ -220,13 +229,15 @@ class CVEDatabase:
             ''', (f'%{cwe_id}%',))
             
             rows = cursor.fetchall()
-            conn.close()
             
             return [self._row_to_cverecord(row) for row in rows]
         except Exception as e:
             logger.error(f"Error searching CWE {cwe_id}: {e}")
             return []
-    
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
     def store_cve(self, record: CVERecord):
         """Store CVE record in local database"""
         try:
@@ -252,14 +263,16 @@ class CVEDatabase:
             ))
             
             conn.commit()
-            conn.close()
             
             # Update cache
             with self.lock:
                 self.cache[record.cve_id] = record
         except Exception as e:
             logger.error(f"Error storing CVE {record.cve_id}: {e}")
-    
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
     def _row_to_cverecord(self, row: Tuple) -> CVERecord:
         """Convert database row to CVERecord"""
         return CVERecord(

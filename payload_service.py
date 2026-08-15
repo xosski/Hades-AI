@@ -7,7 +7,7 @@ Enhanced with dynamic mutation and confidence scoring
 import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
-from payload_generator_gui import PayloadGenerator
+from payload_generator_core import PayloadGenerator
 from payload_mutator import PayloadMutator, MutatedPayload
 from payload_scorer import PayloadScorer, PayloadMetrics, ScoredPayload
 
@@ -44,11 +44,11 @@ class PayloadService:
         'eval_injection': 'python',
         'unsafe_eval': 'python',
         
-        'path_traversal': 'archive',
-        'directory_traversal': 'archive',
-        'file_traversal': 'archive',
-        'lfi': 'archive',
-        'local_file_inclusion': 'archive',
+        'path_traversal': 'path_traversal',
+        'directory_traversal': 'path_traversal',
+        'file_traversal': 'path_traversal',
+        'lfi': 'path_traversal',
+        'local_file_inclusion': 'path_traversal',
         
         'formula_injection': 'csv',
         'csv_injection': 'csv',

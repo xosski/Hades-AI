@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Hades AI Pentest Companion",
+  "version": "0.2.0",
+  "description": "Authorized passive security assessment with a local Hades AI companion.",
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage",
+    "sidePanel",
+    "downloads"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8765/*",
+    "http://localhost:8765/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Open Hades AI"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
+}

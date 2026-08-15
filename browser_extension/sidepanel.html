@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hades AI</title><link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<header><div><p class="eyebrow">LOCAL PENTEST COMPANION</p><h1>Hades AI</h1></div><span id="status" class="status offline">Offline</span></header>
+<main>
+  <section class="card" id="pairing-card">
+    <h2>Connect companion</h2><p>Run <code>python hades_companion.py</code>, then paste its pairing token.</p>
+    <label for="token">Pairing token</label><input id="token" type="password" autocomplete="off" placeholder="Paste token">
+    <button id="connect">Connect</button>
+  </section>
+  <section class="card hidden" id="target-card">
+    <div class="section-heading"><div><p class="eyebrow">ACTIVE TARGET</p><h2 id="target-title">No supported page</h2></div><button id="refresh-target" class="small">Refresh</button></div><p id="target-url" class="muted"></p>
+    <div id="authorization-state" class="notice warning">Authorization required</div>
+    <div id="authorization-form">
+      <label for="authorized-by">Authorized by</label><input id="authorized-by" placeholder="Your name or organization">
+      <label for="scope">Assessment scope</label>
+      <select id="scope"><option value="passive_browser_assessment">Passive browser assessment</option><option value="active_web_assessment">Active web assessment</option></select>
+      <label class="check"><input id="acknowledged" type="checkbox"><span>I confirm I have explicit permission to assess this target at the selected scope.</span></label>
+      <button id="authorize">Authorize this origin</button>
+    </div>
+    <div class="button-row"><button id="analyze" class="primary" disabled>Run passive analysis</button><button id="revoke" class="danger hidden">Revoke</button></div>
+  </section>
+  <section class="card hidden" id="findings-card">
+    <div class="section-heading"><h2>Findings</h2><button id="report" class="small" disabled>Export report</button></div>
+    <div id="findings" class="findings empty">Run a passive analysis to inspect this page.</div>
+  </section>
+
+  <section class="card hidden" id="modules-card">
+    <div class="section-heading"><h2>Core modules</h2><button id="cache-summary" class="small">Cache history</button></div>
+    <div id="module-status" class="module-grid"></div>
+    <div class="tool">
+      <label for="knowledge-query">CVE and Exploit Tome search</label>
+      <div class="inline"><input id="knowledge-query" placeholder="CVE-2024-… or product"><button id="knowledge-search">Search</button></div>
+    </div>
+    <div class="tool active-only hidden">
+      <label for="payload-type">Payload catalog and scoring</label>
+      <div class="inline"><select id="payload-type"><option value="sql_injection">SQL injection</option><option value="xss">XSS</option><option value="path_traversal">Path traversal</option><option value="xxe">XXE</option><option value="rce">RCE</option></select><button id="payload-search">Generate</button></div>
+      <textarea id="mutation-payload" rows="2" placeholder="Paste a payload to generate encoded test variants"></textarea>
+      <button id="mutate-payload" class="small">Generate mutations</button>
+    </div>
+    <div class="tool active-only hidden">
+      <label for="send-payload-value">Send one test payload</label>
+      <div class="inline"><select id="payload-method"><option value="GET">GET query</option><option value="POST_FORM">POST form</option><option value="POST_JSON">POST JSON</option></select><input id="payload-parameter" value="id" placeholder="Parameter"></div>
+      <textarea id="send-payload-value" rows="3" placeholder="Select or paste a test payload"></textarea>
+      <label class="check"><input id="send-payload-confirm" type="checkbox"><span>I confirm this individual same-origin request.</span></label>
+      <button id="send-payload" class="danger">Send test payload</button>
+      <pre id="payload-output" class="module-output">No payload sent.</pre>
+    </div>
+    <div class="tool active-only hidden">
+      <label>TCP port scan</label>
+      <div class="inline"><input id="port-start" type="number" min="1" max="65535" value="1" title="Start port"><input id="port-end" type="number" min="1" max="65535" value="65535" title="End port"><input id="port-timeout" type="number" min="50" max="2000" value="200" title="Timeout milliseconds"></div>
+      <p class="muted">A full 1–65535 scan can take several minutes. Only the authorized page hostname is scanned.</p>
+      <label class="check"><input id="port-scan-confirm" type="checkbox"><span>I confirm this TCP port scan.</span></label>
+      <button id="start-port-scan" class="danger">Scan ports</button>
+      <pre id="port-output" class="module-output">No port scan started.</pre>
+    </div>
+    <div class="tool active-only hidden">
+      <label for="active-test-type">Deterministic active test</label>
+      <div class="inline"><select id="active-test-type"><option value="sql_injection">SQL injection</option><option value="xss">Reflected XSS</option><option value="path_traversal">Path traversal</option></select><input id="active-parameter" value="id" placeholder="Parameter"></div>
+      <label class="check"><input id="active-confirm" type="checkbox"><span>I confirm this individual active test.</span></label>
+      <button id="run-active-test" class="danger">Run active test</button>
+    </div>
+    <pre id="module-output" class="module-output">Select a module tool to view results.</pre>
+  </section>
+  <section class="card hidden" id="chat-card">
+    <h2>Ask Hades AI</h2><div id="messages" class="messages"><p class="assistant">Ask about the evidence or remediation.</p></div>
+    <form id="chat-form"><textarea id="message" rows="3" placeholder="Explain the most important finding…"></textarea><button type="submit" class="primary">Send</button></form>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div><script src="sidepanel.js"></script>
+</body></html>

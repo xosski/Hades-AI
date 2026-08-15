@@ -175,7 +175,7 @@ class PayloadMutator:
                 encoding_depth
             )
             
-            if mutated and mutated.original != payload:
+            if mutated and mutated.mutated != payload:
                 mutations.append(mutated)
         
         logger.debug(f"Generated {len(mutations)} mutations for payload")
