@@ -10,7 +10,7 @@ from datetime import datetime
 import io
 
 # Fix encoding for Windows console
-if sys.platform == "win32":
+if __name__ == "__main__" and sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 print("=" * 70)

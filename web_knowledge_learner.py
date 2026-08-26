@@ -30,7 +30,7 @@ class WebContentExtractor:
         cves = []
         matches = self.cve_pattern.findall(content)
         
-        for match in set(matches):
+        for match in dict.fromkeys(matches):
             # Find surrounding context
             idx = content.find(match)
             context_start = max(0, idx - 200)
@@ -51,7 +51,7 @@ class WebContentExtractor:
         cwes = []
         matches = self.cwe_pattern.findall(content)
         
-        for match in set(matches):
+        for match in dict.fromkeys(matches):
             idx = content.find(match)
             context_start = max(0, idx - 150)
             context_end = min(len(content), idx + 150)
@@ -72,17 +72,32 @@ class WebContentExtractor:
         # Look for code blocks or technical details
         code_blocks = re.findall(r'```[\s\S]*?```|<code>[\s\S]*?</code>', content)
         
-        exploit_keywords = ['payload', 'shellcode', 'poc', 'exploit', 'injection', 'bypass', 'buffer', 'rce', 'sqli', 'xss']
+        exploit_keywords = {
+            'sql injection': 'SQL_INJECTION',
+            'sqli': 'SQL_INJECTION',
+            'payload': 'PAYLOAD',
+            'shellcode': 'SHELLCODE',
+            'poc': 'POC',
+            'exploit': 'EXPLOIT',
+            'injection': 'INJECTION',
+            'bypass': 'BYPASS',
+            'buffer': 'BUFFER',
+            'rce': 'RCE',
+            'xss': 'XSS',
+        }
         
-        for keyword in exploit_keywords:
+        for keyword, exploit_type in exploit_keywords.items():
             if keyword.lower() in content.lower():
                 # Find context around keyword
-                pattern = re.compile(f'(.{{0,150}}{keyword}.{{0,150}})', re.IGNORECASE)
+                pattern = re.compile(
+                    f'(.{{0,150}}{re.escape(keyword)}.{{0,150}})',
+                    re.IGNORECASE,
+                )
                 matches = pattern.findall(content)
                 
                 for match in matches[:3]:  # Limit to 3 instances per keyword
                     exploits.append({
-                        'type': keyword.upper(),
+                        'type': exploit_type,
                         'code_snippet': match.strip(),
                         'source_url': source_url,
                         'found_date': datetime.now().isoformat()
@@ -473,6 +488,7 @@ class WebKnowledgeStore:
         """Close database connection"""
         if self.conn:
             self.conn.close()
+            self.conn = None
 
 
 class WebKnowledgeLearner:
@@ -552,73 +568,83 @@ class WebKnowledgeLearner:
         return learning_summary
     
     def get_knowledge_context_for_query(self, query: str) -> str:
-        """
-        Get relevant learned knowledge for a specific query
-        Used to enhance AI responses with learned information
-        """
+        """Get learned knowledge relevant to the meaningful terms in a query."""
         try:
             cursor = self.store.conn.cursor()
             context_parts = []
-            
-            # Search learned CVEs
-            cursor.execute("""
-                SELECT cve_id, severity, context FROM learned_cves
-                WHERE cve_id LIKE ? OR context LIKE ?
-                LIMIT 5
-            """, (f"%{query}%", f"%{query}%"))
-            
-            cves = cursor.fetchall()
+            stop_words = {
+                'about', 'does', 'from', 'have', 'into', 'prevent', 'test',
+                'that', 'their', 'this', 'what', 'when', 'where', 'which',
+                'with', 'would', 'your',
+            }
+            terms = [
+                term for term in dict.fromkeys(re.findall(r'[a-z0-9_-]+', query.lower()))
+                if len(term) >= 3 and term not in stop_words
+            ]
+            if not terms:
+                return ""
+
+            def search(select_clause, table, columns, limit):
+                conditions = [
+                    f"LOWER({column}) LIKE ?"
+                    for column in columns
+                    for _ in terms
+                ]
+                parameters = [
+                    f"%{term}%"
+                    for _ in columns
+                    for term in terms
+                ]
+                cursor.execute(
+                    f"SELECT {select_clause} FROM {table} "
+                    f"WHERE {' OR '.join(conditions)} LIMIT ?",
+                    (*parameters, limit),
+                )
+                return cursor.fetchall()
+
+            cves = search(
+                'cve_id, severity, context', 'learned_cves',
+                ('cve_id', 'context'), 5,
+            )
             if cves:
                 context_parts.append("**Learned CVEs:**")
                 for cve in cves:
                     context_parts.append(f"- {cve[0]} (Severity: {cve[1]})")
-            
-            # Search learned exploits
-            cursor.execute("""
-                SELECT exploit_type, code_snippet FROM web_learned_exploits
-                WHERE exploit_type LIKE ? OR code_snippet LIKE ?
-                LIMIT 3
-            """, (f"%{query}%", f"%{query}%"))
-            
-            exploits = cursor.fetchall()
+
+            exploits = search(
+                'exploit_type, code_snippet', 'web_learned_exploits',
+                ('exploit_type', 'code_snippet'), 3,
+            )
             if exploits:
                 context_parts.append("\n**Learned Exploits:**")
                 for exploit in exploits:
                     snippet = exploit[1][:100] if exploit[1] else "N/A"
                     context_parts.append(f"- {exploit[0]}: {snippet}...")
-            
-            # Search learned techniques
-            cursor.execute("""
-                SELECT category, name, description FROM learned_techniques
-                WHERE category LIKE ? OR name LIKE ? OR description LIKE ?
-                LIMIT 3
-            """, (f"%{query}%", f"%{query}%", f"%{query}%"))
-            
-            techniques = cursor.fetchall()
+
+            techniques = search(
+                'category, name, description', 'learned_techniques',
+                ('category', 'name', 'description'), 3,
+            )
             if techniques:
                 context_parts.append("\n**Learned Techniques:**")
-                for tech in techniques:
-                    context_parts.append(f"- [{tech[0]}] {tech[1]}")
-            
-            # Search learned patterns
-            cursor.execute("""
-                SELECT pattern_type, signature, context FROM web_learned_patterns
-                WHERE pattern_type LIKE ? OR signature LIKE ?
-                LIMIT 3
-            """, (f"%{query}%", f"%{query}%"))
-            
-            patterns = cursor.fetchall()
+                for technique in techniques:
+                    context_parts.append(f"- [{technique[0]}] {technique[1]}")
+
+            patterns = search(
+                'pattern_type, signature, context', 'web_learned_patterns',
+                ('pattern_type', 'signature', 'context'), 3,
+            )
             if patterns:
                 context_parts.append("\n**Learned Vulnerability Patterns:**")
                 for pattern in patterns:
                     context_parts.append(f"- {pattern[0]} ({pattern[1]})")
-            
+
             return "\n".join(context_parts) if context_parts else ""
-        
+
         except Exception as e:
             logger.error(f"Failed to get knowledge context: {e}")
             return ""
-    
+
     def close(self):
         """Close all connections"""
         self.store.close()

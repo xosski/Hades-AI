@@ -91,6 +91,8 @@ class TestWebKnowledgeStore(unittest.TestCase):
     def setUpClass(cls):
         # Use test database
         cls.db_path = "test_knowledge.db"
+        if os.path.exists(cls.db_path):
+            os.remove(cls.db_path)
         cls.store = WebKnowledgeStore(cls.db_path)
     
     @classmethod
@@ -178,6 +180,8 @@ class TestWebKnowledgeLearner(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.db_path = "test_learner.db"
+        if os.path.exists(cls.db_path):
+            os.remove(cls.db_path)
         cls.learner = WebKnowledgeLearner(cls.db_path)
     
     @classmethod
@@ -189,7 +193,7 @@ class TestWebKnowledgeLearner(unittest.TestCase):
     def test_learn_from_content(self):
         """Test full learning workflow"""
         content = """
-        CVE-2024-LEARN is a critical vulnerability discovered recently.
+        CVE-2024-1001 is a critical vulnerability discovered recently.
         The SQL injection payload can bypass authentication.
         Attackers can achieve remote code execution through RCE techniques.
         """
@@ -206,7 +210,7 @@ class TestWebKnowledgeLearner(unittest.TestCase):
     def test_knowledge_context_retrieval(self):
         """Test retrieving knowledge for a query"""
         # First learn something
-        content = "CVE-2024-CONTEXT is a SQL injection vulnerability"
+        content = "CVE-2024-1002 is a SQL injection vulnerability"
         self.learner.learn_from_content(
             url="http://test.com/sql",
             content=content
@@ -225,11 +229,13 @@ class TestAIKnowledgeEnhancer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.db_path = "test_enhancer.db"
+        if os.path.exists(cls.db_path):
+            os.remove(cls.db_path)
         cls.enhancer = AIKnowledgeEnhancer(cls.db_path)
         
         # Pre-populate with some knowledge
         test_content = """
-        CVE-2024-ENHANCE is a critical vulnerability.
+        CVE-2024-1003 is a critical vulnerability.
         SQL injection is a common attack vector.
         The exploit technique involves payload injection.
         """
@@ -263,12 +269,12 @@ class TestAIKnowledgeEnhancer(unittest.TestCase):
         """Test learning from scan results"""
         scan_results = {
             'vulnerabilities': [
-                {'type': 'SQL Injection', 'cve': 'CVE-2024-SCAN'}
+                {'type': 'SQL Injection', 'cve': 'CVE-2024-1004'}
             ],
             'exploits': [
                 {'type': 'SQLi', 'code': 'malicious code'}
             ],
-            'raw_content': 'CVE-2024-SCAN is a critical SQL injection'
+            'raw_content': 'CVE-2024-1004 is a critical SQL injection'
         }
         
         learning = self.enhancer.learn_from_scan_results(
@@ -318,10 +324,12 @@ class TestChatAIKnowledgeMiddleware(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.db_path = "test_middleware.db"
+        if os.path.exists(cls.db_path):
+            os.remove(cls.db_path)
         cls.middleware = ChatAIKnowledgeMiddleware(db_path=cls.db_path)
         
         # Pre-populate knowledge
-        content = "CVE-2024-CHAT is a critical vulnerability"
+        content = "CVE-2024-1005 is a critical vulnerability"
         cls.middleware.enhancer.learner.learn_from_content(
             url="http://test.com/chat",
             content=content
@@ -383,11 +391,14 @@ class TestIntegration(unittest.TestCase):
     
     def test_complete_learning_workflow(self):
         """Test complete workflow from learning to enhancement"""
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
         enhancer = AIKnowledgeEnhancer(self.db_path)
+        self.addCleanup(enhancer.close)
         
         # Step 1: Learn from security research
         research_content = """
-        CVE-2024-INTEGRATION is a critical remote code execution vulnerability.
+        CVE-2024-1006 is a critical remote code execution vulnerability.
         The XSS vulnerability allows script injection attacks.
         Attackers can bypass authentication using SQL injection techniques.
         CVSS score: 9.8
@@ -418,7 +429,6 @@ class TestIntegration(unittest.TestCase):
         report = enhancer.create_learning_report()
         self.assertIn('LEARNING STATISTICS', report)
         
-        enhancer.close()
 
 
 def run_tests():

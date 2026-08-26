@@ -10,7 +10,7 @@ import logging
 import os
 
 # Fix encoding on Windows
-if sys.platform == "win32":
+if __name__ == "__main__" and sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 from modules.obfuscation_engine import (

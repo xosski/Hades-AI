@@ -1,0 +1,13 @@
+# Hades AI desktop runtime dependencies.
+# Optional LLM providers and companion-server tools are in requirements_llm.txt.
+
+PyQt6>=6.0.0
+beautifulsoup4>=4.11.0
+lxml>=4.9.0
+numpy>=1.24.0
+psutil>=5.9.0
+pyfiglet>=0.8.post1
+PySocks>=1.7.1
+reportlab>=4.0.0
+requests>=2.31.0
+urllib3>=2.0.0

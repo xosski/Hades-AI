@@ -8,7 +8,7 @@ import sys
 import os
 
 # Fix encoding for Windows
-if sys.platform == 'win32':
+if __name__ == "__main__" and sys.platform == 'win32':
     os.environ['PYTHONIOENCODING'] = 'utf-8'
     sys.stdout.reconfigure(encoding='utf-8')
 from datetime import datetime, timedelta

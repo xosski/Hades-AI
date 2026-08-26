@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 # Fix encoding for Windows
-if sys.platform == 'win32':
+if __name__ == "__main__" and sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 

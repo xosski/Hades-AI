@@ -31,11 +31,8 @@ import html
 import concurrent.futures
 import urllib3
 import ast
-import sys
 import traceback
 from io import StringIO
-import os
-import logging
 import importlib.util
 import pyfiglet
 from urllib.parse import urljoin
@@ -3205,6 +3202,7 @@ class HadesAI:
         self.endpoint_heuristics_available = HAS_ENDPOINT_HEURISTICS and run_endpoint_heuristics_scan is not None
         self.ofsp_machine_scanner_available = HAS_OFSP_MACHINE_SCANNER and run_ofsp_machine_scan is not None
         self.ofsp_reference_path = r"D:\x12\OFSP"
+        self._optimizer_thread = None
         
         # Initialize LLM conversation manager
         if HAS_LLM_CORE:
@@ -3256,8 +3254,6 @@ class HadesAI:
                 )
             except Exception as e:
                 logger.warning(f"Implementation catalog initialization failed: {str(e)}")
-
-        self._optimizer_thread = None
 
     def chat(self, message: str) -> Dict:
         return self.chat_processor.process(message)
@@ -3760,6 +3756,9 @@ Current query:
             interval_seconds: Optimization interval (default: 1 hour)
         """
         if not self.cognitive:
+            return
+
+        if self._optimizer_thread and self._optimizer_thread.is_alive():
             return
         
         def background_optimizer():
@@ -11012,25 +11011,13 @@ class AutoReconScanner(QThread):
         self.finished.emit(findings)
 
 
-def main():
+def main() -> int:
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     window = HadesGUI()
     window.show()
-    sys.exit(app.exec())
+    return app.exec()
 
 
 if __name__ == "__main__":
-    main()
-    ai = HadesAI()
-    print("HadesAI :: Enter input. Use ::mode chat|code|explain to switch modes.")
-    while True:
-        try:
-            user_input = input(">> ")
-            if user_input.lower() in ["exit", "quit"]:
-                break
-            response = ai.dispatch(user_input)
-            print(response)
-        except KeyboardInterrupt:
-            print("\n[HadesAI] Session terminated.")
-            break
+    sys.exit(main())
