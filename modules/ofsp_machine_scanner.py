@@ -7,10 +7,12 @@ This module is read-only and triage-focused.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 import platform
 import re
+import shlex
 import socket
 from datetime import datetime
 from pathlib import Path
@@ -45,6 +47,19 @@ SUSPICIOUS_CMD_PATTERNS = [
 ]
 
 SUSPICIOUS_PORTS = {4444, 1337, 5555, 6666, 8081, 8443, 9001, 31337}
+SCRIPT_EXTENSIONS = {
+    ".bat", ".cmd", ".hta", ".js", ".jse", ".mjs", ".cjs",
+    ".php", ".ps1", ".py", ".rb", ".sh", ".ts", ".vbs", ".vbe",
+}
+SCRIPT_LANGUAGES = {
+    ".bat": "Batch", ".cmd": "Batch", ".hta": "HTML Application",
+    ".js": "JavaScript", ".jse": "JScript", ".mjs": "JavaScript",
+    ".cjs": "JavaScript", ".php": "PHP", ".ps1": "PowerShell",
+    ".py": "Python", ".rb": "Ruby", ".sh": "Shell",
+    ".ts": "TypeScript", ".vbs": "VBScript", ".vbe": "VBScript",
+}
+MAX_CODE_PREVIEW_BYTES = 12_000
+MAX_SCRIPT_FILES_PER_FINDING = 4
 
 
 def _file_sha256(path: str) -> str:
@@ -58,6 +73,122 @@ def _file_sha256(path: str) -> str:
         return sha.hexdigest()
     except Exception:
         return ""
+
+
+def _command_parts(cmdline: str) -> List[str]:
+    if not cmdline:
+        return []
+    try:
+        return shlex.split(cmdline, posix=False)
+    except ValueError:
+        return cmdline.split()
+
+
+def _script_path_from_arg(argument: str) -> Optional[Path]:
+    value = str(argument or "").strip().strip('"\'')
+    if not value or value.lower().startswith(("http://", "https://")):
+        return None
+    if value.startswith("-") and "=" in value:
+        value = value.split("=", 1)[1].strip().strip('"\'')
+    candidate = Path(os.path.expandvars(os.path.expanduser(value)))
+    if candidate.suffix.lower() not in SCRIPT_EXTENSIONS:
+        return None
+    try:
+        return candidate.resolve() if candidate.is_file() else None
+    except OSError:
+        return None
+
+
+def _read_script_evidence(path: Path) -> Dict[str, Any]:
+    evidence: Dict[str, Any] = {
+        "type": "script_file",
+        "path": str(path),
+        "language": SCRIPT_LANGUAGES.get(path.suffix.lower(), "Script"),
+        "size_bytes": 0,
+        "sha256": _file_sha256(str(path)),
+        "content": "",
+        "content_truncated": False,
+    }
+    try:
+        evidence["size_bytes"] = path.stat().st_size
+        with path.open("rb") as handle:
+            raw = handle.read(MAX_CODE_PREVIEW_BYTES + 1)
+        if b"\x00" in raw:
+            evidence["read_error"] = "File appears binary; text preview omitted"
+            return evidence
+        evidence["content_truncated"] = len(raw) > MAX_CODE_PREVIEW_BYTES
+        evidence["content"] = raw[:MAX_CODE_PREVIEW_BYTES].decode("utf-8", errors="replace")
+    except (OSError, PermissionError) as exc:
+        evidence["read_error"] = str(exc)
+    return evidence
+
+
+def _inline_code_evidence(process_name: str, parts: List[str]) -> List[Dict[str, Any]]:
+    name = Path(process_name or "").name.lower()
+    lowered = [str(part).lower() for part in parts]
+    option_names: set[str] = set()
+    language = ""
+    evidence_type = "inline_code"
+
+    if name.startswith(("python", "pythonw")):
+        option_names = {"-c"}
+        language = "Python"
+    elif name in {"node", "node.exe", "bun", "bun.exe"}:
+        option_names = {"-e", "--eval", "-p", "--print"}
+        language = "JavaScript"
+    elif name in {"powershell", "powershell.exe", "pwsh", "pwsh.exe"}:
+        option_names = {"-c", "-command", "-encodedcommand", "-enc"}
+        language = "PowerShell"
+    elif name in {"cmd", "cmd.exe"}:
+        option_names = {"/c", "/k"}
+        language = "Windows command shell"
+        evidence_type = "shell_command"
+
+    for index, option in enumerate(lowered[:-1]):
+        if option not in option_names:
+            continue
+        content = " ".join(str(part) for part in parts[index + 1:])
+        decoded = False
+        if language == "PowerShell" and option in {"-encodedcommand", "-enc"}:
+            try:
+                raw = base64.b64decode(str(parts[index + 1]), validate=True)
+                content = raw.decode("utf-16-le")
+                decoded = True
+            except (ValueError, UnicodeDecodeError):
+                pass
+        truncated = len(content.encode("utf-8", errors="replace")) > MAX_CODE_PREVIEW_BYTES
+        return [{
+            "type": evidence_type,
+            "language": language,
+            "source": option,
+            "decoded": decoded,
+            "content": content[:MAX_CODE_PREVIEW_BYTES],
+            "content_truncated": truncated,
+        }]
+    return []
+
+
+def _collect_code_evidence(process_name: str, exe: str, cmdline_parts: List[str]) -> List[Dict[str, Any]]:
+    evidence = _inline_code_evidence(process_name or exe, cmdline_parts)
+    seen_paths = set()
+    for argument in [exe, *cmdline_parts]:
+        script_path = _script_path_from_arg(argument)
+        if not script_path:
+            continue
+        normalized = os.path.normcase(str(script_path))
+        if normalized in seen_paths:
+            continue
+        seen_paths.add(normalized)
+        evidence.append(_read_script_evidence(script_path))
+        if len(seen_paths) >= MAX_SCRIPT_FILES_PER_FINDING:
+            break
+    return evidence
+
+
+def _code_evidence_note(evidence: List[Dict[str, Any]]) -> str:
+    if evidence:
+        return "Captured from the process command line and readable referenced scripts; content was not executed by HADES."
+    return "No readable script or inline code was exposed. Compiled executable source cannot be recovered from process metadata."
 
 
 def _severity_from_score(score: int) -> str:
@@ -153,7 +284,8 @@ def _scan_processes(
 
         name = (info.get("name") or "").lower()
         exe = info.get("exe") or ""
-        cmdline = " ".join(info.get("cmdline") or [])
+        cmdline_parts = [str(part) for part in (info.get("cmdline") or [])]
+        cmdline = " ".join(cmdline_parts)
         score = 0
         reasons: List[str] = []
 
@@ -185,6 +317,7 @@ def _scan_processes(
         if score <= 0:
             continue
 
+        code_evidence = _collect_code_evidence(name, exe, cmdline_parts)
         findings.append({
             "source": "ofsp_process_scan",
             "pid": int(info.get("pid") or 0),
@@ -197,6 +330,8 @@ def _scan_processes(
             "reasons": reasons,
             "network": connections,
             "sha256": _file_sha256(exe) if (include_hashes and exe) else "",
+            "code_evidence": code_evidence,
+            "code_evidence_note": _code_evidence_note(code_evidence),
         })
 
     findings.sort(key=lambda item: (-int(item.get("score", 0)), item.get("process", "")))
@@ -240,18 +375,24 @@ def run_machine_scan(
                 progress_callback=_heur_progress,
             )
             for item in endpoint_heuristics.get("findings", []):
+                process_name = item.get("name", "unknown")
+                exe = item.get("exe") or ""
+                cmdline = item.get("cmdline") or ""
+                code_evidence = _collect_code_evidence(process_name, exe, _command_parts(cmdline))
                 findings.append({
                     "source": "endpoint_heuristics",
                     "pid": item.get("pid", 0),
-                    "process": item.get("name", "unknown"),
-                    "exe": item.get("exe") or "",
-                    "cmdline": item.get("cmdline") or "",
+                    "process": process_name,
+                    "exe": exe,
+                    "cmdline": cmdline,
                     "username": item.get("username") or "",
                     "score": int(item.get("score", 0)),
                     "severity": item.get("severity", "LOW"),
                     "reasons": item.get("reasons", []),
                     "network": item.get("network", []),
-                    "sha256": _file_sha256(item.get("exe") or "") if (include_hashes and item.get("exe")) else "",
+                    "sha256": _file_sha256(exe) if (include_hashes and exe) else "",
+                    "code_evidence": code_evidence,
+                    "code_evidence_note": _code_evidence_note(code_evidence),
                 })
         except Exception:
             endpoint_heuristics = {"error": "endpoint heuristics unavailable"}
@@ -272,18 +413,24 @@ def run_machine_scan(
                 reasons.append("Startup registry entry launches script/command interpreter")
 
             if score > 0:
+                process_name = item.get("name", "startup_item")
+                exe = item.get("path", "")
+                cmdline = item.get("value", "")
+                code_evidence = _collect_code_evidence(process_name, exe, _command_parts(cmdline))
                 findings.append({
                     "source": "ofsp_startup_scan",
                     "pid": 0,
-                    "process": item.get("name", "startup_item"),
-                    "exe": item.get("path", ""),
-                    "cmdline": item.get("value", ""),
+                    "process": process_name,
+                    "exe": exe,
+                    "cmdline": cmdline,
                     "username": "",
                     "score": score,
                     "severity": _severity_from_score(score),
                     "reasons": reasons,
                     "network": [],
-                    "sha256": _file_sha256(item.get("path", "")) if item.get("type") == "startup_file" else "",
+                    "sha256": _file_sha256(exe) if item.get("type") == "startup_file" else "",
+                    "code_evidence": code_evidence,
+                    "code_evidence_note": _code_evidence_note(code_evidence),
                 })
     progress(90)
 
@@ -317,6 +464,7 @@ def run_machine_scan(
             },
             "startup_items_scanned": len(startup_items),
             "processes_seen": len(list(psutil.process_iter(attrs=[]))),
+            "findings_with_code_evidence": sum(1 for item in findings if item.get("code_evidence")),
         },
         "endpoint_heuristics": endpoint_heuristics,
         "findings": findings,

@@ -185,9 +185,8 @@ except ImportError:
 # PHASE 1 INTEGRATION - Critical Systems
 try:
     from modules.obsidian_core_integration import get_obsidian_core
-    from modules.ethical_control_integration import get_ethical_control
     from modules.malware_engine_integration import get_malware_engine
-    from phase1_gui_tabs import ObsidianCoreTab, EthicalControlTab, MalwareEngineTab
+    from phase1_gui_tabs import ObsidianCoreTab, MalwareEngineTab
     HAS_PHASE1_INTEGRATION = True
 except ImportError as e:
     logging.getLogger("HadesAI").warning(f"Phase 1 Integration failed: {str(e)}")
@@ -2581,20 +2580,58 @@ class ChatProcessor:
     def __init__(self, kb: KnowledgeBase):
         self.kb = kb
         self.context = {}
-        
-    def process(self, message: str) -> Dict[str, Any]:
+
+    @staticmethod
+    def _looks_like_code(message: str) -> bool:
+        """Return True for pasted source so code tokens cannot trigger commands."""
+        code_markers = (
+            "function(", "function ", "=>", "var ", "let ", "const ",
+            "class ", "def ", "import ", "#include", "<?php", "</",
+            "try{", "try {", "catch(", "catch (",
+        )
+        marker_count = sum(marker in message for marker in code_markers)
+        punctuation_count = sum(message.count(char) for char in "{};()")
+        has_source_shape = "\n" in message or len(message) >= 300
+        return has_source_shape and (marker_count >= 2 or (marker_count >= 1 and punctuation_count >= 8))
+
+    @classmethod
+    def match_command(cls, message: str) -> Optional[str]:
+        """Match an intentional chat command without interpreting pasted code."""
         message_lower = message.lower().strip()
-        
-        self.kb.store_chat('user', message)
-        
-        # Check for exact/longer matches first (more specific commands)
+        if cls._looks_like_code(message):
+            return None
+
+        exact_commands = {
+            'help': {'help', 'commands', 'what can you do', '?'},
+            'status': {'status', 'stats', 'statistics', 'show stats'},
+            'show_exploits': {'show exploits', 'show learned exploits', 'list exploits', 'learned exploits', 'view exploits'},
+            'show_findings': {'show findings', 'show threats', 'list findings', 'threat findings', 'view findings'},
+            'greeting': {'hello', 'hi', 'hey', 'how are you', 'whats up', "what's up"},
+        }
+        for command, triggers in exact_commands.items():
+            if message_lower in triggers:
+                return command
+        if re.fullmatch(
+            r"(?:hey|hi|hello)(?:\s+hades)?(?:[,\s]+(?:how are you|whats up|what's up))?[.!?]*",
+            message_lower,
+        ):
+            return 'greeting'
+
         matched_cmd = None
         matched_len = 0
-        for cmd, triggers in self.COMMANDS.items():
+        for cmd, triggers in cls.COMMANDS.items():
+            if cmd in exact_commands:
+                continue
             for trigger in triggers:
                 if trigger in message_lower and len(trigger) > matched_len:
                     matched_cmd = cmd
                     matched_len = len(trigger)
+        return matched_cmd
+
+    def process(self, message: str) -> Dict[str, Any]:
+        self.kb.store_chat('user', message)
+
+        matched_cmd = self.match_command(message)
         
         if matched_cmd:
             return self._handle_command(matched_cmd, message)
@@ -3393,15 +3430,26 @@ class HadesAI:
                 cmdline = str(item.get('cmdline', ''))
                 reasons = item.get('reasons', []) or []
                 sha256 = str(item.get('sha256', ''))
+                code_evidence = item.get('code_evidence', []) or []
+                evidence_content = next(
+                    (str(entry.get('content', '')) for entry in code_evidence if entry.get('content')),
+                    '',
+                )
+                evidence_paths = [
+                    str(entry.get('path')) for entry in code_evidence if entry.get('path')
+                ]
 
                 finding = ThreatFinding(
                     path=exe or f"Process:{process_name}",
                     threat_type=f"machine_scan:{source}",
                     pattern=f"process={process_name} pid={pid} score={score}",
                     severity=severity,
-                    code_snippet=(cmdline or process_name)[:1000],
+                    code_snippet=(evidence_content or cmdline or process_name)[:1000],
                     browser='Machine Scanner',
-                    context=f"reasons={'; '.join(str(r) for r in reasons[:6])} sha256={sha256}",
+                    context=(
+                        f"reasons={'; '.join(str(r) for r in reasons[:6])} sha256={sha256} "
+                        f"code_paths={'; '.join(evidence_paths[:4])}"
+                    ),
                 )
                 self.kb.store_threat_finding(finding)
                 stored_findings += 1
@@ -5085,13 +5133,6 @@ class HadesGUI(QMainWindow):
                 logger.warning(f"ObsidianCore tab failed: {str(e)}")
             
             try:
-                self.ethical_tab = EthicalControlTab()
-                self.tabs.addTab(self.ethical_tab, "🔒 Ethical Control")
-                logger.info("✓ EthicalControl tab added")
-            except Exception as e:
-                logger.warning(f"EthicalControl tab failed: {str(e)}")
-            
-            try:
                 self.malware_tab = MalwareEngineTab()
                 self.tabs.addTab(self.malware_tab, "🔄 Payload Mutation")
                 logger.info("✓ MalwareEngine tab added")
@@ -6640,8 +6681,8 @@ please consider supporting its development.</p>
         layout.addWidget(self.machine_scan_summary)
 
         self.machine_scan_table = QTableWidget()
-        self.machine_scan_table.setColumnCount(5)
-        self.machine_scan_table.setHorizontalHeaderLabels(["Severity", "Source", "Process", "PID", "Score"])
+        self.machine_scan_table.setColumnCount(6)
+        self.machine_scan_table.setHorizontalHeaderLabels(["Severity", "Source", "Process", "PID", "Score", "Code Evidence"])
         self.machine_scan_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.machine_scan_table.itemSelectionChanged.connect(self._show_machine_scan_selected)
         layout.addWidget(self.machine_scan_table)
@@ -6719,7 +6760,8 @@ please consider supporting its development.</p>
             f"Findings: {summary.get('total_findings', 0)} | "
             f"High: {summary.get('high', 0)} | "
             f"Medium: {summary.get('medium', 0)} | "
-            f"Low: {summary.get('low', 0)}"
+            f"Low: {summary.get('low', 0)} | "
+            f"Code evidence: {summary.get('findings_with_code_evidence', 0)}"
         )
 
         self.machine_scan_status.setText("✅ Machine scan complete")
@@ -6732,12 +6774,15 @@ please consider supporting its development.</p>
             process_name = str(item.get('process', 'unknown'))
             pid = str(item.get('pid', 0))
             score = str(item.get('score', 0))
+            evidence_count = len(item.get('code_evidence', []) or [])
+            evidence_label = f"{evidence_count} source(s)" if evidence_count else "Not exposed"
 
             self.machine_scan_table.setItem(i, 0, QTableWidgetItem(severity))
             self.machine_scan_table.setItem(i, 1, QTableWidgetItem(source))
             self.machine_scan_table.setItem(i, 2, QTableWidgetItem(process_name))
             self.machine_scan_table.setItem(i, 3, QTableWidgetItem(pid))
             self.machine_scan_table.setItem(i, 4, QTableWidgetItem(score))
+            self.machine_scan_table.setItem(i, 5, QTableWidgetItem(evidence_label))
 
         self.machine_scan_raw.setPlainText(json.dumps(result, indent=2)[:12000])
         self.machine_scan_detail.setPlainText("Select a finding to inspect details.")
@@ -6762,12 +6807,14 @@ please consider supporting its development.</p>
         item = self.machine_scan_findings[row]
         reasons = item.get('reasons', []) or []
         network = item.get('network', []) or []
+        code_evidence = item.get('code_evidence', []) or []
         detail = [
             f"Source: {item.get('source', 'unknown')}",
             f"Severity: {item.get('severity', 'LOW')}",
             f"Score: {item.get('score', 0)}",
             f"Process: {item.get('process', 'unknown')} (PID {item.get('pid', 0)})",
             f"Executable: {item.get('exe', '')}",
+            f"Command line: {item.get('cmdline', '')}",
             f"User: {item.get('username', '')}",
             f"SHA256: {item.get('sha256', '')}",
             "",
@@ -6781,6 +6828,25 @@ please consider supporting its development.</p>
             detail.append("Network:")
             for conn in network[:12]:
                 detail.append(f"- {conn.get('status', '')} {conn.get('local', '')} -> {conn.get('remote', '')}")
+
+        detail.extend(["", "Code evidence:", item.get('code_evidence_note', 'No code evidence metadata available.')])
+        for index, evidence in enumerate(code_evidence, start=1):
+            detail.extend([
+                "",
+                f"--- Evidence {index}: {evidence.get('type', 'unknown')} ---",
+                f"Language: {evidence.get('language', 'unknown')}",
+            ])
+            if evidence.get('path'):
+                detail.append(f"Path: {evidence.get('path')}")
+                detail.append(f"Size: {evidence.get('size_bytes', 0)} bytes")
+                detail.append(f"SHA256: {evidence.get('sha256', '')}")
+            elif evidence.get('source'):
+                detail.append(f"Source option: {evidence.get('source')}")
+            if evidence.get('read_error'):
+                detail.append(f"Preview unavailable: {evidence.get('read_error')}")
+            if evidence.get('content'):
+                truncation = " (preview truncated)" if evidence.get('content_truncated') else ""
+                detail.extend([f"Content{truncation}:", str(evidence.get('content'))])
 
         self.machine_scan_detail.setPlainText("\n".join(detail))
     def _on_connection_detected(self, conn: dict):
@@ -9371,12 +9437,7 @@ IMPORTANT: Return ONLY the complete fixed code. No explanations, no markdown, ju
 
             # If this looks like a general conversation and no action is requested,
             # use selected LLM provider for richer chat responses.
-            message_lower = user_input.lower().strip()
-            is_explicit_command = any(
-                trigger in message_lower
-                for triggers in ChatProcessor.COMMANDS.values()
-                for trigger in triggers
-            )
+            is_explicit_command = ChatProcessor.match_command(user_input) is not None
 
             if isinstance(chat_result, dict) and not chat_result.get('action') and not is_explicit_command:
                 selected_provider = self.llm_provider_combo.currentText().strip() if hasattr(self, 'llm_provider_combo') else None

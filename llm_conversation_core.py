@@ -417,8 +417,182 @@ class FallbackProvider(LLMProviderBase):
             "how are you": "I'm functioning optimally. Ready to assist with your queries.",
         }
     
+    @staticmethod
+    def _looks_like_code(text: str) -> bool:
+        markers = (
+            "function(", "function ", "=>", "var ", "let ", "const ",
+            "class ", "def ", "import ", "#include", "<?php", "</",
+            "try{", "try {", "catch(", "catch (",
+        )
+        marker_count = sum(marker in text for marker in markers)
+        punctuation_count = sum(text.count(char) for char in "{};()")
+        has_source_shape = "\n" in text or len(text) >= 300
+        return has_source_shape and (marker_count >= 2 or (marker_count >= 1 and punctuation_count >= 8))
+
+    @classmethod
+    def _recent_code(cls, messages: List[Dict[str, Any]]) -> Optional[str]:
+        for message in reversed(messages[:-1]):
+            content = message.get("content", "")
+            if message.get("role") == "user" and cls._looks_like_code(content):
+                return content
+        return None
+
+    @staticmethod
+    def _high_risk_code_markers(code: str) -> List[str]:
+        code_lower = code.lower()
+        markers = {
+            "shellcode": "embedded shellcode",
+            "arb_write": "arbitrary memory write primitive",
+            "rwx_page": "RWX memory execution",
+            "writeprocessmemory": "cross-process memory write",
+            "virtualallocex": "remote executable-memory allocation",
+            "setthreadcontext": "thread-context redirection",
+            "resumethread": "suspended-process execution",
+            "create_suspended": "suspended process creation",
+        }
+        return [description for marker, description in markers.items() if marker in code_lower]
+
+    @classmethod
+    def _respond_to_code_request(cls, request: str, code: str) -> str:
+        request_lower = request.lower()
+        transform_requested = any(
+            phrase in request_lower
+            for phrase in (
+                "combine", "convert", "port", "rewrite", "make this work",
+                "make it work", "working python", "working script",
+            )
+        )
+        risk_markers = cls._high_risk_code_markers(code)
+        if transform_requested and len(risk_markers) >= 2:
+            return """I can't combine or port this into an operational payload loader. The supplied material chains JavaScript-engine memory corruption and shellcode execution with Windows process injection (`VirtualAllocEx`, `WriteProcessMemory`, `SetThreadContext`, and `ResumeThread`).
+
+I can still help concretely. This safe Python triage tool analyzes the supplied source without executing it. Save the mixed source as `sample.txt`, save this as `analyze_sample.py`, then run `python analyze_sample.py sample.txt`:
+
+```python
+import hashlib
+import json
+import re
+import struct
+import sys
+from pathlib import Path
+
+INDICATORS = [
+    "shellcode", "arb_read", "arb_write", "rwx_page",
+    "VirtualAllocEx", "WriteProcessMemory", "SetThreadContext",
+    "ResumeThread", "CREATE_SUSPENDED", "PAGE_EXECUTE_READWRITE",
+]
+
+
+def extract_array(source: str, name: str) -> list[int]:
+    pattern = rf"(?s)\\b{re.escape(name)}\\s*=\\s*(?:new\\s+Uint8Array\\s*\\()?\\[([^]]*)\\]"
+    match = re.search(pattern, source)
+    if not match:
+        return []
+    return [int(value) for value in re.findall(r"\\b\\d+\\b", match.group(1))]
+
+
+def digest_values(values: list[int], width: int) -> str:
+    if not values:
+        return ""
+    if width == 1:
+        data = bytes(value & 0xFF for value in values)
+    else:
+        data = b"".join(struct.pack("<I", value & 0xFFFFFFFF) for value in values)
+    return hashlib.sha256(data).hexdigest()
+
+
+def main(path: str) -> None:
+    source = Path(path).read_text(encoding="utf-8", errors="replace")
+    shellcode = extract_array(source, "shellcode")
+    wasm = extract_array(source, "wasm_code")
+    report = {
+        "file": str(Path(path).resolve()),
+        "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+        "indicators": {
+            indicator: len(re.findall(re.escape(indicator), source, re.IGNORECASE))
+            for indicator in INDICATORS
+            if re.search(re.escape(indicator), source, re.IGNORECASE)
+        },
+        "shellcode": {
+            "uint32_count": len(shellcode),
+            "byte_length": len(shellcode) * 4,
+            "sha256_little_endian": digest_values(shellcode, 4),
+        },
+        "webassembly": {
+            "byte_count": len(wasm),
+            "valid_magic": wasm[:4] == [0, 97, 115, 109],
+            "sha256": digest_values(wasm, 1),
+        },
+    }
+    print(json.dumps(report, indent=2))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        raise SystemExit("Usage: python analyze_sample.py <source-file>")
+    main(sys.argv[1])
+```
+
+This gives you reproducible evidence and IOCs without invoking WebAssembly, allocating executable memory, downloading a payload, or touching another process."""
+        return cls._analyze_code(code)
+
+    @staticmethod
+    def _analyze_code(code: str) -> str:
+        code_lower = code.lower()
+        is_javascript = any(marker in code for marker in ("function(", "function ", "var ", "const ", "=>"))
+
+        if is_javascript and "___jsl" in code and "apis.google.com" in code:
+            return (
+                "This is minified/generated JavaScript from Google's API loader and telemetry runtime, "
+                "not application source written for readability.\n\n"
+                "**What it does:**\n"
+                "- Initializes the global `gapi` loader and builds validated `apis.google.com` module URLs.\n"
+                "- Injects scripts with nonce and Trusted Types support.\n"
+                "- Includes 64-bit integer/protobuf serialization helpers.\n"
+                "- Reads Google authentication cookies and creates SAPISID/APISID request hashes.\n"
+                "- Batches compressed telemetry and sends it to `play.google.com/log` using beacon, fetch, images, or XHR.\n"
+                "- Contains retry, timeout, browser capability, and user-agent metadata handling.\n\n"
+                "Nothing in the excerpt alone demonstrates an exploit; it resembles a legitimate Google bundle. "
+                "Because it handles auth-derived hashes and dynamically loads scripts, only run the complete script "
+                "when it came from a trusted Google page."
+            )
+
+        language = "JavaScript" if is_javascript else "source code"
+        traits = []
+        if code.count("\n") > 80 or (len(code) > 2000 and len(code.split()) < len(code) / 8):
+            traits.append("appears minified or generated")
+        if any(token in code_lower for token in ("fetch(", "xmlhttprequest", "requests.", "http://", "https://")):
+            traits.append("performs network operations")
+        if any(token in code_lower for token in ("cookie", "authorization", "api_key", "token")):
+            traits.append("handles authentication or session-related data")
+        if any(token in code_lower for token in ("eval(", "exec(", "document.write(")):
+            traits.append("contains dynamic code or document execution that deserves source verification")
+
+        summary = "; ".join(traits) if traits else "contains no immediately identifiable high-risk behavior from a structural scan"
+        return (
+            f"This looks like {language}. It {summary}. "
+            "For a precise function-by-function explanation, provide the unminified source or the section you want traced."
+        )
+
     def generate(self, prompt: str, **kwargs) -> str:
         prompt_lower = prompt.lower()
+        messages = kwargs.get("messages") or []
+
+        if self._looks_like_code(prompt):
+            return self._respond_to_code_request(prompt, prompt)
+
+        refers_to_code = "code" in prompt_lower and any(
+            phrase in prompt_lower
+            for phrase in ("just sent", "sent you", "above", "previous", "tell me about", "explain", "analyze")
+        )
+        transforms_recent_code = any(
+            phrase in prompt_lower
+            for phrase in ("combine", "convert", "port", "rewrite", "make it work", "working script")
+        )
+        if refers_to_code or transforms_recent_code:
+            recent_code = self._recent_code(messages)
+            if recent_code:
+                return self._respond_to_code_request(prompt, recent_code)
         
         for key, value in self.responses.items():
             if key in prompt_lower:
