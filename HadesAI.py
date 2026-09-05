@@ -17,7 +17,7 @@ import numpy as np
 from datetime import datetime, timezone
 from collections import defaultdict, Counter
 from typing import Dict, List, Any, Optional, Tuple, Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import re
 import threading
@@ -79,6 +79,32 @@ try:
 except ImportError:
     CognitiveLayer = None
     HAS_COGNITIVE_MEMORY = False
+
+# Narrative Decision Weave
+try:
+    from modules.narrative_decision_weave import (
+        Action as NarrativeAction, NarrativeDecisionWeave, WorldState,
+    )
+    HAS_NARRATIVE_WEAVE = True
+except ImportError:
+    NarrativeAction = None
+    NarrativeDecisionWeave = None
+    WorldState = None
+    HAS_NARRATIVE_WEAVE = False
+
+# Bible narrative dataset for NDW
+try:
+    from modules.bible_ndw_choices import (
+        BIBLE_DECISIONS, export_json as export_bible_ndw_json,
+        load_into_ndw as load_bible_into_ndw, search as search_bible_ndw,
+    )
+    HAS_BIBLE_NDW_DATASET = True
+except ImportError:
+    BIBLE_DECISIONS = []
+    export_bible_ndw_json = None
+    load_bible_into_ndw = None
+    search_bible_ndw = None
+    HAS_BIBLE_NDW_DATASET = False
 
 # Autonomous Defense Module
 try:
@@ -3260,6 +3286,27 @@ class HadesAI:
         else:
             self.cognitive = None
             logger.warning("Cognitive memory system not available")
+
+        # Initialize advisory narrative decision memory. This does not execute actions.
+        self.narrative_weave = None
+        if HAS_NARRATIVE_WEAVE:
+            try:
+                default_ndw_path = str(Path(knowledge_path).with_name("ndw_memory.json"))
+                ndw_path = os.getenv("HADES_NDW_MEMORY_PATH", default_ndw_path)
+                self.narrative_weave = NarrativeDecisionWeave(ndw_path)
+                if HAS_BIBLE_NDW_DATASET and load_bible_into_ndw:
+                    bible_load = load_bible_into_ndw(self.narrative_weave)
+                    logger.info(
+                        "Bible NDW dataset ready: loaded=%s skipped=%s total=%s",
+                        bible_load['loaded'], bible_load['skipped'], bible_load['total'],
+                    )
+                logger.info(
+                    "Narrative Decision Weave initialized: patterns=%s episodes=%s",
+                    len(self.narrative_weave.patterns),
+                    len(self.narrative_weave.episodes),
+                )
+            except Exception as exc:
+                logger.warning("Narrative Decision Weave initialization failed: %s", exc)
         
         # Learn from local amp thread exports at startup when available.
         try:
@@ -3328,7 +3375,97 @@ class HadesAI:
         }
         if self.cognitive:
             stats['cognitive_memories'] = self.cognitive.get_memory_stats()
+        stats['narrative_decision_weave'] = {
+            'available': self.narrative_weave is not None,
+            'patterns': len(self.narrative_weave.patterns) if self.narrative_weave else 0,
+            'episodes': len(self.narrative_weave.episodes) if self.narrative_weave else 0,
+        }
         return stats
+
+    def ingest_narrative_choice(
+        self, source_label: str, passage: str, choice_a: str, choice_b: str,
+        consequence_a: str, consequence_b: str,
+        concepts: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Store an inspectable narrative choice pattern for later analogy."""
+        if not getattr(self, 'narrative_weave', None):
+            return {'error': 'Narrative Decision Weave is not available'}
+        pattern = self.narrative_weave.ingest_choice_passage(
+            source_label, passage, choice_a, choice_b,
+            consequence_a, consequence_b, concepts,
+        )
+        return asdict(pattern)
+
+    def decide_with_narrative(
+        self, description: str, actions: List[Dict[str, Any]],
+        features: Optional[Dict[str, Any]] = None,
+        goals: Optional[List[str]] = None, top_k: int = 3,
+    ) -> Dict[str, Any]:
+        """Rank caller-supplied options using narrative transfer and memory.
+
+        The result is advisory. It intentionally has no execution hook and does
+        not replace authorization, policy, or approval checks in tool paths.
+        """
+        if not getattr(self, 'narrative_weave', None):
+            return {'error': 'Narrative Decision Weave is not available'}
+        state = WorldState(description, features or {}, goals or [])
+        supplied = [NarrativeAction(**action) for action in actions]
+        return self.narrative_weave.decide(state, supplied, top_k)
+
+    def record_narrative_outcome(self, episode_id: str, actual_utility: float) -> Dict[str, Any]:
+        """Attach observed utility to a prior narrative decision episode."""
+        if not getattr(self, 'narrative_weave', None):
+            return {'error': 'Narrative Decision Weave is not available'}
+        self.narrative_weave.record_outcome(episode_id, float(actual_utility))
+        return {'recorded': True, 'episode_id': episode_id}
+
+    def get_narrative_context(
+        self, query: str, top_k: int = 3, char_limit: int = 1600,
+    ) -> str:
+        """Format relevant patterns as advisory context for Hades' LLM path."""
+        if not getattr(self, 'narrative_weave', None) or not self.narrative_weave.patterns:
+            return ''
+        matches = [
+            item for item in self.narrative_weave.retrieve_patterns(WorldState(query), top_k)
+            if item[1] > 0
+        ]
+        if not matches:
+            return ''
+        lines = [
+            'Narrative decision analogies (advisory only; never authorization or execution):'
+        ]
+        for pattern, similarity in matches:
+            actions = '; '.join(action.description for action in pattern.actions)
+            line = f"- {pattern.source_label} ({similarity:.2f}): {pattern.situation} Options: {actions}"
+            if len('\n'.join(lines + [line])) > char_limit:
+                break
+            lines.append(line)
+        return '\n'.join(lines)
+
+    def load_bible_narrative_dataset(self) -> Dict[str, int]:
+        """Idempotently load the bundled 80-record Bible corpus into NDW."""
+        if not getattr(self, 'narrative_weave', None) or not load_bible_into_ndw:
+            return {'total': len(BIBLE_DECISIONS), 'loaded': 0, 'skipped': 0}
+        return load_bible_into_ndw(self.narrative_weave)
+
+    def search_bible_narratives(
+        self, text: str = '', actor: str = '', reference: str = '',
+        classification: str = '', principle: str = '',
+    ) -> List[Dict[str, Any]]:
+        """Search bundled Bible decisions and return JSON-friendly records."""
+        if not search_bible_ndw:
+            return []
+        return [
+            decision.to_dict() for decision in search_bible_ndw(
+                text, actor, reference, classification, principle,
+            )
+        ]
+
+    def export_bible_narrative_dataset(self, path: str = 'bible_ndw_choices.json') -> str:
+        """Export the bundled Bible decision corpus to JSON."""
+        if not export_bible_ndw_json:
+            raise RuntimeError('Bible NDW dataset is not available')
+        return str(export_bible_ndw_json(path))
 
     def get_implementation_catalog(self, refresh: bool = False) -> Dict[str, Any]:
         """Return defensive metadata for the implementation folder (no execution)."""
@@ -4052,6 +4189,7 @@ Current query:
             default_system_prompt = "You are HADES, an expert security and coding assistant."
             base_system_prompt = system_prompt or default_system_prompt
             amp_context = self.get_amp_threads_context(message)
+            narrative_context = self.get_narrative_context(message)
             module_decision = self.analyze_loaded_modules(message)
             module_context = (
                 self.cognitive.format_module_context(module_decision)
@@ -4077,6 +4215,8 @@ Current query:
                     "Use this local context from the amp threads learning folder when relevant:\n"
                     f"{amp_context}"
                 )
+            if narrative_context:
+                contextual_sections.append(narrative_context)
             if memory_context:
                 contextual_sections.append(
                     "Use this short-term vs long-term memory analysis to construct a responsive, detailed reply:\n"
