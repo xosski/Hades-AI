@@ -92,6 +92,35 @@ except ImportError:
     WorldState = None
     HAS_NARRATIVE_WEAVE = False
 
+# NDW post-decision outcome reasoning
+try:
+    from modules.ndw_outcome_reasoner import (
+        ExpectedOutcome, NDWOutcomeReasoner, ObservedOutcome,
+    )
+    HAS_NDW_OUTCOME_REASONER = True
+except ImportError:
+    ExpectedOutcome = None
+    NDWOutcomeReasoner = None
+    ObservedOutcome = None
+    HAS_NDW_OUTCOME_REASONER = False
+
+# MIRROR metacognitive review for NDW
+try:
+    from modules.mirror import MIRROR
+    HAS_MIRROR = True
+except ImportError:
+    MIRROR = None
+    HAS_MIRROR = False
+
+# SOCRATES cross-agent reasoning transfer for NDW
+try:
+    from modules.socrates import CriticAlternative, SOCRATES
+    HAS_SOCRATES = True
+except ImportError:
+    CriticAlternative = None
+    SOCRATES = None
+    HAS_SOCRATES = False
+
 # Bible narrative dataset for NDW
 try:
     from modules.bible_ndw_choices import (
@@ -3289,11 +3318,43 @@ class HadesAI:
 
         # Initialize advisory narrative decision memory. This does not execute actions.
         self.narrative_weave = None
+        self.narrative_outcome_reasoner = None
+        self.mirror = None
+        self.socrates = None
         if HAS_NARRATIVE_WEAVE:
             try:
-                default_ndw_path = str(Path(knowledge_path).with_name("ndw_memory.json"))
+                knowledge_dir = Path(knowledge_path).parent
+                default_ndw_path = str(knowledge_dir / "ndw_memory.json")
                 ndw_path = os.getenv("HADES_NDW_MEMORY_PATH", default_ndw_path)
                 self.narrative_weave = NarrativeDecisionWeave(ndw_path)
+                if HAS_NDW_OUTCOME_REASONER:
+                    history_path = os.getenv(
+                        "HADES_NDW_OUTCOME_HISTORY_PATH",
+                        str(knowledge_dir / "ndw_outcome_history.json"),
+                    )
+                    operators_path = os.getenv(
+                        "HADES_NDW_OPERATORS_PATH",
+                        str(knowledge_dir / "ndw_learned_operators.json"),
+                    )
+                    self.narrative_outcome_reasoner = NDWOutcomeReasoner(
+                        history_path, operators_path,
+                    )
+                if HAS_MIRROR:
+                    self.mirror = MIRROR(
+                        os.getenv("HADES_MIRROR_INTROSPECTION_PATH", str(knowledge_dir / "mirror_introspection.json")),
+                        os.getenv("HADES_MIRROR_REGRET_PATH", str(knowledge_dir / "mirror_regret.json")),
+                        os.getenv("HADES_MIRROR_WEIGHTS_PATH", str(knowledge_dir / "mirror_reasoning_weights.json")),
+                        os.getenv("HADES_MIRROR_RULES_PATH", str(knowledge_dir / "mirror_learned_rules.json")),
+                    )
+                    self.mirror.sync_weights_to_ndw(self.narrative_weave)
+                if HAS_SOCRATES:
+                    self.socrates = SOCRATES(
+                        critic_name=os.getenv("HADES_SOCRATES_CRITIC", "Hades-Critic"),
+                        learner_name=os.getenv("HADES_SOCRATES_LEARNER", "Hades-NDW"),
+                        critique_path=os.getenv("HADES_SOCRATES_CRITIQUE_PATH", str(knowledge_dir / "socrates_critiques.json")),
+                        operator_path=os.getenv("HADES_SOCRATES_OPERATOR_PATH", str(knowledge_dir / "socrates_operators.json")),
+                        transfer_path=os.getenv("HADES_SOCRATES_TRANSFER_PATH", str(knowledge_dir / "socrates_transfers.json")),
+                    )
                 if HAS_BIBLE_NDW_DATASET and load_bible_into_ndw:
                     bible_load = load_bible_into_ndw(self.narrative_weave)
                     logger.info(
@@ -3379,6 +3440,18 @@ class HadesAI:
             'available': self.narrative_weave is not None,
             'patterns': len(self.narrative_weave.patterns) if self.narrative_weave else 0,
             'episodes': len(self.narrative_weave.episodes) if self.narrative_weave else 0,
+            'outcome_reasoning': (
+                self.narrative_outcome_reasoner.summarize_learning()
+                if self.narrative_outcome_reasoner else {'episodes': 0}
+            ),
+            'metacognition': (
+                self.mirror.summarize_metacognition()
+                if self.mirror else {'episodes_reviewed': 0}
+            ),
+            'social_learning': (
+                self.socrates.summarize_social_learning()
+                if self.socrates else {'critiques': 0, 'operators': 0}
+            ),
         }
         return stats
 
@@ -3400,6 +3473,12 @@ class HadesAI:
         self, description: str, actions: List[Dict[str, Any]],
         features: Optional[Dict[str, Any]] = None,
         goals: Optional[List[str]] = None, top_k: int = 3,
+        factor_map: Optional[Dict[str, Dict[str, float]]] = None,
+        explicit_assumptions: Optional[List[str]] = None,
+        environment_facts: Optional[Dict[str, Any]] = None,
+        critic_alternatives: Optional[List[Dict[str, Any]]] = None,
+        learner_acceptance_threshold: float = 0.55,
+        socrates_operator_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Rank caller-supplied options using narrative transfer and memory.
 
@@ -3410,14 +3489,158 @@ class HadesAI:
             return {'error': 'Narrative Decision Weave is not available'}
         state = WorldState(description, features or {}, goals or [])
         supplied = [NarrativeAction(**action) for action in actions]
-        return self.narrative_weave.decide(state, supplied, top_k)
+        socrates = getattr(self, 'socrates', None)
+        goal = ' '.join(goals or []) or description
+        if socrates:
+            for operator_id in socrates_operator_ids or []:
+                operator = socrates.find_operator(operator_id)
+                if operator and operator.active and socrates.is_operator_accepted(operator_id):
+                    proposed = supplied[0].description if supplied else description
+                    supplied.extend(
+                        socrates.operator_to_ndw_actions(operator, goal, proposed)
+                    )
+        result = self.narrative_weave.decide(state, supplied, top_k)
+        mirror = getattr(self, 'mirror', None)
+        if mirror:
+            introspection = mirror.introspect_decision(
+                result, state_summary=description, factor_map=factor_map,
+            )
+            result['mirror_introspection'] = asdict(introspection)
+        if socrates:
+            alternatives = (
+                [CriticAlternative(**item) for item in critic_alternatives]
+                if critic_alternatives is not None else None
+            )
+            critique = socrates.critique_decision(
+                result, goal=goal, learner_reasoning=result.get('explanation', ''),
+                explicit_assumptions=explicit_assumptions,
+                environment_facts=environment_facts,
+                critic_alternatives=alternatives,
+            )
+            operator = socrates.create_transferable_operator(critique)
+            transfer = (
+                socrates.transfer_operator(
+                    operator,
+                    learner_acceptance_threshold=float(learner_acceptance_threshold),
+                ) if operator else None
+            )
+            result['socrates_critique'] = asdict(critique)
+            result['socrates_operator'] = asdict(operator) if operator else None
+            result['socrates_transfer'] = asdict(transfer) if transfer else None
+        return result
 
-    def record_narrative_outcome(self, episode_id: str, actual_utility: float) -> Dict[str, Any]:
-        """Attach observed utility to a prior narrative decision episode."""
+    def record_narrative_outcome(
+        self, episode_id: str, actual_utility: float,
+        result_summary: str = '', effects: Optional[Dict[str, float]] = None,
+        circumstances: Optional[Dict[str, Any]] = None,
+        external_events: Optional[List[str]] = None,
+        newly_revealed_information: Optional[List[str]] = None,
+        execution_quality: float = 1.0, notes: str = '',
+        predicted_effects: Optional[Dict[str, float]] = None,
+        assumptions: Optional[List[str]] = None,
+        alternative_outcomes: Optional[Dict[str, float]] = None,
+        alternative_evidence: Optional[Dict[str, List[str]]] = None,
+    ) -> Dict[str, Any]:
+        """Analyze a decision outcome, persist lessons, and feed utility back to NDW."""
         if not getattr(self, 'narrative_weave', None):
             return {'error': 'Narrative Decision Weave is not available'}
-        self.narrative_weave.record_outcome(episode_id, float(actual_utility))
-        return {'recorded': True, 'episode_id': episode_id}
+        reasoner = getattr(self, 'narrative_outcome_reasoner', None)
+        mirror = getattr(self, 'mirror', None)
+
+        episode = next(
+            (item for item in self.narrative_weave.episodes if item.id == episode_id),
+            None,
+        )
+        if episode is None:
+            raise KeyError(f"No memory episode with id {episode_id}")
+        analysis = None
+        if reasoner:
+            pattern_labels = {
+                pattern.id: pattern.source_label for pattern in self.narrative_weave.patterns
+            }
+            expected = ExpectedOutcome(
+                action=episode.selected_action,
+                predicted_utility=float(episode.predicted_utility),
+                predicted_effects=predicted_effects or {},
+                assumptions=assumptions or [],
+                retrieved_patterns=[
+                    pattern_labels[pattern_id]
+                    for pattern_id in episode.retrieved_pattern_ids
+                    if pattern_id in pattern_labels
+                ],
+            )
+            observed = ObservedOutcome(
+                result_summary=result_summary or f"Outcome recorded for {episode.selected_action}",
+                utility=float(actual_utility), effects=effects or {},
+                circumstances=circumstances or {}, external_events=external_events or [],
+                newly_revealed_information=newly_revealed_information or [],
+                execution_quality=float(execution_quality), notes=notes,
+            )
+            analysis = reasoner.analyze(episode_id, expected, observed)
+            reasoner.feed_back_to_ndw(self.narrative_weave, analysis)
+        else:
+            self.narrative_weave.record_outcome(episode_id, float(actual_utility))
+
+        regret = None
+        if mirror:
+            try:
+                regret = mirror.review_outcome(
+                    episode_id, float(actual_utility), analysis,
+                    alternative_outcomes, alternative_evidence,
+                )
+            except KeyError:
+                # Episodes created before MIRROR was enabled have no introspection.
+                regret = None
+            mirror.sync_weights_to_ndw(self.narrative_weave)
+        return {
+            'recorded': True,
+            'episode_id': episode_id,
+            'analysis': asdict(analysis) if analysis else None,
+            'regret_analysis': asdict(regret) if regret else None,
+        }
+
+    def get_narrative_learning_summary(self) -> Dict[str, Any]:
+        """Return aggregate prediction errors, causes, regret, and learned rules."""
+        reasoner = getattr(self, 'narrative_outcome_reasoner', None)
+        mirror = getattr(self, 'mirror', None)
+        summary = reasoner.summarize_learning() if reasoner else {'episodes': 0}
+        summary['metacognition'] = (
+            mirror.summarize_metacognition()
+            if mirror else {'episodes_reviewed': 0}
+        )
+        socrates = getattr(self, 'socrates', None)
+        summary['social_learning'] = (
+            socrates.summarize_social_learning()
+            if socrates else {'critiques': 0, 'operators': 0}
+        )
+        return summary
+
+    def apply_socrates_operator(
+        self, operator_id: str, goal: str, proposed_action: str,
+    ) -> List[str]:
+        """Apply one learned social-reasoning operator as advisory prompts."""
+        socrates = getattr(self, 'socrates', None)
+        if not socrates:
+            return []
+        operator = socrates.find_operator(operator_id)
+        if operator is None:
+            raise KeyError(f"No SOCRATES operator {operator_id}")
+        return socrates.apply_operator(operator, goal, proposed_action)
+
+    def record_socrates_operator_result(
+        self, operator_id: str, improved_outcome: bool,
+        outcome_delta: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Reinforce or weaken a transferred operator after an explicit test."""
+        socrates = getattr(self, 'socrates', None)
+        if not socrates:
+            return {'error': 'SOCRATES is not available'}
+        socrates.record_operator_result(operator_id, improved_outcome, outcome_delta)
+        operator = socrates.find_operator(operator_id)
+        mirror = getattr(self, 'mirror', None)
+        if improved_outcome and mirror:
+            socrates.internalize_operator(operator_id, mirror)
+        return asdict(operator)
 
     def get_narrative_context(
         self, query: str, top_k: int = 3, char_limit: int = 1600,

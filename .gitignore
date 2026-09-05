@@ -17,3 +17,12 @@ security_report_*.html
 security_report_*.json
 security_report_*.md
 *_export_*.json
+ndw_outcome_history.json
+ndw_learned_operators.json
+mirror_introspection.json
+mirror_regret.json
+mirror_reasoning_weights.json
+mirror_learned_rules.json
+socrates_critiques.json
+socrates_operators.json
+socrates_transfers.json
